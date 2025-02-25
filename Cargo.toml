@@ -5,7 +5,7 @@ edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "A web server framework. THIS IS STILL IN DEVELOPMENTAL STAGE" 
 license-file = "LICENSE.txt" 
-repository = https://github.com/Redstone-D/starberry 
+repository = "https://github.com/Redstone-D/starberry" 
 
 [dependencies]
 regex = "1.5.6" 
