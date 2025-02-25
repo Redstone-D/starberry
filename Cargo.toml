@@ -1,0 +1,11 @@
+[package]
+name = "starberry"
+version = "0.1.0"
+edition = "2024"
+authors = ["Redstone <redstone@fds.moe>"] 
+description = "A web server framework. THIS IS STILL IN DEVELOPMENTAL STAGE" 
+license-file = "LICENSE.txt" 
+
+[dependencies]
+regex = "1.5.6" 
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] } 
