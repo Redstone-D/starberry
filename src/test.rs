@@ -8,18 +8,19 @@ use std::time::Duration;
 use std::thread::sleep; 
 
 pub async fn test() {
-    let mut app = App::new(init_urls()); 
+    let mut app = App::new(init_urls().into()); 
     app.set_binding("127.0.0.1:1111"); 
     app.set_mode(RunMode::Development); 
+    app.set_workers(4); 
     let runner = Arc::new(app); 
-    runner.run().await;
+    runner.run().await; 
 }
 
 pub fn init_urls() -> urls::Url {
     urls::Url {
         path: urls::PathPattern::Literal("/".to_string()),
         children: urls::Children::Some(vec![
-            urls::Url {
+            Arc::new(urls::Url {
                 path: urls::PathPattern::Literal("about".to_string()),
                 children: urls::Children::Nil,
                 method: Some(Box::new(|_req| async {
@@ -29,8 +30,8 @@ pub fn init_urls() -> urls::Url {
                         String::from("About Page"),
                     )
                 })),
-            },
-            urls::Url {
+            }),
+            Arc::new(urls::Url {
                 path: urls::PathPattern::Regex("[0-9]+".to_string()),
                 children: urls::Children::Nil,
                 method: Some(Box::new(|_req| async {
@@ -40,8 +41,8 @@ pub fn init_urls() -> urls::Url {
                         String::from("Number page"),
                     )
                 })),
-            },
-            urls::Url {
+            }),
+            Arc::new(urls::Url {
                 path: urls::PathPattern::Any,
                 children: urls::Children::Nil,
                 method: Some(Box::new(|_req| async {
@@ -57,7 +58,7 @@ pub fn init_urls() -> urls::Url {
                         String::from("Async Test Page"),
                     )
                 })),
-            },
+            }),
         ]),
         method: Some(Box::new(|_req| async {
             HttpResponse::new(

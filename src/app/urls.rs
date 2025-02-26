@@ -4,6 +4,7 @@ use super::super::http::http_value::*;
 use std::future::Future;
 use std::pin::Pin;
 use std::slice::Iter; 
+use std::sync::Arc;
 use std::sync::OnceLock;
 use regex::Regex; 
 pub static ROOT_URL: OnceLock<Url> = OnceLock::new();  
@@ -44,7 +45,7 @@ pub enum PathPattern {
 
 pub enum Children {
     Nil,
-    Some(Vec<Url>),
+    Some(Vec<Arc<Url>>),
 } 
 
 impl Url { 
@@ -56,58 +57,55 @@ impl Url {
         return HttpResponse::new(HttpVersion::Http11, StatusCode::NOT_FOUND, String::from("Not Found")); 
     } 
 
-    pub fn walk<'a>(&'a self, mut path: Iter<'a, &str>) -> Pin<Box<dyn Future<Output = Option<&'a Self>> + 'a>> {
-        Box::pin(async move { 
-            let this = match path.next(){ 
-                Some(path) => *path, 
-                None => "", 
-            }; 
-            if this == "" { 
-                return Some(self); 
-            } 
-            if let Children::Some(c) = &self.children {
-                for child in c.iter() { 
-                    // println!("{} {:?}", this, &child.path);
-                    match &child.path { 
-                        PathPattern::Literal(p) => { 
-                            if p == this { 
-                                println!("Running: {} {:?}", this, &child.path); 
-                                if path.len() > 1 { 
-                                    return child.walk(path).await; 
-                                } else { 
-                                    return Some(&child); 
-                                } 
-                            } 
-                        }, 
-                        PathPattern::Regex(p) => { 
-                            let re = Regex::new(p).unwrap(); 
-                            if re.is_match(this) { 
-                                println!("Running: {} {:?}", this, &child.path); 
-                                if path.len() > 1 { 
-                                    return child.walk(path).await; 
-                                } else { 
-                                    return Some(&child); 
-                                } 
-                            } 
-                        }, 
-                        PathPattern::Any => { 
-                            println!("Running: {} {:?}", this, &child.path); 
-                            if path.len() > 1 { 
-                                return child.walk(path).await; 
-                            } else { 
-                                return Some(&child); 
-                            }  
-                        },  
-                        PathPattern::AnyPath => {  
-                            println!("Running: {} {:?}", this, &child.path); 
-                            return Some(&child);  
-                        },  
-                    } 
+    pub fn walk<'a>(self: Arc<Self>, mut path: Iter<'a, &str>) -> Pin<Box<dyn Future<Output = Option<Arc<Self>>> + Send + 'a>> {
+        Box::pin(async move {
+            let this = match path.next() {
+                Some(path) => *path,
+                None => "",
+            };
+
+            if this == "" {
+                return Some(self); // Return `Arc<Self>` directly
+            }
+
+            if let Children::Some(children) = &self.children {
+                for child_url in children.iter() {
+                    let child = Arc::clone(child_url); // Clone `Arc` to make it sendable
+                    match &child.path {
+                        PathPattern::Literal(p) => {
+                            if p == this {
+                                if path.len() > 1 {
+                                    return child.walk(path).await; // Recurse
+                                } else {
+                                    return Some(child); // Return the child directly
+                                }
+                            }
+                        }
+                        PathPattern::Regex(p) => {
+                            let re = Regex::new(&p).unwrap();
+                            if re.is_match(this) {
+                                if path.len() > 1 {
+                                    return child.walk(path).await; // Recurse
+                                } else {
+                                    return Some(child); // Return the child directly
+                                }
+                            }
+                        }
+                        PathPattern::Any => {
+                            if path.len() > 1 {
+                                return child.walk(path).await; // Recurse
+                            } else {
+                                return Some(child); // Return the child directly
+                            }
+                        }
+                        PathPattern::AnyPath => {
+                            return Some(child); // Return the child directly
+                        }
+                    }
                 }
             }
-            None
+            None // No match found
         })
     } 
-
 } 
 
