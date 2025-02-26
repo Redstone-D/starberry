@@ -1,6 +1,6 @@
 [package]
 name = "starberry"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "A web server framework. THIS IS STILL IN DEVELOPMENTAL STAGE" 
@@ -9,4 +9,6 @@ repository = "https://github.com/Redstone-D/starberry"
 
 [dependencies]
 regex = "1.5.6" 
-tokio = { version = "1", features = ["rt-multi-thread", "macros"] } 
+tokio = { version = "1.28", features = ["full"] } 
+tracing = "0.1"
+tracing-subscriber = "0.2" 

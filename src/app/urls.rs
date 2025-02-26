@@ -29,9 +29,17 @@ where
 }
 
 pub struct Url {
-    pub path: String,
+    pub path: PathPattern,
     pub children: Children,
     pub method: Option<Box<dyn AsyncUrlHandler>>, // Now uses our new trait
+}
+
+#[derive(Clone, Debug)]
+pub enum PathPattern {
+    Literal(String),
+    Regex(String), 
+    Any,
+    AnyPath,
 }
 
 pub enum Children {
@@ -59,14 +67,38 @@ impl Url {
             } 
             if let Children::Some(c) = &self.children {
                 for child in c.iter() { 
-                    let re = Regex::new(&child.path).unwrap();
-                    if re.is_match(this) {
-                        if path.len() > 1 {
-                            return child.walk(path).await;
-                        } else { 
-                            return Some(&child);
-                        }
-                    }
+                    println!("{} {:?}", this, &child.path);
+                    match &child.path { 
+                        PathPattern::Literal(p) => { 
+                            if p == this { 
+                                if path.len() > 1 { 
+                                    return child.walk(path).await; 
+                                } else { 
+                                    return Some(&child); 
+                                } 
+                            } 
+                        }, 
+                        PathPattern::Regex(p) => { 
+                            let re = Regex::new(p).unwrap(); 
+                            if re.is_match(this) { 
+                                if path.len() > 1 { 
+                                    return child.walk(path).await; 
+                                } else { 
+                                    return Some(&child); 
+                                } 
+                            } 
+                        }, 
+                        PathPattern::Any => { 
+                            if path.len() > 1 { 
+                                return child.walk(path).await; 
+                            } else { 
+                                return Some(&child); 
+                            }  
+                        },  
+                        PathPattern::AnyPath => {  
+                            return Some(&child);  
+                        },  
+                    } 
                 }
             }
             None
@@ -74,7 +106,4 @@ impl Url {
     } 
 
 } 
-
-
-
 

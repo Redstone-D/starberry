@@ -50,9 +50,9 @@ impl App {
             let rt = Runtime::new().expect("Failed to create Tokio runtime");
             rt.block_on(async {
                 // Parse the HTTP request from the stream.
-                if let Ok(request) = HttpRequest::from_request_stream(&stream) {
+                if let Ok(request) = HttpRequest::from_request_stream(&mut stream).await {
                     // Process the request asynchronously and send the response.
-                    self.request(request).await.send(&mut stream);
+                    self.request(request).await.send(&mut stream).await;
                 }
             });
         });
