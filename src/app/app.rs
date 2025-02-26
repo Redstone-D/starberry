@@ -5,9 +5,7 @@ use super::super::http::http_value::*;
 use super::super::http::request::*;  
 use super::super::http::response::*; 
 use super::urls::*; 
-use std::io::Write; 
 use tokio::runtime::Runtime; 
-use tokio::spawn;
 
 pub struct App {
     pub root_url: Url, 
@@ -28,6 +26,20 @@ pub enum RunMode {
 } 
 
 impl App { 
+    pub fn new(root_url: Url) -> Self { 
+        let listener = TcpListener::bind("127.0.0.1:3333").unwrap(); 
+        let mode = RunMode::Development; 
+        Self { root_url, listener, mode } 
+    } 
+
+    pub fn set_binding(&mut self, binding: &str) { 
+        self.listener = TcpListener::bind(binding).unwrap(); 
+    } 
+
+    pub fn set_mode(&mut self, mode: RunMode) { 
+        self.mode = mode; 
+    } 
+
     pub async fn request(&self, request: HttpRequest) -> HttpResponse { 
         let path = request.path.clone(); 
         let mut path = path.split('/').collect::<Vec<&str>>(); 

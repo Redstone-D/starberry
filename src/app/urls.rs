@@ -67,10 +67,11 @@ impl Url {
             } 
             if let Children::Some(c) = &self.children {
                 for child in c.iter() { 
-                    println!("{} {:?}", this, &child.path);
+                    // println!("{} {:?}", this, &child.path);
                     match &child.path { 
                         PathPattern::Literal(p) => { 
                             if p == this { 
+                                println!("Running: {} {:?}", this, &child.path); 
                                 if path.len() > 1 { 
                                     return child.walk(path).await; 
                                 } else { 
@@ -81,6 +82,7 @@ impl Url {
                         PathPattern::Regex(p) => { 
                             let re = Regex::new(p).unwrap(); 
                             if re.is_match(this) { 
+                                println!("Running: {} {:?}", this, &child.path); 
                                 if path.len() > 1 { 
                                     return child.walk(path).await; 
                                 } else { 
@@ -89,6 +91,7 @@ impl Url {
                             } 
                         }, 
                         PathPattern::Any => { 
+                            println!("Running: {} {:?}", this, &child.path); 
                             if path.len() > 1 { 
                                 return child.walk(path).await; 
                             } else { 
@@ -96,6 +99,7 @@ impl Url {
                             }  
                         },  
                         PathPattern::AnyPath => {  
+                            println!("Running: {} {:?}", this, &child.path); 
                             return Some(&child);  
                         },  
                     } 

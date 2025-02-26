@@ -2,19 +2,17 @@ use starberry::app::app::App;
 use starberry::app::urls;
 use starberry::http::http_value::*;
 use starberry::http::response::*;
-use std::sync::Arc;
-use std::net::TcpListener;
+use std::sync::Arc; 
 use starberry::app::app::RunMode;
 use std::time::Duration; 
 use std::thread::sleep; 
 
 pub async fn test() {
-    let app = Arc::new(App {
-        root_url: init_urls(),
-        listener: TcpListener::bind("127.0.0.1:3003").unwrap(),
-        mode: RunMode::Development,
-    });
-    app.run().await;
+    let mut app = App::new(init_urls()); 
+    app.set_binding("127.0.0.1:1111"); 
+    app.set_mode(RunMode::Development); 
+    let runner = Arc::new(app); 
+    runner.run().await;
 }
 
 pub fn init_urls() -> urls::Url {
@@ -25,8 +23,8 @@ pub fn init_urls() -> urls::Url {
                 path: urls::PathPattern::Literal("about".to_string()),
                 children: urls::Children::Nil,
                 method: Some(Box::new(|_req| async {
-                    HttpResponse::new(
-                        HttpVersion::Http11,
+                    HttpResponse::new( 
+                        HttpVersion::Http11, 
                         StatusCode::OK,
                         String::from("About Page"),
                     )
