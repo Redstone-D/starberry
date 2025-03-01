@@ -54,7 +54,7 @@ impl Url {
         if let Some(method) = &self.method { 
             return method.handle(request).await; 
         } 
-        return HttpResponse::new(HttpVersion::Http11, StatusCode::NOT_FOUND, String::from("Not Found")); 
+        return return_status(StatusCode::NOT_FOUND); 
     } 
 
     pub fn walk<'a>(self: Arc<Self>, mut path: Iter<'a, &str>) -> Pin<Box<dyn Future<Output = Option<Arc<Self>>> + Send + 'a>> {

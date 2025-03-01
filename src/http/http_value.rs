@@ -114,7 +114,7 @@ impl StatusCode {
             StatusCode::NOT_IMPLEMENTED => "501 Not Implemented".to_string(), 
             StatusCode::BAD_GATEWAY => "502 Bad Gateway".to_string(), 
             StatusCode::SERVICE_UNAVAILABLE => "503 Service Unavailable".to_string(), 
-            StatusCode::GATEWAY_TIMEOUT => "504 Gateway Timeout".to_string(), 
+            StatusCode::GATEWAY_TIMEOUT => "504 Gateway Timeout".to_string(),  
         } 
     } 
 
@@ -156,7 +156,7 @@ impl StatusCode {
             501 => StatusCode::NOT_IMPLEMENTED, 
             502 => StatusCode::BAD_GATEWAY, 
             503 => StatusCode::SERVICE_UNAVAILABLE,  
-            _ => panic!("Invalid status code"),  
+            _ => StatusCode::INTERNAL_SERVER_ERROR, 
         } 
     } 
 
@@ -177,7 +177,94 @@ impl StatusCode {
             "501 Not Implemented" => StatusCode::NOT_IMPLEMENTED, 
             "502 Bad Gateway" => StatusCode::BAD_GATEWAY, 
             "503 Service Unavailable" => StatusCode::SERVICE_UNAVAILABLE,  
-            _ => panic!("Invalid status code"),  
+            _ => StatusCode::INTERNAL_SERVER_ERROR, 
         } 
     } 
+} 
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum HttpContentType {
+    TextPlain,
+    TextHtml,
+    TextCss,
+    TextJavascript,
+    ApplicationJson,
+    ApplicationXml,
+    ApplicationJavascript,
+    ApplicationPdf,
+    ApplicationZip,
+    ApplicationXWwwFormUrlEncoded,
+    ApplicationOctetStream,
+    ImagePng,
+    ImageJpeg,
+    ImageGif,
+    ImageSvgXml,
+    AudioMpeg,
+    AudioOgg,
+    VideoMp4,
+    VideoWebm,
+    MultipartFormData,
+    Other(String),
+}
+
+impl HttpContentType {
+    /// Converts a string into an HttpContentType enum variant
+    pub fn from_str(content_type: &str) -> Self {
+        match content_type {
+            "text/plain" => Self::TextPlain,
+            "text/html" => Self::TextHtml,
+            "text/css" => Self::TextCss,
+            "text/javascript" => Self::TextJavascript,
+            "application/json" => Self::ApplicationJson,
+            "application/xml" => Self::ApplicationXml,
+            "application/javascript" => Self::ApplicationJavascript,
+            "application/pdf" => Self::ApplicationPdf,
+            "application/zip" => Self::ApplicationZip,
+            "application/x-www-form-urlencoded" => Self::ApplicationXWwwFormUrlEncoded,
+            "application/octet-stream" => Self::ApplicationOctetStream,
+            "image/png" => Self::ImagePng,
+            "image/jpeg" => Self::ImageJpeg,
+            "image/gif" => Self::ImageGif,
+            "image/svg+xml" => Self::ImageSvgXml,
+            "audio/mpeg" => Self::AudioMpeg,
+            "audio/ogg" => Self::AudioOgg,
+            "video/mp4" => Self::VideoMp4,
+            "video/webm" => Self::VideoWebm,
+            "multipart/form-data" => Self::MultipartFormData,
+            other => Self::Other(other.to_string()),
+        }
+    }
+
+    /// Converts an HttpContentType enum variant into its string representation
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::TextPlain => "text/plain",
+            Self::TextHtml => "text/html",
+            Self::TextCss => "text/css",
+            Self::TextJavascript => "text/javascript",
+            Self::ApplicationJson => "application/json",
+            Self::ApplicationXml => "application/xml",
+            Self::ApplicationJavascript => "application/javascript",
+            Self::ApplicationPdf => "application/pdf",
+            Self::ApplicationZip => "application/zip",
+            Self::ApplicationXWwwFormUrlEncoded => "application/x-www-form-urlencoded",
+            Self::ApplicationOctetStream => "application/octet-stream",
+            Self::ImagePng => "image/png",
+            Self::ImageJpeg => "image/jpeg",
+            Self::ImageGif => "image/gif",
+            Self::ImageSvgXml => "image/svg+xml",
+            Self::AudioMpeg => "audio/mpeg",
+            Self::AudioOgg => "audio/ogg",
+            Self::VideoMp4 => "video/mp4",
+            Self::VideoWebm => "video/webm",
+            Self::MultipartFormData => "multipart/form-data",
+            Self::Other(other) => other.as_str(),
+        }
+    }
+}
+
+impl std::fmt::Display for HttpContentType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
 } 

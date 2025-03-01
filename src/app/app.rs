@@ -1,3 +1,4 @@
+use core::panic;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::{net::TcpListener, thread, sync::mpsc}; 
@@ -73,7 +74,7 @@ impl Worker {
                 let job = receiver.lock().unwrap().recv();
                 match job {
                     Ok(job) => {
-                        println!("Worker {id} got a job; executing.");
+                        // println!("Worker {id} got a job; executing.");
                         rt.block_on(job);
                     }
                     Err(_) => {
@@ -88,12 +89,57 @@ impl Worker {
     }
 } 
 
+pub struct AppBuilder { 
+    root_url: Option<Arc<Url>>, 
+    binding: Option<String>, 
+    mode: Option<RunMode>, 
+    workers: Option<usize>, 
+} 
+
+impl AppBuilder { 
+    pub fn new() -> Self { 
+        Self { root_url: None, binding: None, mode: None, workers: None } 
+    } 
+
+    pub fn root_url(mut self, root_url: Arc<Url>) -> Self { 
+        self.root_url = Some(root_url); 
+        self 
+    } 
+
+    pub fn binding(mut self, binding: String) -> Self { 
+        self.binding = Some(binding); 
+        self 
+    } 
+
+    pub fn mode(mut self, mode: RunMode) -> Self { 
+        self.mode = Some(mode); 
+        self 
+    } 
+
+    pub fn workers(mut self, workers: usize) -> Self { 
+        self.workers = Some(workers); 
+        self 
+    } 
+
+    pub fn build(self) -> App { 
+        let root_url = match self.root_url{ 
+            Some(root_url) => root_url, 
+            None => panic!("Root URL is required"), 
+        }; 
+        let port = self.binding.unwrap_or_else(|| String::from("127.0.0.1:3003")); 
+        let binding = match TcpListener::bind(&port) { 
+            Ok(binding) => binding, 
+            Err(e) => panic!("Binding failed in {}, error: {}", &port, e), 
+        };  
+        let mode = self.mode.unwrap_or_else(|| RunMode::Development); 
+        let workers = ThreadPool::new(self.workers.unwrap_or_else(|| 4)); 
+        App { root_url, listener: binding, mode, pool: workers } 
+    } 
+}
+
 impl App { 
-    pub fn new(root_url: Arc<Url>) -> Self { 
-        let listener = TcpListener::bind("127.0.0.1:3333").unwrap(); 
-        let mode = RunMode::Development; 
-        let pool = ThreadPool::new(4); 
-        Self { root_url, listener, mode ,pool } 
+    pub fn new(root_url: Arc<Url>) -> AppBuilder { 
+        AppBuilder::new().root_url(root_url) 
     } 
 
     pub fn set_binding(&mut self, binding: &str) { 
@@ -112,12 +158,12 @@ impl App {
         let path = request.path.clone(); 
         let mut path = path.split('/').collect::<Vec<&str>>(); 
         path.remove(0); 
-        println!("{:?}", path); 
+        // println!("{:?}", path); 
         let url: Option<_> = Arc::clone(&self.root_url).walk(path.iter()).await; 
         if let Some(url) = url { 
             return url.run(request).await; 
         } else { 
-            return HttpResponse::new(HttpVersion::Http11, StatusCode::NOT_FOUND, String::from("Not Found")); 
+            return return_status(StatusCode::NOT_FOUND);  
         } 
     }  
 
