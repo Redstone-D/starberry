@@ -1,4 +1,4 @@
-## Latest stable version: N/A 
+## Latest stable version: 0.1.5 
 
 # Starberry Web Framework 
 
@@ -10,6 +10,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.1.5: Reexport the methods and enable dynamic function loading. Enable &str, String, Vec<u8> and so on to act as the response body 
+
 0.1.4: Optimized way in starting app, optimized Response class 
 
 0.1.3: Use thread pooling, enable user to set number of threads. Use better URL approach 
@@ -19,12 +21,14 @@ https://github.com/Redstone-D/starberry
 ## How to start a server? 
 
 ```use starberry::app::app::App;
-use starberry::app::urls; 
-use starberry::http::response::*;
-use std::sync::Arc; 
-use starberry::app::app::RunMode;
+use starberry::App;
+use starberry::urls; 
+use starberry::text_response; 
+use starberry::RunMode;
+
 use std::time::Duration; 
 use std::thread::sleep; 
+use std::sync::Arc; 
 
 pub async fn test() {
     let app = App::new(init_urls().into()) 
@@ -38,20 +42,20 @@ pub async fn test() {
 
 pub fn init_urls() -> urls::Url {
     urls::Url {
-        path: urls::PathPattern::Literal("/".to_string()),
+        path: urls::PathPattern::literal_path("/"),
         children: urls::Children::Some(vec![
             Arc::new(urls::Url {
-                path: urls::PathPattern::Literal("about".to_string()),
+                path: urls::PathPattern::literal_path("about"),
                 children: urls::Children::Nil,
                 method: Some(Box::new(|_req| async {
-                    HttpResponse::text_response(String::from("About Page"))
+                    text_response("About Page")
                 })),
             }),
             Arc::new(urls::Url {
-                path: urls::PathPattern::Regex("[0-9]+".to_string()),
+                path: urls::PathPattern::regex_path("[0-9]+"), 
                 children: urls::Children::Nil,
                 method: Some(Box::new(|_req| async {
-                    HttpResponse::text_response(String::from("Number page"))
+                    text_response("Number page")
                 })),
             }),
             Arc::new(urls::Url {
@@ -64,12 +68,12 @@ pub fn init_urls() -> urls::Url {
                     println!("2");
                     sleep(Duration::from_secs(1));
                     println!("3");
-                    HttpResponse::text_response(String::from("Async Test Page"))
+                    text_response("Async Test Page")
                 })),
             }),
         ]),
         method: Some(Box::new(|_req| async {
-            HttpResponse::text_response(String::from("Home Page"))
+            text_response("Home Page") 
         })), 
     }  
 } 
