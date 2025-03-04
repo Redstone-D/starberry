@@ -37,10 +37,20 @@ pub struct Url {
 
 #[derive(Clone, Debug)]
 pub enum PathPattern {
-    Literal(String),
+    Literal(String), 
     Regex(String), 
     Any,
     AnyPath,
+} 
+
+impl PathPattern{ 
+    pub fn literal_path<T: Into<String>>(path: T) -> Self { 
+        Self::Literal(path.into()) 
+    } 
+
+    pub fn regex_path<T: Into<String>>(path: T) -> Self { 
+        Self::Regex(path.into()) 
+    } 
 }
 
 pub enum Children {
@@ -54,7 +64,7 @@ impl Url {
         if let Some(method) = &self.method { 
             return method.handle(request).await; 
         } 
-        return return_status(StatusCode::NOT_FOUND); 
+        return request_templates::return_status(StatusCode::NOT_FOUND); 
     } 
 
     pub fn walk<'a>(self: Arc<Self>, mut path: Iter<'a, &str>) -> Pin<Box<dyn Future<Output = Option<Arc<Self>>> + Send + 'a>> {

@@ -1,7 +1,7 @@
 use super::http_value::{self, *}; 
 use std::collections::HashMap;
 use std::net::TcpStream; 
-use std::io::Write; 
+use std::io::{BufWriter, Write}; 
 
 pub struct ResponseStartLine{ 
     pub http_version: HttpVersion, 
@@ -47,52 +47,71 @@ impl ResponseHeader {
 pub struct HttpResponse { 
     pub start_line: ResponseStartLine, 
     pub header: ResponseHeader, 
-    pub body: String, 
+    pub body: Box<dyn AsRef<[u8]> + Send + Sync>, // Change to trait object
 }  
 
 impl HttpResponse { 
-    pub fn new(start_line: ResponseStartLine, 
+    pub fn new(
+        start_line: ResponseStartLine, 
         header: ResponseHeader, 
-        body: String
+        body: impl AsRef<[u8]> + Send + Sync + 'static, 
     ) -> Self { 
         Self { 
             start_line, 
             header, 
-            body 
+            body: Box::new(body), // Store as Box<dyn>
         } 
     } 
 
     pub fn set_content_length(mut self) -> Self { 
-        self.header.set_content_length(self.body.len()); 
+        self.header.set_content_length(self.body.as_ref().as_ref().len());  
         self 
     }  
 
-    pub async fn send(&self, stream: &mut TcpStream) { 
-        let response = format!("{}\r\n{}\r\n{}", self.start_line, self.header.represent(), self.body); 
-        // println!("{}", response); 
-        stream.write_all(response.as_bytes()).unwrap(); 
+    pub async fn send(&self, stream: &mut TcpStream) {
+        let mut writer = BufWriter::new(stream);
+    
+        let start_line_bytes = format!("{}\r\n", self.start_line).into_bytes();
+        let headers_bytes = format!("{}\r\n", self.header.represent()).into_bytes();
+        let body_bytes = self.body.as_ref().as_ref();
+    
+        writer.write_all(&start_line_bytes).unwrap();
+        writer.write_all(&headers_bytes).unwrap();
+        writer.write_all(body_bytes).unwrap();
+        
+        writer.flush().unwrap(); // Ensure all data is sent
     } 
+} 
 
-    pub fn text_response(body: String) -> Self { 
+pub mod request_templates {
+    use crate::http::http_value::HttpContentType;
+    use super::ResponseStartLine;  
+    use super::ResponseHeader; 
+    use crate::http::http_value::HttpVersion; 
+    use crate::http::http_value::StatusCode; 
+    use super::HttpResponse; 
+ 
+    pub fn text_response(body: impl AsRef<[u8]> + Send + Sync + 'static) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
         header.set_content_type(HttpContentType::TextPlain); 
-        Self::new(start_line, header, body).set_content_length() 
+        HttpResponse::new(start_line, header, body).set_content_length() 
     } 
 
-    pub fn normal_response(status_code: StatusCode, body: String) -> Self { 
+    pub fn normal_response(status_code: StatusCode, body: impl AsRef<[u8]> + Send + Sync + 'static) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 
             status_code, 
         }; 
         let header = ResponseHeader::new(); 
-        Self::new(start_line, header, body) 
+        HttpResponse::new(start_line, header, body) 
     } 
-} 
 
-pub fn return_status(status_code: StatusCode) -> HttpResponse { 
-    HttpResponse::normal_response(status_code, String::new()) 
-} 
+    pub fn return_status<'a>(status_code: StatusCode) -> HttpResponse { 
+        normal_response(status_code, "")
+    } 
+}
+

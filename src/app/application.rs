@@ -29,7 +29,7 @@ pub enum RunMode {
     Build, 
 } 
 
-pub struct ThreadPool {
+struct ThreadPool {
     workers: Vec<Worker>,
     sender: mpsc::Sender<Job>,
 }
@@ -163,7 +163,7 @@ impl App {
         if let Some(url) = url { 
             return url.run(request).await; 
         } else { 
-            return return_status(StatusCode::NOT_FOUND);  
+            return request_templates::return_status(StatusCode::NOT_FOUND);  
         } 
     }  
 

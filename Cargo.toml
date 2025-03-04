@@ -1,13 +1,13 @@
 [package]
 name = "starberry"
-version = "0.1.4"
+version = "0.1.5"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "A framework for building web applocation in Rust. THIS IS STILL IN DEVELOPMENTAL STAGE" 
-license-file = "LICENSE.txt" 
+license = "MIT" 
 repository = "https://github.com/Redstone-D/starberry" 
 
-[dependencies]
+[dependencies] 
 regex = "1.5.6" 
 tokio = { version = "1.28", features = ["full"] } 
 futures = "0.3" 
