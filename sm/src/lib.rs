@@ -60,3 +60,51 @@ pub fn lit_url(attr: TokenStream, function: TokenStream) -> TokenStream {
     };
     inserted_call.into() 
 }
+
+struct UrlMethodArgs {
+    pub url: Expr,
+    pub path_pattern: Expr,
+}
+
+impl Parse for UrlMethodArgs {
+    fn parse(input: ParseStream) -> SynResult<Self> {
+        let url: Expr = input.parse()?;
+        input.parse::<Token![,]>()?;
+        let path_pattern: Expr = input.parse()?;
+        if !input.is_empty() {
+            return Err(input.error("expected exactly two arguments: `url, path_pattern`"));
+        }
+        Ok(UrlMethodArgs { url, path_pattern })
+    }
+}
+
+#[proc_macro_attribute]
+pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
+    // Parse the attribute arguments and the function.
+    let args = parse_macro_input!(attr as UrlMethodArgs);
+    let url_expr = args.url;
+    let path_expr = args.path_pattern;
+    let func = parse_macro_input!(function as ItemFn);
+    let func_ident = &func.sig.ident;
+
+    // Create a unique registration function name.
+    let register_fn_name = format!("__register_{}", func_ident);
+    let register_fn_ident = syn::Ident::new(&register_fn_name, func_ident.span());
+
+    // Generate the code that registers the function.
+    let expanded = quote! {
+        #func
+
+        // This function will be executed at startup (using the ctor crate).
+        #[ctor::ctor]
+        fn #register_fn_ident() {
+            let child_url = match #url_expr.get_child_or_create(#path_expr){ 
+                Ok(child_url) => child_url,
+                Err(e) => dangling_url(), 
+            };
+            child_url.set_method(Arc::new(#func_ident));
+        }
+    };
+
+    expanded.into()
+} 

@@ -10,9 +10,13 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.2.1 Enable URL reg everywhere in the projects, enabling Regex, Any and Any Path to be URL. URLs are stored in a tree structure for easier config 
+
 0.2.0 Update the url pattern. *For this version, Regex/Path/Any is no longer supported. It will be available in the next version.* 
 
-# How to start a server 
+# How to start a server & URL reg 
+
+**Quick start**
 
 ```rust 
 #[tokio::main]  
@@ -41,14 +45,85 @@ pub static APP: Lazy<Arc<App>> = Lazy::new(|| {
 async fn home_route(_: HttpRequest) -> HttpResponse {
     text_response("Hello, world!") 
 } 
+``` 
 
+You will be able to visit your server at localhost:1111. If you does not bind with 1111 port, the default port is 3333 
 
+## Registering URL 
+
+In Starberry, the URL can be registered anywhere in your project, in absolute or relative way 
+
+We assume that you have created an App named APP as static variable as the code shown in quick start 
+
+**Without a function** 
+
+```rust 
 #[lit_url(APP, "/random/split/something")]
 async fn random_route(_: HttpRequest) -> HttpResponse {
     text_response("A random page") 
-} 
+}  
+``` 
 
-```
+The code above defines a absolute url, "/random/split/something" returns text showing "A random page" 
+
+```rust 
+static TEST_URL: Lazy<Arc<Url>> = Lazy::new(|| {
+    APP.reg_from(&[LitUrl("test")]) 
+}); 
+
+#[url(TEST_URL.clone(), LitUrl("/hello"))]
+async fn hello(_: HttpRequest) -> HttpResponse {
+    text_response("Hello, world!") 
+} 
+``` 
+
+The code above does this in a relative way. First we define a Literal URL (We are going to discuss other type of URLs shortly) of "test" called TEST_URL 
+
+After that, we use url() macro, passing TEST_URL and a literal URL pattern. Starberry will concat those two together, meaning you can visit this through "/test/hello" 
+
+This is the way we recommended for making a URL tree, so that URL management will be easier and leading to a more dynamic program in the future 
+
+**Within a function** 
+
+```rust 
+    let furl = APP.clone().reg_from(&[LitUrl("flexible"), LitUrl("url"), LitUrl("may_be_changed")]); 
+    furl.set_method(Arc::new(flexible_access)); 
+``` 
+
+Getting the URL instance from APP so that we can set URL for them. 
+
+If you would like to have a more dynamic one, please consider use the child in the url instance (we recommand you to do so) 
+
+## URL types 
+
+**LitUrl(&str)** 
+
+The normal URL, work the way as you think, just a literal 
+
+**RegUrl(&str)** 
+
+You input a regex, starberry will match it in the run time 
+
+**AnyUrl** 
+
+Also know as Any if you directly use starberry::urls::PathPatten. Accept any literal 
+
+**AnyDir** 
+
+Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any number of literal after this 
+
+# TBD 
+
+(Aka template) 
+
+1. Input data from macro 
+2. Parsing expressions 
+
+(Request & Response) 
+
+1. Session & Cookie manipulation 
+2. Parsing form data, uploading files 
+3. Render Templates 
 
 # Update log 
 

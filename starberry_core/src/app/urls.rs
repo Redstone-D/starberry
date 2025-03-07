@@ -38,11 +38,11 @@ pub struct Url {
 }
 
 #[derive(Clone, Debug)] 
-pub enum PathPattern {
+pub enum PathPattern { 
     Literal(String), 
     Regex(String), 
     Any,
-    AnyPath,
+    AnyPath, 
 } 
 
 impl PathPattern{ 
@@ -54,6 +54,24 @@ impl PathPattern{
         Self::Regex(path.into()) 
     } 
 } 
+
+pub mod path_pattern_creator { 
+    use super::PathPattern; 
+
+    /// Creates a literal path pattern. 
+    /// This is a wrapper around the literal_path function. 
+    /// This is useful for creating path patterns that are not regex. 
+    pub fn literal_path<T: Into<String>>(path: T) -> PathPattern { 
+        PathPattern::Literal(path.into())  
+    } 
+
+    /// Creates a regex path pattern. 
+    /// This is a wrapper around the regex_path function. 
+    /// This is useful for creating path patterns that are regex. 
+    pub fn regex_path<T: Into<String>>(path: T) -> PathPattern { 
+        PathPattern::Regex(path.into())  
+    } 
+}
 
 impl PartialEq for PathPattern {
     fn eq(&self, other: &Self) -> bool {
@@ -85,7 +103,7 @@ pub enum Children {
 
 pub enum Ancestor {
     Nil,
-    Some(Arc<Url>),
+    Some(Arc<Url>), 
 } 
 
 impl std::fmt::Display for Url {
@@ -155,7 +173,7 @@ impl Url {
                 match &child_url.path {
                     PathPattern::Literal(p) => {
                         if p == this_segment { 
-                            println!("Found literal match: {}, {}, Paths: {:?}", p, this_segment, path); 
+                            // println!("Found literal match: {}, {}, Paths: {:?}", p, this_segment, path); 
                             if path.len() >= 1 { 
                                 return child_url.clone().walk(path).await;
                             } else {
@@ -164,8 +182,9 @@ impl Url {
                         }
                     }
                     PathPattern::Regex(regex_str) => {
-                        let re = Regex::new(regex_str).unwrap();
-                        if re.is_match(this_segment) {
+                        let re = Regex::new(regex_str).unwrap(); 
+                        // println!("Comparing Regex match: {}, {}, Paths: {:?}", re, this_segment, path);  
+                        if re.is_match(this_segment) { 
                             if path.len() > 1 {
                                 return child_url.clone().walk(path).await;
                             } else {
@@ -300,6 +319,14 @@ impl Url {
         new_url 
     } 
 
+    /// Get a child URL or create it if it doesn't exist. 
+    /// # Arguments 
+    /// * `child` - The child URL to get or create. 
+    /// # Returns 
+    /// * `Ok(Arc<Url>)` - The child URL. 
+    /// * `Err(String)` - An error message. 
+    /// # Note 
+    /// This function is not async, but it can be used in an async context. 
     pub fn get_child_or_create(self: Arc<Self>, child: PathPattern) -> Result<Arc<Self>, String> {
         {
             let guard = self.children.read().unwrap();
@@ -319,7 +346,7 @@ impl Url {
                 }
             }
         } 
-        println!("Child not found, creating new one: {:?}", child); 
+        // println!("Child not found, creating new one: {:?}", child); 
         self.childbirth(child, None)
     }
     
@@ -387,3 +414,11 @@ impl Url {
     } 
 } 
 
+pub fn dangling_url() -> Arc<Url> { 
+    Arc::new(Url { 
+        path: PathPattern::Any, 
+        children: RwLock::new(Children::Nil), 
+        ancestor: Ancestor::Nil, 
+        method: RwLock::new(None), 
+    }) 
+} 

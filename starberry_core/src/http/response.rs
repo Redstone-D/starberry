@@ -101,6 +101,16 @@ pub mod request_templates {
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 
 
+    pub fn html_response(body: impl AsRef<[u8]> + Send + Sync + 'static) -> HttpResponse { 
+        let start_line = ResponseStartLine { 
+            http_version: HttpVersion::Http11, 
+            status_code: StatusCode::OK, 
+        }; 
+        let mut header = ResponseHeader::new(); 
+        header.set_content_type(HttpContentType::TextHtml); 
+        HttpResponse::new(start_line, header, body).set_content_length() 
+    } 
+
     pub fn normal_response(status_code: StatusCode, body: impl AsRef<[u8]> + Send + Sync + 'static) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 

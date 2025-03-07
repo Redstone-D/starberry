@@ -5,6 +5,8 @@ use std::{net::TcpListener, thread, sync::mpsc};
 use std::net::TcpStream;    
 use tokio::runtime::Runtime;
 
+use crate::app::urls;
+
 use super::super::http::http_value::*; 
 use super::super::http::request::*;  
 use super::super::http::response::*; 
@@ -207,4 +209,30 @@ impl App {
             Arc::clone(&self).handle_connection(stream); 
         } 
     } 
+
+    pub fn app_url(
+        self: &Arc<Self>,
+        segments: &[PathPattern]
+    ) -> Result<Arc<Url>, String> {
+        let mut current = self.root_url.clone();
+        for seg in segments {
+            current = current.get_child_or_create(seg.clone())?;
+        }
+        Ok(current)
+    } 
+
+    pub fn reg_from(
+        self: &Arc<Self>,
+        segments: &[PathPattern]
+    ) -> Arc<Url> { 
+        match self.app_url(segments){ 
+            Ok(url) => url, 
+            Err(e) => { 
+                eprintln!("Error getting url: {}", e);  
+                urls::dangling_url() 
+            } 
+        } 
+    } 
 } 
+
+
