@@ -1,6 +1,6 @@
 use core::panic;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::{net::TcpListener, thread, sync::mpsc}; 
 use std::net::TcpStream;    
 use tokio::runtime::Runtime;
@@ -74,7 +74,7 @@ impl Worker {
                 let job = receiver.lock().unwrap().recv();
                 match job {
                     Ok(job) => {
-                        // println!("Worker {id} got a job; executing.");
+                        println!("Worker {id} got a job; executing.");
                         rt.block_on(job);
                     }
                     Err(_) => {
@@ -121,10 +121,17 @@ impl AppBuilder {
         self 
     } 
 
-    pub fn build(self) -> App { 
+    pub fn build(self) -> Arc<App> { 
         let root_url = match self.root_url{ 
             Some(root_url) => root_url, 
-            None => panic!("Root URL is required"), 
+            None => { 
+                Arc::new(Url { 
+                    path: PathPattern::Literal(String::from("/")), 
+                    children: RwLock::new(Children::Nil), 
+                    method: RwLock::new(None), 
+                    ancestor: Ancestor::Nil, 
+                })
+            } 
         }; 
         let port = self.binding.unwrap_or_else(|| String::from("127.0.0.1:3003")); 
         let binding = match TcpListener::bind(&port) { 
@@ -133,13 +140,17 @@ impl AppBuilder {
         };  
         let mode = self.mode.unwrap_or_else(|| RunMode::Development); 
         let workers = ThreadPool::new(self.workers.unwrap_or_else(|| 4)); 
-        App { root_url, listener: binding, mode, pool: workers } 
+        Arc::new(App { root_url, listener: binding, mode, pool: workers }) 
     } 
 }
 
 impl App { 
-    pub fn new(root_url: Arc<Url>) -> AppBuilder { 
-        AppBuilder::new().root_url(root_url) 
+    pub fn new() -> AppBuilder { 
+        AppBuilder::new() 
+    } 
+
+    pub fn set_root_url(&mut self, root_url: Arc<Url>) { 
+        self.root_url = root_url; 
     } 
 
     pub fn set_binding(&mut self, binding: &str) { 
@@ -154,11 +165,19 @@ impl App {
         self.pool = ThreadPool::new(workers); 
     } 
 
+    /// This function add a new url to the app. It will be added to the root url 
+    /// # Arguments 
+    /// * `url` - The url to add. It should be a string. 
+    pub fn literal_url<T: Into<String>>(self: &Arc<Self>, url: T, function: Arc<dyn AsyncUrlHandler>) -> Result<Arc<super::urls::Url>, String> { 
+        let url = url.into(); 
+        self.root_url.clone().literal_url(&url, function) 
+    } 
+
     pub async fn request(&self, request: HttpRequest) -> HttpResponse { 
         let path = request.path.clone(); 
         let mut path = path.split('/').collect::<Vec<&str>>(); 
         path.remove(0); 
-        // println!("{:?}", path); 
+        println!("{:?}", path); 
         let url: Option<_> = Arc::clone(&self.root_url).walk(path.iter()).await; 
         if let Some(url) = url { 
             return url.run(request).await; 
@@ -170,6 +189,7 @@ impl App {
     // Note: This function is now synchronous, and expects that `self` is shared via an Arc.
     pub fn handle_connection(self: Arc<Self>, mut stream: TcpStream) {
         // Spawn a new OS thread for this connection.
+        println!("New connection from {}", stream.peer_addr().unwrap()); 
         let app = Arc::clone(&self); 
         let job = async move {
             if let Ok(request) = HttpRequest::from_request_stream(&mut stream).await {

@@ -1,0 +1,17 @@
+[package]
+name = "starberry_macro"
+version = "0.2.0"
+edition = "2024"
+authors = ["Redstone <redstone@fds.moe>"] 
+description = "Marco cargo of starberry." 
+license = "MIT" 
+repository = "https://github.com/Redstone-D/starberry" 
+
+[dependencies] 
+syn = { version = "2.0", features = ["full"] } 
+ctor = "0.4.0" 
+quote = "1.0" 
+starberry_core = { path = "../starberry_core"}  
+
+[lib]
+proc-macro = true
