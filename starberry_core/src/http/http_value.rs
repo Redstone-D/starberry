@@ -1,3 +1,6 @@
+use std::collections::HashMap;
+
+#[derive(Debug, Clone)]  
 pub enum HttpVersion { 
     Http09,
     Http10,
@@ -31,7 +34,13 @@ impl HttpVersion {
     }  
 } 
 
-#[derive(Debug, Clone)] 
+impl std::fmt::Display for HttpVersion { 
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
+        write!(f, "{}", self.to_string()) 
+    } 
+} 
+
+#[derive(Debug, Clone, PartialEq)] 
 pub enum HttpMethod { 
     GET, 
     POST, 
@@ -75,6 +84,12 @@ impl HttpMethod {
             _ => HttpMethod::UNKNOWN,  
         }  
     }  
+} 
+
+impl std::fmt::Display for HttpMethod { 
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
+        write!(f, "{}", self.to_string()) 
+    } 
 } 
 
 pub enum StatusCode { 
@@ -266,5 +281,44 @@ impl HttpContentType {
 impl std::fmt::Display for HttpContentType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.as_str())
+    }
+} 
+
+pub struct HeaderConstructor{ 
+    pub headers: Vec<HeaderAttribute>
+} 
+
+impl HeaderConstructor{ 
+    pub fn build<T: Into<String>>(string: T) -> Self { 
+        let mut headers = Vec::new(); 
+        let string = string.into(); 
+        let parts: Vec<&str> = string.split(';').collect(); 
+        for part in parts { 
+            let part = part.trim(); 
+            if !part.is_empty() { 
+                headers.push(HeaderAttribute::build(part)); 
+            } 
+        } 
+        Self { headers } 
+    }
+}
+
+pub struct HeaderAttribute{ 
+    pub main_value: String, 
+    pub attributes: HashMap<String, String>, 
+} 
+
+impl HeaderAttribute{ 
+    pub fn build<T: Into<String>>(part: T) -> Self{ 
+        let part = part.into(); 
+        let mut attributes = HashMap::new(); 
+        let main_value = part.split(':').next().unwrap_or("").trim().to_string(); 
+        for attr in part.split(';').skip(1) { 
+            let attr_parts: Vec<&str> = attr.split('=').collect(); 
+            if attr_parts.len() == 2 { 
+                attributes.insert(attr_parts[0].trim().to_string(), attr_parts[1].trim().to_string()); 
+            } 
+        } 
+        Self { main_value, attributes } 
     }
 } 

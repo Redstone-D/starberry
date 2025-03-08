@@ -2,7 +2,7 @@
 
 # Starberry Web Framework 
 
-This is a async, light-weighted web framework 100% coded in rust. 
+Light-weighted framework for full-site framework, managing both the frontend and backend 
 
 Regex and other kind of URL is supported, tree structred URL is being used for easier URL management 
 
@@ -26,12 +26,14 @@ async fn main() {
 } 
 
 use once_cell::sync::Lazy;
-use starberry::{App, RunMode};
-use starberry_core::http::request::HttpRequest;
-use starberry_core::http::response::HttpResponse; 
+use starberry::{App, RunMode}; 
+use starberry::{LitUrl, RegUrl, AnyUrl, AnyPath}; 
+use starberry::urls::*; 
+use starberry::{HttpRequest, HttpResponse}; 
+use starberry::{text_response, html_response};  
+use starberry::{lit_url, url}; 
+use starberry::HttpMethod::*; 
 use std::sync::Arc; 
-use starberry::text_response;  
-use starberry::lit_url; 
 
 pub static APP: Lazy<Arc<App>> = Lazy::new(|| {
     App::new()
@@ -114,7 +116,7 @@ Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any
 
 # TBD 
 
-(Aka template) 
+(Akatemp) 
 
 1. Input data from macro 
 2. Parsing expressions 
@@ -122,7 +124,7 @@ Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any
 (Request & Response) 
 
 1. Session & Cookie manipulation 
-2. Parsing form data, uploading files 
+2. Parsing form data (Finished, now fixing special character problems), uploading files 
 3. Render Templates 
 
 # Update log 

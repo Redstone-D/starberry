@@ -1,6 +1,7 @@
 use core::panic;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, RwLock};
+use std::time::Duration;
 use std::{net::TcpListener, thread, sync::mpsc}; 
 use std::net::TcpStream;    
 use tokio::runtime::Runtime;
@@ -17,6 +18,8 @@ pub struct App {
     pub listener: TcpListener, 
     pub mode: RunMode, 
     pub pool: ThreadPool, 
+    pub max_connection_time: usize, 
+    pub connection_config: ParseConfig, 
 } 
 
 /// RunMode enum to represent the mode of the application 
@@ -96,11 +99,16 @@ pub struct AppBuilder {
     binding: Option<String>, 
     mode: Option<RunMode>, 
     workers: Option<usize>, 
+    max_connection_time: Option<usize>, 
+    max_header_size: Option<usize>, 
+    max_body_size: Option<usize>, 
+    max_line_length: Option<usize>, 
+    max_headers: Option<usize>, 
 } 
 
 impl AppBuilder { 
     pub fn new() -> Self { 
-        Self { root_url: None, binding: None, mode: None, workers: None } 
+        Self { root_url: None, binding: None, mode: None, workers: None, max_connection_time: None, max_header_size: None, max_body_size: None, max_line_length: None, max_headers: None } 
     } 
 
     pub fn root_url(mut self, root_url: Arc<Url>) -> Self { 
@@ -123,6 +131,31 @@ impl AppBuilder {
         self 
     } 
 
+    pub fn max_connection_time(mut self, max_connection_time: usize) -> Self { 
+        self.max_connection_time = Some(max_connection_time); 
+        self 
+    } 
+
+    pub fn max_header_size(mut self, max_header_size: usize) -> Self { 
+        self.max_header_size = Some(max_header_size); 
+        self 
+    } 
+
+    pub fn max_body_size(mut self, max_body_size: usize) -> Self { 
+        self.max_body_size = Some(max_body_size); 
+        self 
+    } 
+
+    pub fn max_line_length(mut self, max_line_length: usize) -> Self { 
+        self.max_line_length = Some(max_line_length); 
+        self 
+    } 
+
+    pub fn max_headers(mut self, max_headers: usize) -> Self { 
+        self.max_headers = Some(max_headers); 
+        self 
+    } 
+
     pub fn build(self) -> Arc<App> { 
         let root_url = match self.root_url{ 
             Some(root_url) => root_url, 
@@ -142,7 +175,13 @@ impl AppBuilder {
         };  
         let mode = self.mode.unwrap_or_else(|| RunMode::Development); 
         let workers = ThreadPool::new(self.workers.unwrap_or_else(|| 4)); 
-        Arc::new(App { root_url, listener: binding, mode, pool: workers }) 
+        let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5); 
+        let max_header_size = self.max_header_size.unwrap_or_else(|| 8192); 
+        let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 1024); 
+        let max_line_length = self.max_line_length.unwrap_or_else(|| 8192); 
+        let max_headers = self.max_headers.unwrap_or_else(|| 100); 
+        let connection_config = ParseConfig::new(max_header_size, max_line_length, max_headers, max_body_size); 
+        Arc::new(App { root_url, listener: binding, mode, pool: workers, max_connection_time, connection_config }) 
     } 
 }
 
@@ -167,6 +206,26 @@ impl App {
         self.pool = ThreadPool::new(workers); 
     } 
 
+    pub fn set_max_connection_time(&mut self, max_connection_time: usize) { 
+        self.max_connection_time = max_connection_time; 
+    } 
+
+    pub fn set_max_header_size(&mut self, max_header_size: usize) { 
+        self.connection_config.set_max_header_size(max_header_size); 
+    } 
+
+    pub fn set_max_body_size(&mut self, max_body_size: usize) { 
+        self.connection_config.set_max_body_size(max_body_size); 
+    } 
+
+    pub fn set_max_line_length(&mut self, max_line_length: usize) { 
+        self.connection_config.set_max_line_length(max_line_length); 
+    } 
+
+    pub fn set_max_headers(&mut self, max_headers: usize) { 
+        self.connection_config.set_max_headers(max_headers); 
+    } 
+
     /// This function add a new url to the app. It will be added to the root url 
     /// # Arguments 
     /// * `url` - The url to add. It should be a string. 
@@ -176,7 +235,7 @@ impl App {
     } 
 
     pub async fn request(&self, request: HttpRequest) -> HttpResponse { 
-        let path = request.path.clone(); 
+        let path = request.path(); 
         let mut path = path.split('/').collect::<Vec<&str>>(); 
         path.remove(0); 
         println!("{:?}", path); 
@@ -190,22 +249,23 @@ impl App {
 
     // Note: This function is now synchronous, and expects that `self` is shared via an Arc.
     pub fn handle_connection(self: Arc<Self>, mut stream: TcpStream) {
-        // Spawn a new OS thread for this connection.
-        println!("New connection from {}", stream.peer_addr().unwrap()); 
+        // Spawn a new OS thread for this connection. 
         let app = Arc::clone(&self); 
-        let job = async move {
-            if let Ok(request) = HttpRequest::from_request_stream(&mut stream).await {
-                // Process the request asynchronously and send the response.
+        let job = async move { 
+            if let Ok(request) = HttpRequest::from_request_stream(&mut stream, &app.connection_config).await {
+                // Process the request asynchronously and send the response. 
+                println!("Request handled"); 
                 app.request(request).await.send(&mut stream).await;
             }
-        };
+        }; 
         // Box the async closure and pass it to the thread pool.
         self.pool.execute(Box::pin(job)); 
     }
 
     pub async fn run(self: Arc<Self>) { 
         for stream in self.listener.incoming() {
-            let stream = stream.unwrap();
+            let stream = stream.unwrap(); 
+            stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();  
             Arc::clone(&self).handle_connection(stream); 
         } 
     } 
@@ -228,7 +288,7 @@ impl App {
         match self.app_url(segments){ 
             Ok(url) => url, 
             Err(e) => { 
-                eprintln!("Error getting url: {}", e);  
+                // eprintln!("Error getting url: {}", e);  
                 urls::dangling_url() 
             } 
         } 

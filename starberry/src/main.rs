@@ -5,6 +5,7 @@ use starberry::urls::*;
 use starberry::{HttpRequest, HttpResponse}; 
 use starberry::{text_response, html_response};  
 use starberry::{lit_url, url}; 
+use starberry::HttpMethod::*; 
 use std::sync::Arc; 
 use std::thread::sleep; 
 use std::time::Duration; 
@@ -73,8 +74,17 @@ async fn testa(_: HttpRequest) -> HttpResponse {
 
 #[url(TEST_URL.clone(), LitUrl("form"))]  
 async fn test_form(request: HttpRequest) -> HttpResponse { 
-    // Read the form.html file and return it 
-    println!("{:?}", request); 
+    println!("Request to this dir"); 
+    if *request.method() == POST { 
+        match request.form() { 
+            Some(form) => { 
+                return text_response(format!("Form data: {:?}", form)); 
+            } 
+            None => { 
+                return text_response("Error parsing form"); 
+            }  
+        } 
+    } 
     let file: String = match std::fs::read_to_string("form.html"){ 
         Ok(file) => file, 
         Err(e) => { 
