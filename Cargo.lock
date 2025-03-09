@@ -387,7 +387,7 @@ dependencies = [
 
 [[package]]
 name = "starberry"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "ctor",
  "futures",
@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "starberry_core"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "futures",
  "regex",
@@ -409,12 +409,20 @@ dependencies = [
 
 [[package]]
 name = "starberry_macro"
-version = "0.2.0"
+version = "0.2.2"
 dependencies = [
  "ctor",
  "quote",
  "starberry_core",
  "syn",
+]
+
+[[package]]
+name = "starberry_middlewares"
+version = "0.1.0"
+dependencies = [
+ "starberry_core",
+ "starberry_macro",
 ]
 
 [[package]]

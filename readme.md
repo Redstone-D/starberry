@@ -2,13 +2,17 @@
 
 # Starberry Web Framework 
 
-This is a async, light-weighted web framework 100% coded in rust. 
+Small, sweet, easy framework for full-stack web application 
 
-Regex and other kind of URL is supported, tree structred URL is being used for easier URL management 
+Regex and other kinds of URLs are supported, and tree-structured URLs are used for easier URL management.
+
+Use plain HTML for better compatibility with other web projects and ease of learning.
 
 https://github.com/Redstone-D/starberry 
 
 # Just updated 
+
+0.2.2 Security enhancement: The request size, connection time is restricted automatically. Middlewares are implemented but not in use. Add preload modules 
 
 0.2.1 Enable URL reg everywhere in the projects, enabling Regex, Any and Any Path to be URL. URLs are stored in a tree structure for easier config 
 
@@ -19,26 +23,15 @@ https://github.com/Redstone-D/starberry
 **Quick start**
 
 ```rust 
-#[tokio::main]  
+use starberry::preload::*;  
 
+#[tokio::main]  
 async fn main() { 
     APP.clone().run().await; 
 } 
 
-use once_cell::sync::Lazy;
-use starberry::{App, RunMode};
-use starberry_core::http::request::HttpRequest;
-use starberry_core::http::response::HttpResponse; 
-use std::sync::Arc; 
-use starberry::text_response;  
-use starberry::lit_url; 
-
-pub static APP: Lazy<Arc<App>> = Lazy::new(|| {
-    App::new()
-        .binding(String::from("127.0.0.1:1111"))
-        .mode(RunMode::Development)
-        .workers(4)
-        .build() 
+pub static APP: SApp = Lazy::new(|| {
+    App::new().build() 
 }); 
 
 #[lit_url(APP, "/")]
@@ -47,7 +40,7 @@ async fn home_route(_: HttpRequest) -> HttpResponse {
 } 
 ``` 
 
-You will be able to visit your server at localhost:1111. If you does not bind with 1111 port, the default port is 3333 
+You will be able to visit your server at localhost:3333 
 
 ## Registering URL 
 
@@ -114,7 +107,7 @@ Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any
 
 # TBD 
 
-(Aka template) 
+(Akatemp) 
 
 1. Input data from macro 
 2. Parsing expressions 
@@ -122,7 +115,7 @@ Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any
 (Request & Response) 
 
 1. Session & Cookie manipulation 
-2. Parsing form data, uploading files 
+2. Parsing form data (Finished, now fixing special character problems), uploading files 
 3. Render Templates 
 
 # Update log 

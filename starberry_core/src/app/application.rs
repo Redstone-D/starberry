@@ -6,11 +6,13 @@ use std::{net::TcpListener, thread, sync::mpsc};
 use std::net::TcpStream;    
 use tokio::runtime::Runtime;
 
+use crate::app::middleware::{LoggingMiddleware}; 
 use crate::app::urls;
 
 use super::super::http::http_value::*; 
 use super::super::http::request::*;  
 use super::super::http::response::*; 
+use super::middleware::{self, AsyncMiddleware};
 use super::urls::*; 
 
 pub struct App {
@@ -20,6 +22,7 @@ pub struct App {
     pub pool: ThreadPool, 
     pub max_connection_time: usize, 
     pub connection_config: ParseConfig, 
+    pub middlewares: Arc<Vec<Arc<dyn AsyncMiddleware>>>, 
 } 
 
 /// RunMode enum to represent the mode of the application 
@@ -79,11 +82,11 @@ impl Worker {
                 let job = receiver.lock().unwrap().recv();
                 match job {
                     Ok(job) => {
-                        println!("Worker {id} got a job; executing.");
+                        // println!("Worker {id} got a job; executing.");
                         rt.block_on(job);
                     }
                     Err(_) => {
-                        println!("Worker {id} exiting.");
+                        // println!("Worker {id} exiting.");
                         break; // If there are no more jobs, the worker exits.
                     }
                 }
@@ -104,11 +107,16 @@ pub struct AppBuilder {
     max_body_size: Option<usize>, 
     max_line_length: Option<usize>, 
     max_headers: Option<usize>, 
+    middle_wares: Option<Vec<Arc<dyn AsyncMiddleware>>>, 
 } 
 
 impl AppBuilder { 
     pub fn new() -> Self { 
-        Self { root_url: None, binding: None, mode: None, workers: None, max_connection_time: None, max_header_size: None, max_body_size: None, max_line_length: None, max_headers: None } 
+        Self { root_url: None, binding: None, mode: None, workers: None, max_connection_time: None, max_header_size: None, max_body_size: None, max_line_length: None, max_headers: None, middle_wares: Some(Self::default_middlewares()) } 
+    } 
+
+    pub fn default_middlewares() -> Vec<Arc<dyn AsyncMiddleware>> { 
+        vec![Arc::new(LoggingMiddleware)]  
     } 
 
     pub fn root_url(mut self, root_url: Arc<Url>) -> Self { 
@@ -156,6 +164,38 @@ impl AppBuilder {
         self 
     } 
 
+    // Append a middleware instance created by T to the end of the vector.
+    pub fn append_middleware<T: 'static + AsyncMiddleware>(mut self) -> Self {
+        let middleware = Arc::new(T::return_self());
+        if let Some(middle_wares) = &mut self.middle_wares {
+            middle_wares.push(middleware);
+        } else {
+            self.middle_wares = Some(vec![middleware]);
+        }
+        self
+    }
+
+    // Insert a middleware instance created by T at the beginning of the vector.
+    pub fn insert_middleware<T: 'static + AsyncMiddleware>(mut self) -> Self { 
+        let middleware = Arc::new(T::return_self());
+        if let Some(middle_wares) = &mut self.middle_wares {
+            middle_wares.insert(0, middleware);
+        } else {
+            self.middle_wares = Some(vec![middleware]);
+        }
+        self
+    } 
+
+    pub fn remove_middleware<T: 'static + AsyncMiddleware>(mut self) -> Self { 
+        if let Some(middle_wares) = &mut self.middle_wares {
+            middle_wares.retain(|m| {
+                // Keep the middleware if it's NOT of type T
+                !m.as_any().is::<T>() 
+            });
+        }
+        self  
+    } 
+
     pub fn build(self) -> Arc<App> { 
         let root_url = match self.root_url{ 
             Some(root_url) => root_url, 
@@ -165,6 +205,7 @@ impl AppBuilder {
                     children: RwLock::new(Children::Nil), 
                     method: RwLock::new(None), 
                     ancestor: Ancestor::Nil, 
+                    middlewares: RwLock::new(MiddleWares::Nil),
                 })
             } 
         }; 
@@ -176,12 +217,12 @@ impl AppBuilder {
         let mode = self.mode.unwrap_or_else(|| RunMode::Development); 
         let workers = ThreadPool::new(self.workers.unwrap_or_else(|| 4)); 
         let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5); 
-        let max_header_size = self.max_header_size.unwrap_or_else(|| 8192); 
-        let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 1024); 
-        let max_line_length = self.max_line_length.unwrap_or_else(|| 8192); 
+        let max_header_size = self.max_header_size.unwrap_or_else(|| 1024 * 1024); 
+        let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 1024 * 16 ); 
+        let max_line_length = self.max_line_length.unwrap_or_else(|| 1024 * 16); 
         let max_headers = self.max_headers.unwrap_or_else(|| 100); 
         let connection_config = ParseConfig::new(max_header_size, max_line_length, max_headers, max_body_size); 
-        Arc::new(App { root_url, listener: binding, mode, pool: workers, max_connection_time, connection_config }) 
+        Arc::new(App { root_url, listener: binding, mode, pool: workers, max_connection_time, connection_config, middlewares: self.middle_wares.unwrap_or_else(|| Self::default_middlewares()).into() }) 
     } 
 }
 
@@ -229,16 +270,20 @@ impl App {
     /// This function add a new url to the app. It will be added to the root url 
     /// # Arguments 
     /// * `url` - The url to add. It should be a string. 
-    pub fn literal_url<T: Into<String>>(self: &Arc<Self>, url: T, function: Arc<dyn AsyncUrlHandler>) -> Result<Arc<super::urls::Url>, String> { 
+    pub fn literal_url<T: Into<String>>(
+        self: &Arc<Self>, 
+        url: T, 
+        function: Arc<dyn AsyncUrlHandler>, 
+    ) -> Result<Arc<super::urls::Url>, String> { 
         let url = url.into(); 
-        self.root_url.clone().literal_url(&url, function) 
+        self.root_url.clone().literal_url(&url, function, Some(self.middlewares.clone())) 
     } 
 
     pub async fn request(&self, request: HttpRequest) -> HttpResponse { 
         let path = request.path(); 
         let mut path = path.split('/').collect::<Vec<&str>>(); 
         path.remove(0); 
-        println!("{:?}", path); 
+        // println!("{:?}", path); 
         let url: Option<_> = Arc::clone(&self.root_url).walk(path.iter()).await; 
         if let Some(url) = url { 
             return url.run(request).await; 
@@ -254,7 +299,6 @@ impl App {
         let job = async move { 
             if let Ok(request) = HttpRequest::from_request_stream(&mut stream, &app.connection_config).await {
                 // Process the request asynchronously and send the response. 
-                println!("Request handled"); 
                 app.request(request).await.send(&mut stream).await;
             }
         }; 
@@ -263,8 +307,9 @@ impl App {
     }
 
     pub async fn run(self: Arc<Self>) { 
+        println!("Connection established from {}", self.listener.local_addr().unwrap()); 
         for stream in self.listener.incoming() {
-            let stream = stream.unwrap(); 
+            let stream = stream.unwrap();  
             stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();  
             Arc::clone(&self).handle_connection(stream); 
         } 
@@ -276,8 +321,9 @@ impl App {
     ) -> Result<Arc<Url>, String> {
         let mut current = self.root_url.clone();
         for seg in segments {
-            current = current.get_child_or_create(seg.clone())?;
-        }
+            current = current.get_child_or_create(seg.clone())?; 
+            current.set_middlewares(Some(self.middlewares.clone())); 
+        } 
         Ok(current)
     } 
 

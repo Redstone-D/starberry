@@ -22,3 +22,5 @@ pub use starberry_macro as sm;
 pub use sm::log_func_info; 
 pub use sm::lit_url; 
 pub use sm::url; 
+
+pub mod preload; 

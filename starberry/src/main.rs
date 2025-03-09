@@ -1,14 +1,4 @@
-use once_cell::sync::Lazy;
-use starberry::{App, RunMode}; 
-use starberry::{LitUrl, RegUrl, AnyUrl, AnyPath}; 
-use starberry::urls::*; 
-use starberry::{HttpRequest, HttpResponse}; 
-use starberry::{text_response, html_response};  
-use starberry::{lit_url, url}; 
-use starberry::HttpMethod::*; 
-use std::sync::Arc; 
-use std::thread::sleep; 
-use std::time::Duration; 
+use starberry::preload::*; 
 
 #[tokio::main]  
 async fn main() { 
@@ -18,15 +8,17 @@ async fn main() {
     APP.clone().run().await; 
 } 
 
-pub static APP: Lazy<Arc<App>> = Lazy::new(|| {
+pub static APP: SApp = Lazy::new(|| { 
     App::new()
         .binding(String::from("127.0.0.1:1111"))
         .mode(RunMode::Development)
-        .workers(4)
+        .workers(4) 
+        .max_body_size(1024 * 1024 * 10) 
+        .max_header_size(1024 * 10) 
         .build() 
 }); 
 
-#[lit_url(APP, "/")]
+#[lit_url(APP, "/")] 
 async fn home_route(_: HttpRequest) -> HttpResponse { 
     html_response("<h1>Home</h1>") 
 } 
@@ -49,7 +41,7 @@ async fn hello(_: HttpRequest) -> HttpResponse {
 async fn async_test(_: HttpRequest) -> HttpResponse {
     sleep(Duration::from_secs(1));
     println!("1");
-    sleep(Duration::from_secs(1));
+    sleep(Duration::from_secs(1)); 
     println!("2");
     sleep(Duration::from_secs(1));
     println!("3");
@@ -68,6 +60,7 @@ async fn async_test2(_: HttpRequest) -> HttpResponse {
 } 
 
 #[url(TEST_URL.clone(), RegUrl("[0-9]+"))]  
+// #[set_header_size(max_size: 2048, max_line_size: 1024, max_lines: 200)] 
 async fn testa(_: HttpRequest) -> HttpResponse { 
     text_response("Number page") 
 } 

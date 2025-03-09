@@ -1,17 +1,18 @@
 [package]
 name = "starberry_macro"
-version = "0.2.0"
+version = "0.2.2"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
-description = "Marco cargo of starberry." 
+description = "A framework for building web application in Rust" 
 license = "MIT" 
 repository = "https://github.com/Redstone-D/starberry" 
+categories = ["network-programming", "web-programming::http-server" ] 
 
 [dependencies] 
 syn = { version = "2.0", features = ["full"] } 
 ctor = "0.4.0" 
 quote = "1.0" 
-starberry_core = { path = "../starberry_core", version = "0.2.0"}  
+starberry_core = { path = "../starberry_core", version = "0.2.2"}  
 
 [lib]
 proc-macro = true

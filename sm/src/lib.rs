@@ -1,8 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote; 
 use syn::{
-    parse::{Parse, ParseStream}, 
-    parse_macro_input, ItemFn, Result as SynResult, Expr, Token, LitStr, Ident
+    parse::{Parse, ParseStream}, parse_macro_input, parse_quote, Expr, Ident, ItemFn, LitInt, LitStr, Result as SynResult, Token
 }; 
 
 #[proc_macro_attribute]
@@ -102,9 +101,61 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
                 Ok(child_url) => child_url,
                 Err(e) => dangling_url(), 
             };
-            child_url.set_method(Arc::new(#func_ident));
+            child_url.set_method(Arc::new(#func_ident)); 
+            child_url.set_middlewares(#url_expr.middlewares.read().unwrap().get_middlewares()); 
         }
     };
 
     expanded.into()
+} 
+
+#[proc_macro_attribute]
+pub fn build_macro(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    use syn::parse_macro_input;
+    use syn::ItemFn;
+    let input_fn = parse_macro_input!(item as ItemFn);
+    let fn_name = input_fn.sig.ident;
+    let fn_block = input_fn.block; // capture the function body
+
+    // Create a middleware struct name by appending "Middleware" to the function name.
+    let middleware_name = syn::Ident::new(&format!("{}", fn_name), fn_name.span());
+
+    let expanded = quote! {
+        // Define the generated middleware struct.
+        pub struct #middleware_name;
+
+        use starberry_core::app::middleware::AsyncMiddleware;
+        use starberry_core::http::request::HttpRequest;
+        use starberry_core::http::response::HttpResponse;
+        use std::pin::Pin;
+        use std::future::Future;
+        use std::any::Any;
+
+        impl AsyncMiddleware for #middleware_name {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+
+            fn handle<'a>(
+                &self,
+                req: HttpRequest,
+                next: Box<
+                    dyn Fn(HttpRequest) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>>
+                        + Send
+                        + Sync
+                        + 'static,
+                >,
+            ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>> {
+                std::pin::Pin::from(Box::new(async move {
+                    (#fn_block).await 
+                }))
+            }
+
+            fn return_self() -> Self where Self: Sized {
+                #middleware_name
+            }
+        }
+    };
+
+    TokenStream::from(expanded)
 } 

@@ -1,11 +1,12 @@
 [package]
 name = "starberry_core"
-version = "0.2.0"
+version = "0.2.2"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
-description = "A framework for building web applocation in Rust" 
+description = "A framework for building web application in Rust" 
 license = "MIT" 
 repository = "https://github.com/Redstone-D/starberry" 
+categories = ["network-programming", "web-programming::http-server"] 
 
 [dependencies] 
 regex = "1.5.6" 

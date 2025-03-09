@@ -60,4 +60,4 @@ pub fn get_command_position(buffer: &[u8]) -> Vec<(usize, usize)> {
 
 pub fn execute_command(command: &[u8], data: &mut HashMap<String, String>) -> Vec<u8> { 
     Vec::<u8>::new() 
-}  
+}   

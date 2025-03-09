@@ -2,5 +2,5 @@
 members = [
     "starberry", 
     "sm", 
-    "starberry_core" 
-] 
+    "starberry_core", 
+    "starberry_middlewares"] 

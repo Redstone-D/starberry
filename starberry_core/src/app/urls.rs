@@ -1,6 +1,7 @@
 use super::super::http::request::*; 
 use super::super::http::response::*; 
-use super::super::http::http_value::*; 
+use super::super::http::http_value::*;
+use super::middleware; 
 use std::future::Future;
 use std::pin::Pin;
 use std::slice::Iter; 
@@ -9,12 +10,13 @@ use std::sync::OnceLock;
 use std::sync::RwLock;
 use regex::Regex; 
 pub static ROOT_URL: OnceLock<Url> = OnceLock::new();  
+use super::super::app::middleware::*; 
 
 pub trait AsyncUrlHandler: Send + Sync + 'static {
     fn handle(
         &self, 
         req: HttpRequest
-    ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + '_>>;
+    ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>>;
 }
 
 impl<F, Fut> AsyncUrlHandler for F
@@ -25,7 +27,7 @@ where
     fn handle(
         &self, 
         req: HttpRequest
-    ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + '_>> {
+    ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>> {
         Box::pin(self(req))
     }
 }
@@ -35,7 +37,8 @@ pub struct Url {
     pub children: RwLock<Children>, 
     pub ancestor: Ancestor, 
     pub method: RwLock<Option<Arc<dyn AsyncUrlHandler>>>, 
-}
+    pub middlewares: RwLock<MiddleWares>,  
+} 
 
 #[derive(Clone, Debug)] 
 pub enum PathPattern { 
@@ -82,7 +85,7 @@ impl PartialEq for PathPattern {
             (PathPattern::AnyPath, PathPattern::AnyPath) => true,
             _ => false,
         }
-    }
+    } 
 } 
 
 impl std::fmt::Display for PathPattern {
@@ -126,7 +129,87 @@ impl std::fmt::Display for Url {
         } 
         write!(f, "Url: {}, Function: {}, {{{}}}", self.path, func_str, children_str) 
     }
-}
+} 
+
+#[derive(Clone)]
+pub enum MiddleWares { 
+    Nil, 
+    MiddleWare(Arc<Vec<Arc<dyn AsyncMiddleware>>>), 
+} 
+
+impl MiddleWares{ 
+    pub fn new() -> Self { 
+        Self::Nil 
+    } 
+
+    pub fn add_middleware(&mut self, middleware: Arc<dyn AsyncMiddleware>) { 
+        match self { 
+            MiddleWares::Nil => { 
+                *self = MiddleWares::MiddleWare(Arc::new(vec![middleware])); 
+            } 
+            MiddleWares::MiddleWare(middlewares) => { 
+                let middlewares = Arc::make_mut(middlewares); 
+                middlewares.push(middleware); 
+            } 
+        } 
+    } 
+
+    /// Remove a specific middleware based on pointer equality.
+    /// Returns true if the middleware was found and removed.
+    pub fn remove_middleware(&mut self, target: &Arc<dyn AsyncMiddleware>) -> bool {
+        match self {
+            MiddleWares::Nil => false,
+            MiddleWares::MiddleWare(middlewares) => {
+                // Get a mutable reference to the inner vector.
+                let middlewares = Arc::make_mut(middlewares);
+                if let Some(pos) = middlewares.iter().position(|m| Arc::ptr_eq(m, target)) {
+                    middlewares.remove(pos);
+                    // If there are no more middlewares, set self to Nil.
+                    if middlewares.is_empty() {
+                        *self = MiddleWares::Nil;
+                    }
+                    return true;
+                }
+                false
+            }
+        }
+    }
+
+    pub fn get_middlewares(&self) -> Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>> { 
+        match self { 
+            MiddleWares::Nil => None, 
+            MiddleWares::MiddleWare(middlewares) => Some(middlewares.clone()), 
+        } 
+    }  
+
+    pub fn parse( 
+        middlewares: &Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>> 
+    ) -> MiddleWares { 
+        match middlewares { 
+            Some(middlewares) => MiddleWares::MiddleWare(middlewares.clone()), 
+            None => MiddleWares::Nil, 
+        } 
+    } 
+} 
+
+impl IntoIterator for MiddleWares {
+    type Item = Arc<dyn AsyncMiddleware>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        match self {
+            MiddleWares::Nil => Vec::new().into_iter(),
+            MiddleWares::MiddleWare(vec_arc) => {
+                // Try to unwrap the Arc, if possible.
+                // If unwrapping fails (because other clones exist), we clone the inner vector.
+                match Arc::try_unwrap(vec_arc) {
+                    Ok(vec) => vec.into_iter(),
+                    Err(arc) => (*arc).clone().into_iter(),
+                }
+            }
+        }
+    }
+} 
 
 impl Url { 
     pub async fn run(&self, request: HttpRequest) -> HttpResponse { 
@@ -134,9 +217,35 @@ impl Url {
             let guard = self.method.read().unwrap();
             guard.clone()
         }; 
+        // Lock the middleware 
+        let middlewares = { 
+            let guard = self.middlewares.read().unwrap(); 
+            guard.clone() 
+        }; 
         // Runs the function inside it 
         if let Some(method) = handler_opt { 
-            return method.handle(request).await; 
+            // Whether middleware found, by using lf let middleware 
+            if let MiddleWares::MiddleWare(_) = middlewares {  
+                let base = Arc::new(move |req: HttpRequest| {
+                    method.handle(req)
+                }) as Arc<dyn Fn(HttpRequest) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> + Send + Sync>;
+                
+                // Fold the middleware chain (iterate in reverse order so the first added middleware runs first)
+                let chain = middlewares.clone().into_iter().rev().fold(base, |next, mw| {
+                    let next_clone = next.clone();
+                    Arc::new(move |req: HttpRequest| {
+                        // Clone next_clone for each call so the closure doesn't consume it.
+                        let next_fn = next_clone.clone();
+                        mw.handle(req, Box::new(move |r| next_fn(r)))
+                    }) as Arc<dyn Fn(HttpRequest) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> + Send + Sync>
+                }); 
+                
+                // Now call the complete chain with the request.
+                return chain(request).await 
+            } else { 
+                return method.handle(request).await; 
+            }
+            // return method.handle(request).await; 
         } 
         return request_templates::return_status(StatusCode::NOT_FOUND); 
     } 
@@ -149,7 +258,7 @@ impl Url {
     ) -> Pin<Box<dyn Future<Output = Option<Arc<Self>>> + Send + 'a>> { 
         
         // Print path 
-        println!("Walking: {:?}", path); 
+        // println!("Walking: {:?}", path); 
 
         // We immediately figure out the "this_segment"
         let this_segment = match path.next() {
@@ -217,7 +326,7 @@ impl Url {
         Box::pin(async move {
             let handler_opt = {
                 let guard = self.method.read().unwrap();
-                guard.clone()
+                guard.clone() 
             };
             if let Some(handler) = handler_opt {
                 handler.handle(request).await
@@ -262,7 +371,12 @@ impl Url {
     /// * `Err(String)` - An error message. 
     /// # Note 
     /// This function is not async, but it can be used in an async context. 
-    pub fn childbirth(self: &Arc<Self>, child: PathPattern, function: Option<Arc<dyn AsyncUrlHandler>>) -> Result<Arc<Url>, String> {
+    pub fn childbirth(
+        self: &Arc<Self>, 
+        child: PathPattern, 
+        function: Option<Arc<dyn AsyncUrlHandler>>, 
+        middleware: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>>, 
+    ) -> Result<Arc<Url>, String> { 
         println!("Creating child URL: {:?}", child); 
         
         // First, do a quick check if the child already exists:
@@ -271,11 +385,12 @@ impl Url {
         } 
 
         // Create the new child URL
-        let new_child = Arc::new(Url {
+        let new_child = Arc::new(Url { 
             path: child,
             children: RwLock::new(Children::Nil),
             ancestor: Ancestor::Some(Arc::clone(&self)),
-            method: RwLock::new(function),
+            method: RwLock::new(function), 
+            middlewares: RwLock::new(MiddleWares::parse(&middleware)), 
         });
 
         // Now lock for writing and insert the new child
@@ -315,6 +430,7 @@ impl Url {
             children: RwLock::new(Children::Nil), 
             ancestor: Ancestor::Nil, 
             method: RwLock::new(None), 
+            middlewares: RwLock::new(MiddleWares::Nil), 
         }); 
         new_url 
     } 
@@ -339,7 +455,7 @@ impl Url {
                     for child_url in children.iter() {
                         if child_url.path == child {
                             // If we find it, return immediately 
-                            println!("Child found: {}", child_url); 
+                            // println!("Child found: {}", child_url); 
                             return Ok(child_url.clone());
                         }
                     }
@@ -347,7 +463,7 @@ impl Url {
             }
         } 
         // println!("Child not found, creating new one: {:?}", child); 
-        self.childbirth(child, None)
+        self.childbirth(child, None, None) 
     }
     
 
@@ -362,7 +478,13 @@ impl Url {
         }
     } 
 
-    pub fn literal_url(self: Arc<Self>, path: &str, function: Arc<dyn AsyncUrlHandler>) -> Result<Arc<Url>, String> { 
+    /// Register a child URL with a function. 
+    pub fn literal_url(
+        self: Arc<Self>, 
+        path: &str, 
+        function: Arc<dyn AsyncUrlHandler>, 
+        middleware: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>> 
+    ) -> Result<Arc<Url>, String> { 
         println!("Changing url into path pattern: {}", path); 
         // Remove the first slash if exist 
         let path = if path.starts_with('/') { 
@@ -374,7 +496,7 @@ impl Url {
         let path_vec: Vec<PathPattern> = path.split('/').map(|s| PathPattern::literal_path(s)).collect(); 
         println!("Path vector: {:?}", path_vec); 
         // Call register with the path_vec and function 
-        let result = self.register(path_vec, Some(function));
+        let result = self.register(path_vec, Some(function), middleware);
         // Return the result 
         match result { 
             Ok(url) => Ok(url), 
@@ -382,13 +504,19 @@ impl Url {
         } 
     } 
 
-    pub fn register(self: Arc<Self>, path: Vec<PathPattern>, function: Option<Arc<dyn AsyncUrlHandler>>) -> Result<Arc<Self>, String> { 
+    /// Register a URL with a function. 
+    pub fn register(
+        self: Arc<Self>, 
+        path: Vec<PathPattern>, 
+        function: Option<Arc<dyn AsyncUrlHandler>>, 
+        middleware: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>>
+    ) -> Result<Arc<Self>, String> { 
         println!("Registering URL: {:?}", path); 
         if path.len() == 1 { 
-            return self.childbirth(path[0].clone(), function); 
+            return self.childbirth(path[0].clone(), function, middleware); 
         } else { 
             println!("Recursion: Registering child URL: {:?}", path[0]); 
-            return self.get_child_or_create(path[0].clone())?.register(path[1..].to_vec(), function); 
+            return self.get_child_or_create(path[0].clone())?.register(path[1..].to_vec(), function, middleware); 
         } 
     } 
 
@@ -412,6 +540,18 @@ impl Url {
         let mut guard = self.method.write().unwrap();
         *guard = Some(handler); 
     } 
+
+    pub fn set_middlewares(&self, middlewares: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>>) {
+        let mut guard = self.middlewares.write().unwrap(); 
+        match middlewares { 
+            Some(middlewares) => { 
+                *guard = MiddleWares::MiddleWare(middlewares); 
+            } 
+            None => { 
+                *guard = MiddleWares::Nil; 
+            } 
+        } 
+    } 
 } 
 
 pub fn dangling_url() -> Arc<Url> { 
@@ -420,5 +560,6 @@ pub fn dangling_url() -> Arc<Url> {
         children: RwLock::new(Children::Nil), 
         ancestor: Ancestor::Nil, 
         method: RwLock::new(None), 
+        middlewares: RwLock::new(MiddleWares::Nil), 
     }) 
 } 

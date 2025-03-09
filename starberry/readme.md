@@ -2,13 +2,17 @@
 
 # Starberry Web Framework 
 
-Light-weighted framework for full-site framework, managing both the frontend and backend 
+Small, sweet, easy framework for full-stack web application 
 
-Regex and other kind of URL is supported, tree structred URL is being used for easier URL management 
+Regex and other kinds of URLs are supported, and tree-structured URLs are used for easier URL management.
+
+Use plain HTML for better compatibility with other web projects and ease of learning.
 
 https://github.com/Redstone-D/starberry 
 
 # Just updated 
+
+0.2.2 Security enhancement: The request size, connection time is restricted automatically. Middlewares are implemented but not in use. Add preload modules 
 
 0.2.1 Enable URL reg everywhere in the projects, enabling Regex, Any and Any Path to be URL. URLs are stored in a tree structure for easier config 
 
@@ -19,28 +23,15 @@ https://github.com/Redstone-D/starberry
 **Quick start**
 
 ```rust 
-#[tokio::main]  
+use starberry::preload::*;  
 
+#[tokio::main]  
 async fn main() { 
     APP.clone().run().await; 
 } 
 
-use once_cell::sync::Lazy;
-use starberry::{App, RunMode}; 
-use starberry::{LitUrl, RegUrl, AnyUrl, AnyPath}; 
-use starberry::urls::*; 
-use starberry::{HttpRequest, HttpResponse}; 
-use starberry::{text_response, html_response};  
-use starberry::{lit_url, url}; 
-use starberry::HttpMethod::*; 
-use std::sync::Arc; 
-
-pub static APP: Lazy<Arc<App>> = Lazy::new(|| {
-    App::new()
-        .binding(String::from("127.0.0.1:1111"))
-        .mode(RunMode::Development)
-        .workers(4)
-        .build() 
+pub static APP: SApp = Lazy::new(|| {
+    App::new().build() 
 }); 
 
 #[lit_url(APP, "/")]
@@ -49,7 +40,7 @@ async fn home_route(_: HttpRequest) -> HttpResponse {
 } 
 ``` 
 
-You will be able to visit your server at localhost:1111. If you does not bind with 1111 port, the default port is 3333 
+You will be able to visit your server at localhost:3333 
 
 ## Registering URL 
 
