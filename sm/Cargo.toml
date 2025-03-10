@@ -3,10 +3,11 @@ name = "starberry_macro"
 version = "0.2.2"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
-description = "A framework for building web application in Rust" 
+description = "Macro crate for starberry" 
 license = "MIT" 
 repository = "https://github.com/Redstone-D/starberry" 
 categories = ["network-programming", "web-programming::http-server" ] 
+keywords = ["starberry"]   
 
 [dependencies] 
 syn = { version = "2.0", features = ["full"] } 

@@ -1,4 +1,4 @@
-## Latest stable version: 0.1.5 
+## Latest stable version: 0.2.3 
 
 # Starberry Web Framework 
 
@@ -11,6 +11,18 @@ Use plain HTML for better compatibility with other web projects and ease of lear
 https://github.com/Redstone-D/starberry 
 
 # Just updated 
+
+**What's Next?** 
+
+Version 0.2 has concluded, and development for version 0.3 will commence. The 0.3 update will be divided into two parts:
+
+1. Templating system: This includes parsing expressions into templates, introducing for loops, while loops, and simple calculations within the template.
+2. JSON parsing. 
+3. Session and form manipulation.
+
+**Starberry now supports plain HTML templates, and simpler URL definitions are enabled using macros.**
+
+0.2.3 Templates now in use. Please use `starberry build` instead of `cargo build` when building exe for running. The config of the command is the same 
 
 0.2.2 Security enhancement: The request size, connection time is restricted automatically. Middlewares are implemented but not in use. Add preload modules 
 
@@ -41,6 +53,22 @@ async fn home_route(_: HttpRequest) -> HttpResponse {
 ``` 
 
 You will be able to visit your server at localhost:3333 
+
+Your project structure should be 
+
+```
+crate
+├── src
+│   ├── main.rs 
+│   ├── lib.rs 
+│   ├── ... 
+└── templates
+    ├── base.html
+    ├── index.html
+    └── ... 
+``` 
+
+The templates will automatically copied into the dist while you use starberry build 
 
 ## Registering URL 
 
@@ -107,16 +135,104 @@ Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any
 
 # TBD 
 
-(Akatemp) 
-
-1. Input data from macro 
-2. Parsing expressions 
-
 (Request & Response) 
 
 1. Session & Cookie manipulation 
 2. Parsing form data (Finished, now fixing special character problems), uploading files 
-3. Render Templates 
+3. Render Templates (Finished) 
+
+# Example 
+
+```rust 
+use starberry::preload::*; 
+
+#[tokio::main]  
+async fn main() { 
+
+    let furl = APP.clone().reg_from(&[LitUrl("flexible"), LitUrl("url"), LitUrl("may_be_changed")]); 
+    furl.set_method(Arc::new(flexible_access)); 
+
+    APP.clone().run().await; 
+} 
+
+pub static APP: SApp = Lazy::new(|| { 
+    App::new()
+        .binding(String::from("127.0.0.1:1111"))
+        .mode(RunMode::Development)
+        .workers(4) 
+        .max_body_size(1024 * 1024 * 10) 
+        .max_header_size(1024 * 10) 
+        .build() 
+}); 
+
+#[lit_url(APP, "/")] 
+async fn home_route(_: HttpRequest) -> HttpResponse { 
+    html_response("<h1>Home</h1>") 
+} 
+
+#[lit_url(APP, "/random/split/something")]
+async fn random_route(_: HttpRequest) -> HttpResponse {
+    text_response("A random page") 
+}  
+
+static TEST_URL: SUrl = Lazy::new(|| {
+    APP.reg_from(&[LitUrl("test")]) 
+}); 
+
+#[url(TEST_URL.clone(), LitUrl("/hello"))]
+async fn hello(_: HttpRequest) -> HttpResponse { 
+    text_response("Hello")  
+} 
+
+#[url(TEST_URL.clone(), LitUrl("/async_test"))] 
+async fn async_test(_: HttpRequest) -> HttpResponse {
+    sleep(Duration::from_secs(1));
+    println!("1");
+    sleep(Duration::from_secs(1)); 
+    println!("2");
+    sleep(Duration::from_secs(1));
+    println!("3");
+    text_response("Async Test Page") 
+} 
+
+#[url(TEST_URL.clone(), RegUrl("/async_test2"))]  
+async fn async_test2(_: HttpRequest) -> HttpResponse {
+    sleep(Duration::from_secs(1));
+    println!("1");
+    sleep(Duration::from_secs(1));
+    println!("2");
+    sleep(Duration::from_secs(1));
+    println!("3");
+    text_response("Async Test Page") 
+} 
+
+#[url(TEST_URL.clone(), RegUrl("[0-9]+"))]  
+// #[set_header_size(max_size: 2048, max_line_size: 1024, max_lines: 200)] 
+async fn testa(_: HttpRequest) -> HttpResponse { 
+    text_response("Number page") 
+} 
+
+#[url(TEST_URL.clone(), LitUrl("form"))]  
+async fn test_form(request: HttpRequest) -> HttpResponse { 
+    println!("Request to this dir"); 
+    if *request.method() == POST { 
+        match request.form() { 
+            Some(form) => { 
+                return text_response(format!("Form data: {:?}", form)); 
+            } 
+            None => { 
+                return text_response("Error parsing form"); 
+            }  
+        } 
+    } 
+    render_template("form.html") 
+} 
+
+async fn flexible_access(_: HttpRequest) -> HttpResponse { 
+    text_response("Flexible") 
+} 
+ 
+``` 
 
 # Update log 
 
@@ -196,3 +312,5 @@ async fn main() {
 0.1.3: Use thread pooling, enable user to set number of threads. Use better URL approach 
 
 0.1.2: Updated Request Analyze, Debug to not Generate Panic. Let the program capable for async (The 0.1.1 async is fake) 
+ 
+ 

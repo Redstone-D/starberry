@@ -84,6 +84,8 @@ impl HttpResponse {
 } 
 
 pub mod request_templates {
+    use std::path::Path;
+
     use crate::http::http_value::HttpContentType;
     use super::ResponseStartLine;  
     use super::ResponseHeader; 
@@ -107,6 +109,21 @@ pub mod request_templates {
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
+        header.set_content_type(HttpContentType::TextHtml); 
+        HttpResponse::new(start_line, header, body).set_content_length() 
+    } 
+
+    pub fn render_template(file: &str) -> HttpResponse { 
+        let start_line = ResponseStartLine { 
+            http_version: HttpVersion::Http11, 
+            status_code: StatusCode::OK, 
+        }; 
+        let mut header = ResponseHeader::new(); 
+        let file_path = Path::new("templates").join(file);
+        let body = match std::fs::read(file_path) { 
+            Ok(content) => content,
+            Err(_) => return return_status(StatusCode::NOT_FOUND), 
+        }; 
         header.set_content_type(HttpContentType::TextHtml); 
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 

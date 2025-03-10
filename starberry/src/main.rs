@@ -1,93 +1,74 @@
-use starberry::preload::*; 
+use std::env;
+use std::fs;
+use std::io;
+use std::path::{Path, PathBuf}; 
+use std::process::{Command, exit};
 
-#[tokio::main]  
-async fn main() { 
-    let furl = APP.clone().reg_from(&[LitUrl("flexible"), LitUrl("url"), LitUrl("may_be_changed")]); 
-    furl.set_method(Arc::new(flexible_access)); 
+/// Recursively copy all files and subdirectories from `src` to `dst`.
+fn copy_dir_all(src: &Path, dst: &Path) -> io::Result<()> {
+    if !dst.exists() {
+        fs::create_dir_all(dst)?;
+    }
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+        let dest_path = dst.join(entry.file_name());
+        if file_type.is_dir() {
+            copy_dir_all(&entry.path(), &dest_path)?;
+        } else {
+            fs::copy(&entry.path(), &dest_path)?;
+        }
+    }
+    Ok(())
+}
 
-    APP.clone().run().await; 
-} 
+fn main() { 
+    // Skip the program name.
+    let mut args: Vec<String> = env::args().skip(1).collect();
 
-pub static APP: SApp = Lazy::new(|| { 
-    App::new()
-        .binding(String::from("127.0.0.1:1111"))
-        .mode(RunMode::Development)
-        .workers(4) 
-        .max_body_size(1024 * 1024 * 10) 
-        .max_header_size(1024 * 10) 
-        .build() 
-}); 
+    // We expect the first argument to be "build"
+    if args.is_empty() || args[0] != "build" {
+        eprintln!("Usage: cargo myframework build [cargo build args]");
+        exit(1);
+    }
+    // Remove "build" from our argument list so the rest will be passed to cargo build.
+    args.remove(0);
 
-#[lit_url(APP, "/")] 
-async fn home_route(_: HttpRequest) -> HttpResponse { 
-    html_response("<h1>Home</h1>") 
-} 
+    // Run "cargo build" with the remaining arguments.
+    let status = Command::new("cargo")
+        .arg("build")
+        .args(&args)
+        .status()
+        .expect("Failed to run cargo build");
+    if !status.success() {
+        exit(status.code().unwrap_or(1));
+    }
 
-#[lit_url(APP, "/random/split/something")]
-async fn random_route(_: HttpRequest) -> HttpResponse {
-    text_response("A random page") 
-}  
+    // Determine whether to look for release or debug output.
+    let is_release = args.iter().any(|arg| arg == "--release");
+    // Use CARGO_TARGET_DIR if set, otherwise "target"
+    let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".into());
+    let build_folder = if is_release { "release" } else { "debug" };
+    let out_dir = Path::new(&target_dir).join(build_folder);
 
-static TEST_URL: Lazy<Arc<Url>> = Lazy::new(|| {
-    APP.reg_from(&[LitUrl("test")]) 
-}); 
+    // Our destination is a "templates" folder inside the output directory.
+    let dest_templates = out_dir.join("templates");
 
-#[url(TEST_URL.clone(), LitUrl("/hello"))]
-async fn hello(_: HttpRequest) -> HttpResponse {
-    text_response("Hello, world!") 
-} 
+    // Our source templates directory is assumed to be "./templates" in the crate root.
+    let src_templates = Path::new("templates");
+    if !src_templates.exists() {
+        eprintln!("No templates directory found in crate root.");
+        exit(1);
+    }
 
-#[url(TEST_URL.clone(), LitUrl("/async_test"))] 
-async fn async_test(_: HttpRequest) -> HttpResponse {
-    sleep(Duration::from_secs(1));
-    println!("1");
-    sleep(Duration::from_secs(1)); 
-    println!("2");
-    sleep(Duration::from_secs(1));
-    println!("3");
-    text_response("Async Test Page") 
-} 
+    // Recursively copy the templates folder.
+    if let Err(e) = copy_dir_all(src_templates, &dest_templates) {
+        eprintln!("Error copying templates: {}", e);
+        exit(1);
+    }
 
-#[url(TEST_URL.clone(), RegUrl("/async_test2"))]  
-async fn async_test2(_: HttpRequest) -> HttpResponse {
-    sleep(Duration::from_secs(1));
-    println!("1");
-    sleep(Duration::from_secs(1));
-    println!("2");
-    sleep(Duration::from_secs(1));
-    println!("3");
-    text_response("Async Test Page") 
-} 
-
-#[url(TEST_URL.clone(), RegUrl("[0-9]+"))]  
-// #[set_header_size(max_size: 2048, max_line_size: 1024, max_lines: 200)] 
-async fn testa(_: HttpRequest) -> HttpResponse { 
-    text_response("Number page") 
-} 
-
-#[url(TEST_URL.clone(), LitUrl("form"))]  
-async fn test_form(request: HttpRequest) -> HttpResponse { 
-    println!("Request to this dir"); 
-    if *request.method() == POST { 
-        match request.form() { 
-            Some(form) => { 
-                return text_response(format!("Form data: {:?}", form)); 
-            } 
-            None => { 
-                return text_response("Error parsing form"); 
-            }  
-        } 
-    } 
-    let file: String = match std::fs::read_to_string("form.html"){ 
-        Ok(file) => file, 
-        Err(e) => { 
-            println!("Error reading file: {}", e); 
-            return text_response("Error reading file"); 
-        } 
-    }; 
-    html_response(file) 
-} 
-
-async fn flexible_access(_: HttpRequest) -> HttpResponse { 
-    text_response("Flexible") 
-} 
+    println!(
+        "Successfully built the crate and copied templates to {}",
+        dest_templates.display()
+    );
+}
