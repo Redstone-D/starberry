@@ -11,7 +11,13 @@ pub use starberry_core::app::urls::PathPattern::{
     AnyPath, 
 }; 
 
-pub use starberry_core::http::response::request_templates::*; 
+pub use starberry_core::Object; 
+pub use starberry_core::TemplateManager; 
+pub use starberry_core::object; 
+
+pub use starberry_core::http::response::request_templates; 
+
+pub use starberry_core::akari_render; 
 
 pub use starberry_core::http::request::HttpRequest;
 pub use starberry_core::http::response::HttpResponse;  

@@ -12,6 +12,16 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
+
+The main program is updated. You may use `starberry new` to start a new project for starberry, also `starberry release` command is ready in use 
+
+Read more about akari: https://crates.io/crates/akari 
+
+**Functions that are not fully implemented 0.3.0 version** 
+
+- middlewares currently always run in single thread 
+
 **What's Next?** 
 
 Version 0.2 has concluded, and development for version 0.3 will commence. The 0.3 update will be divided into two parts:
@@ -21,14 +31,6 @@ Version 0.2 has concluded, and development for version 0.3 will commence. The 0.
 3. Session and form manipulation.
 
 **Starberry now supports plain HTML templates, and simpler URL definitions are enabled using macros.**
-
-0.2.3 Templates now in use. Please use `starberry build` instead of `cargo build` when building exe for running. The config of the command is the same 
-
-0.2.2 Security enhancement: The request size, connection time is restricted automatically. Middlewares are implemented but not in use. Add preload modules 
-
-0.2.1 Enable URL reg everywhere in the projects, enabling Regex, Any and Any Path to be URL. URLs are stored in a tree structure for easier config 
-
-0.2.0 Update the url pattern. *For this version, Regex/Path/Any is no longer supported. It will be available in the next version.* 
 
 # How to start a server & URL reg 
 
@@ -175,16 +177,28 @@ async fn random_route(_: HttpRequest) -> HttpResponse {
     text_response("A random page") 
 }  
 
+#[lit_url(APP, "random")]
+async fn anything_random(_: HttpRequest) -> HttpResponse {
+    text_response("A random page") 
+}  
+
 static TEST_URL: SUrl = Lazy::new(|| {
     APP.reg_from(&[LitUrl("test")]) 
 }); 
 
-#[url(TEST_URL.clone(), LitUrl("/hello"))]
+#[url(TEST_URL.clone(), LitUrl("hello"))]
 async fn hello(_: HttpRequest) -> HttpResponse { 
     text_response("Hello")  
 } 
 
-#[url(TEST_URL.clone(), LitUrl("/async_test"))] 
+#[url(TEST_URL.clone(), LitUrl("json"))]
+async fn json_test(_: HttpRequest) -> HttpResponse { 
+    let a = 2; 
+    let body = object!({number: a, string: "Hello", array: [1, 2, 3]}); 
+    json_response(body)
+} 
+
+#[url(TEST_URL.clone(), LitUrl("async_test"))] 
 async fn async_test(_: HttpRequest) -> HttpResponse {
     sleep(Duration::from_secs(1));
     println!("1");
@@ -195,7 +209,7 @@ async fn async_test(_: HttpRequest) -> HttpResponse {
     text_response("Async Test Page") 
 } 
 
-#[url(TEST_URL.clone(), RegUrl("/async_test2"))]  
+#[url(TEST_URL.clone(), RegUrl("async_test2"))]  
 async fn async_test2(_: HttpRequest) -> HttpResponse {
     sleep(Duration::from_secs(1));
     println!("1");
@@ -225,16 +239,38 @@ async fn test_form(request: HttpRequest) -> HttpResponse {
             }  
         } 
     } 
-    render_template("form.html") 
+    plain_template_response("form.html") 
+} 
+
+#[url(TEST_URL.clone(), LitUrl("temp"))]  
+async fn test_template(_: HttpRequest) -> HttpResponse { 
+    let items = object!([1, 2, 3, 4, 5]); 
+    akari_render!(
+        "home.html", 
+        title="My Website - Home", 
+        page_title="Welcome to My Website", 
+        show_message=true, 
+        message="Hello, world!", 
+        items=items
+    ) 
 } 
 
 async fn flexible_access(_: HttpRequest) -> HttpResponse { 
     text_response("Flexible") 
 } 
  
+ 
 ``` 
 
 # Update log 
+
+0.2.3 Templates now in use. Please use `starberry build` instead of `cargo build` when building exe for running. The config of the command is the same 
+
+0.2.2 Security enhancement: The request size, connection time is restricted automatically. Middlewares are implemented but not in use. Add preload modules 
+
+0.2.1 Enable URL reg everywhere in the projects, enabling Regex, Any and Any Path to be URL. URLs are stored in a tree structure for easier config 
+
+0.2.0 Update the url pattern. *For this version, Regex/Path/Any is no longer supported. It will be available in the next version.* 
 
 0.1.5: Reexport the methods and enable dynamic function loading. Enable &str, String, Vec<u8> and so on to act as the response body 
 

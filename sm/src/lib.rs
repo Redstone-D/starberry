@@ -147,7 +147,7 @@ pub fn build_macro(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 >,
             ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>> {
                 std::pin::Pin::from(Box::new(async move {
-                    (#fn_block).await 
+                    (#fn_block).await // This should be optimized, it should not call await for wny middleware 
                 }))
             }
 

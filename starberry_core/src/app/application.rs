@@ -307,6 +307,7 @@ impl App {
     }
 
     pub async fn run(self: Arc<Self>) { 
+        // println!("Urls: {}", self.root_url); 
         println!("Connection established from {}", self.listener.local_addr().unwrap()); 
         for stream in self.listener.incoming() {
             let stream = stream.unwrap();  

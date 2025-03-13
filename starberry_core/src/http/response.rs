@@ -84,7 +84,11 @@ impl HttpResponse {
 } 
 
 pub mod request_templates {
-    use std::path::Path;
+    use std::path::Path; 
+    use std::collections::HashMap; 
+
+    use akari::Object;
+    use akari::TemplateManager;
 
     use crate::http::http_value::HttpContentType;
     use super::ResponseStartLine;  
@@ -113,7 +117,7 @@ pub mod request_templates {
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 
 
-    pub fn render_template(file: &str) -> HttpResponse { 
+    pub fn plain_template_response(file: &str) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 
             status_code: StatusCode::OK, 
@@ -137,8 +141,64 @@ pub mod request_templates {
         HttpResponse::new(start_line, header, body) 
     } 
 
+    pub fn json_response(body: Object) -> HttpResponse { 
+        let start_line = ResponseStartLine { 
+            http_version: HttpVersion::Http11, 
+            status_code: StatusCode::OK, 
+        }; 
+        let mut header = ResponseHeader::new(); 
+        header.set_content_type(HttpContentType::ApplicationJson); 
+        let body = body.into_json(); 
+        HttpResponse::new(start_line, header, body).set_content_length() 
+    } 
+
+    pub fn template_response(file: &str, data: HashMap<String, Object>) -> HttpResponse { 
+        // println!("file: {:?}", file); 
+        let template_manager = TemplateManager::new("templates");
+        let result = match template_manager.render(file, &data){ 
+            Ok(content) => content,
+            Err(err) => return text_response(err.to_string()),  
+        }; 
+        let start_line = ResponseStartLine { 
+            http_version: HttpVersion::Http11, 
+            status_code: StatusCode::OK, 
+        }; 
+        let mut header = ResponseHeader::new(); 
+        header.set_content_type(HttpContentType::TextHtml); 
+        // println!("body: {:?}", result);
+        let body = result.into_bytes(); 
+        HttpResponse::new(start_line, header, body).set_content_length() 
+    }
+
     pub fn return_status<'a>(status_code: StatusCode) -> HttpResponse { 
         normal_response(status_code, "")
     } 
 }
 
+pub mod akari_templates { 
+    /// This macro is used to create a template response with the given path and key-value pairs. 
+    /// It renders a template within specified path 
+    /// and inserts the key-value pairs into the template context. 
+    /// It is a convenient way to generate dynamic HTML responses. 
+    /// # Examples 
+    /// ```rust 
+    /// // akari_render!("/path/to/template", key1 = "value1", key2 = "value2"); 
+    /// // This will fail because the template does not exist. 
+    /// ``` 
+    #[macro_export]
+    macro_rules! akari_render {
+        ($path:expr, $($key:ident = $value:tt),* $(,)?) => {{
+            let mut map = std::collections::HashMap::new();
+            $(
+                akari_render!(@insert map, $key = $value);
+            )*
+            template_response($path, map)
+        }};
+        (@insert $map:expr, $key:ident = $value:literal) => {
+            $map.insert(stringify!($key).to_string(), object!($value));
+        };
+        (@insert $map:expr, $key:ident = $value:expr) => {
+            $map.insert(stringify!($key).to_string(), $value);
+        };
+    }     
+} 
