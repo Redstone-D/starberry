@@ -198,8 +198,8 @@ fn main() {
         },
         "run" => {
             // Run cargo run with remaining arguments.
-            // let exit_code = run_cargo("run", &args);
-            // exit(exit_code);
+            let exit_code = run_cargo("run", &args);
+            exit(exit_code);
         },
         "release" => {
             // Ensure that --release flag is passed.

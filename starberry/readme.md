@@ -12,6 +12,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.3.1: (Bug fix) Now starberry run is enabled. Optimized form reading 
+
 0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
 
 The main program is updated. You may use `starberry new` to start a new project for starberry, also `starberry release` command is ready in use 

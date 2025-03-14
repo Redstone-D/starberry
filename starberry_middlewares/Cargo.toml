@@ -5,4 +5,4 @@ edition = "2024"
 
 [dependencies]
 starberry_macro = { path = "../sm", version="0.2.0"} 
-starberry_core = { path = "../starberry_core", version="0.2.1" }  
+starberry_core = { path = "../starberry_core", version="0.3" }  

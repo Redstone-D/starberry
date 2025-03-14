@@ -3,8 +3,10 @@ use std::hash::Hash;
 use std::io::{BufRead, BufReader, Read};
 use std::error::Error;
 use std::net::TcpStream;
+use std::str;
 use regex::Regex; 
 use std::collections::HashMap; 
+use akari::Object; 
 
 #[derive(Debug)]  
 pub struct HttpRequest { 
@@ -127,12 +129,22 @@ impl std::fmt::Display for RequestStartLine {
 #[derive(Debug)] 
 pub struct RequestHeader{ 
     pub header: HashMap<String, String>, 
+    content_type: Option<HttpContentType>, 
+    content_length: Option<usize>, 
 } 
 
 impl RequestHeader { 
     /// It is used to create a new RequestHeader object. 
     pub fn new() -> Self { 
-        Self { header: HashMap::new() } 
+        Self { 
+            header: HashMap::new(), 
+            content_type: None, 
+            content_length: None, 
+        } 
+    } 
+
+    pub fn set_header_hashmap(&mut self, header: HashMap<String, String>) { 
+        self.header = header; 
     } 
 
     /// It is used to add a new header to the RequestHeader object. 
@@ -161,13 +173,109 @@ impl RequestHeader {
                 header_map.insert(key, value);
             }
         } 
-        Self { header: header_map } 
+        let mut header = Self::new(); 
+        header.set_header_hashmap(header_map); 
+        header 
     } 
 
     /// It is used to get the value of a header from the RequestHeader object. 
-    pub fn content_length(&self) -> Option<usize> { 
-        self.header.get("CONTENT-LENGTH") 
-            .and_then(|s| s.parse::<usize>().ok()) 
+    /// Taking a string as input. 
+    /// # Example 
+    /// ```rust 
+    /// use starberry_core::http::request::RequestHeader; 
+    /// let headers = vec![ 
+    ///    "Content-Type: text/html".to_string(), 
+    ///    "Content-Length: 123".to_string(), 
+    /// ]; 
+    /// let mut request_header = RequestHeader::parse(headers); 
+    /// let content_type = request_header.get_content_length().unwrap(); 
+    /// println!("{:?}", content_type); 
+    /// ``` 
+    pub fn get_content_length(&mut self) -> Option<usize> { 
+        match self.header.get("CONTENT-LENGTH") { 
+            Some(value) => return value.parse::<usize>().ok(), 
+            None => return self.parse_content_length() 
+        } 
+    } 
+
+    /// It is used to parse the value of a header from the RequestHeader object 
+    /// from the hashmap into attribute. 
+    /// # Example 
+    /// ```rust 
+    /// use starberry_core::http::request::RequestHeader; 
+    /// let headers = vec![ 
+    ///    "Content-Type: text/html".to_string(), 
+    ///    "Content-Length: 123".to_string(), 
+    /// ]; 
+    /// let mut request_header = RequestHeader::parse(headers); 
+    /// request_header.parse_content_length(); 
+    /// assert_eq!(request_header.get_content_length(), Some(123)); 
+    /// ``` 
+    pub fn parse_content_length(&mut self) -> Option<usize>{ 
+        let length = self.header.get("CONTENT-LENGTH") 
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(0); 
+        self.set_content_length(length); 
+        Some(length) 
+    } 
+
+    pub fn set_content_length(&mut self, length: usize) { 
+        self.content_length = Some(length); 
+    } 
+
+    pub fn clear_content_length(&mut self) { 
+        self.content_length = None; 
+    } 
+
+    /// It is used to get the value of a header from the RequestHeader object. 
+    /// Taking a string as input. 
+    /// # Example 
+    /// ```rust 
+    /// use starberry_core::http::request::RequestHeader; 
+    /// use starberry_core::http::http_value::HttpContentType; 
+    /// let headers = vec![ 
+    ///   "Content-Type: text/html".to_string(),
+    ///   "Content-Length: 123".to_string(), 
+    /// ]; 
+    /// let mut request_header = RequestHeader::parse(headers); 
+    /// request_header.get_content_type(); 
+    /// assert_eq!(request_header.get_content_type(), Some(HttpContentType::TextHtml)); 
+    /// ``` 
+    pub fn get_content_type(&mut self) -> Option<HttpContentType> { 
+        match self.content_type{ 
+            Some(ref content_type) => return Some(content_type.clone()), 
+            None => return self.parse_content_type() 
+        } 
+    } 
+
+    /// It is used to parse the value of a header from the RequestHeader object 
+    /// from the hashmap into attribute. 
+    /// # Example 
+    /// ```rust 
+    /// use starberry_core::http::request::RequestHeader; 
+    /// use starberry_core::http::http_value::HttpContentType; 
+    /// let headers = vec![ 
+    ///    "Content-Type: text/html".to_string(), 
+    ///   "Content-Length: 123".to_string(), 
+    /// ]; 
+    /// let mut request_header = RequestHeader::parse(headers); 
+    /// request_header.parse_content_type(); 
+    /// assert_eq!(request_header.get_content_type(), Some(HttpContentType::TextHtml)); 
+    /// ``` 
+    pub fn parse_content_type(&mut self) -> Option<HttpContentType> { 
+        let content_type = HttpContentType::from_str(
+            self.header.get("CONTENT-TYPE").unwrap_or(&"".to_owned())
+        ); 
+        self.set_content_type(content_type.clone()); 
+        Some(content_type) 
+    } 
+
+    pub fn set_content_type(&mut self, content_type: HttpContentType) { 
+        self.content_type = Some(content_type); 
+    } 
+
+    pub fn clear_content_type(&mut self) { 
+        self.content_type = None; 
     } 
 } 
 
@@ -176,37 +284,53 @@ pub enum RequestBody{
     Text(String), 
     Binary(Vec<u8>), 
     Form(HashMap<String, String>), 
-    Json(String), 
+    Json(Object), 
     Empty, 
 } 
 
 impl RequestBody{ 
-    pub fn parse(body: Vec<u8>, header: &RequestHeader) -> Self { 
-        let content_type = header.header.get("CONTENT-TYPE").unwrap_or(&String::new()).to_string(); 
-        let content_length = header.content_length().unwrap_or(0); 
-
-        if content_length == 0 { 
+    pub fn parse(body: Vec<u8>, header: &mut RequestHeader) -> Self { 
+    
+        if header.get_content_length().unwrap_or(0) == 0 { 
             return RequestBody::Empty; 
         } 
 
-        if content_type.contains("application/json") { 
-            return RequestBody::Json(String::from_utf8_lossy(&body).to_string()); 
-        } else if content_type.contains("application/x-www-form-urlencoded") { 
-            let form_data = String::from_utf8_lossy(&body).to_string(); 
-            let mut form_map = HashMap::new(); 
-            for pair in form_data.split('&') { 
-                let parts: Vec<&str> = pair.split('=').collect(); 
-                if parts.len() == 2 { 
-                    form_map.insert(parts[0].to_string(), parts[1].to_string()); 
-                } 
+        match header.get_content_type().unwrap_or(HttpContentType::Other("".to_string())){ 
+            HttpContentType::ApplicationJson => return Self::parse_json(body), 
+            HttpContentType::TextHtml => return Self::parse_text(body), 
+            HttpContentType::TextPlain => return Self::parse_text(body), 
+            HttpContentType::ApplicationXWwwFormUrlEncoded => return Self::url_encoded_form(body), 
+            _ => return Self::parse_text(body), 
+        } 
+    } 
+
+    pub fn parse_json(body: Vec<u8>) -> Self { 
+        return RequestBody::Json(Object::from_json(
+            str::from_utf8(&body)
+            .unwrap_or(""))
+            .unwrap_or(Object::new("")
+        ));  
+    } 
+
+    pub fn parse_text(body: Vec<u8>) -> Self { 
+        return RequestBody::Text(String::from_utf8_lossy(&body).to_string()); 
+    } 
+
+    pub fn parse_binary(body: Vec<u8>) -> Self { 
+        return RequestBody::Binary(body); 
+    } 
+
+    pub fn url_encoded_form(body: Vec<u8>) -> Self { 
+        let form_data = String::from_utf8_lossy(&body).to_string(); 
+        let mut form_map = HashMap::new(); 
+        for pair in form_data.split('&') { 
+            let parts: Vec<&str> = pair.split('=').collect(); 
+            if parts.len() == 2 { 
+                form_map.insert(parts[0].to_string(), parts[1].to_string()); 
             } 
-            return RequestBody::Form(form_map); 
-        } else if content_type.contains("text/plain") { 
-            return RequestBody::Text(String::from_utf8_lossy(&body).to_string()); 
-        } else { 
-            return RequestBody::Binary(body); 
-        }  
-    }
+        } 
+        return RequestBody::Form(form_map);  
+    } 
 }
 
 impl HttpRequest { 
@@ -261,15 +385,15 @@ impl HttpRequest {
         }
 
         let start_line = RequestStartLine::parse(headers.remove(0))?; 
-        let header = RequestHeader::parse(headers); 
+        let mut header = RequestHeader::parse(headers); 
 
-        let content_length = header.content_length().unwrap_or(0).min(config.max_body_size); 
+        let content_length = header.get_content_length().unwrap_or(0).min(config.max_body_size); 
         let mut body_buffer = vec![0; content_length];  
                 
         let mut body = RequestBody::Empty; 
         if content_length != 0 { 
             buf_reader.read_exact(&mut body_buffer)?; 
-            body = RequestBody::parse(body_buffer, &header); 
+            body = RequestBody::parse(body_buffer, &mut header); 
         } 
         
         Ok(HttpRequest {
