@@ -2,7 +2,7 @@ use super::http_value::*;
 use std::hash::Hash;
 use std::io::{BufRead, BufReader, Read};
 use std::error::Error;
-use std::net::TcpStream;
+use std::net::TcpStream; 
 use std::str;
 use regex::Regex; 
 use std::collections::HashMap; 

@@ -20,9 +20,12 @@ The main program is updated. You may use `starberry new` to start a new project 
 
 Read more about akari: https://crates.io/crates/akari 
 
-**Functions that are not fully implemented 0.3.0 version** 
+**Updates going to happen in 0.3 version** 
 
-- middlewares currently always run in single thread 
+- async middlewares (0.3.2) 
+- Session & Cookie manipulation (0.3.2 -> 0.3.3) 
+- Parsing form data (Finished, now fixing special character problems), uploading files (0.3.1 -> 0.3.2) 
+- Render Templates (Finished)  
 
 **What's Next?** 
 
@@ -32,7 +35,7 @@ Version 0.2 has concluded, and development for version 0.3 will commence. The 0.
 2. JSON parsing. 
 3. Session and form manipulation.
 
-**Starberry now supports plain HTML templates, and simpler URL definitions are enabled using macros.**
+**Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
 
 # How to start a server & URL reg 
 
@@ -136,14 +139,6 @@ Also know as Any if you directly use starberry::urls::PathPatten. Accept any lit
 **AnyDir** 
 
 Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any number of literal after this 
-
-# TBD 
-
-(Request & Response) 
-
-1. Session & Cookie manipulation 
-2. Parsing form data (Finished, now fixing special character problems), uploading files 
-3. Render Templates (Finished) 
 
 # Example 
 
