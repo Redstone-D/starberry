@@ -110,9 +110,7 @@ async fn home_route(_: HttpRequest) -> HttpResponse {
 
     // Update Cargo.toml with the extra dependencies.
     let cargo_toml_path = Path::new(app_name).join("Cargo.toml");
-    let deps = r#"
-[dependencies]
-starberry = "0.3"
+    let deps = r#"starberry = "0.3"
 ctor = "0.4.0"
 once_cell = "1.17"
 tokio = { version = "1", features = ["full"] }
@@ -154,31 +152,31 @@ tokio = { version = "1", features = ["full"] }
 /// Build a project:
 /// 
 /// ```bash
-/// myframework build --verbose
+/// starberry build --verbose
 /// ```
 /// 
 /// Run a project:
 /// 
 /// ```bash
-/// myframework run
+/// starberry run
 /// ```
 /// 
 /// Build a release version:
 /// 
 /// ```bash
-/// myframework release --release
+/// starberry release --release
 /// ```
 /// 
 /// Create a new project called `my_app`:
 /// 
 /// ```bash
-/// myframework new my_app
+/// starberry new my_app
 /// ```
 fn main() {
     // Skip the program name.
     let mut args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
-        eprintln!("Usage: myframework <command> [arguments]");
+        eprintln!("Usage: starberry <command> [arguments]");
         eprintln!("Commands: build, run, release, new");
         exit(1);
     }
@@ -199,7 +197,7 @@ fn main() {
         "run" => {
             // Run cargo run with remaining arguments.
             let exit_code = run_cargo("run", &args);
-            exit(exit_code);
+            exit(exit_code); 
         },
         "release" => {
             // Ensure that --release flag is passed.
@@ -212,7 +210,7 @@ fn main() {
         },
         "new" => {
             if args.is_empty() {
-                eprintln!("Usage: myframework new <app_name>");
+                eprintln!("Usage: starberry new <app_name>");
                 exit(1);
             }
             let app_name = &args[0];
@@ -220,8 +218,13 @@ fn main() {
         },
         _ => {
             eprintln!("Unknown command: {}", command);
-            eprintln!("Usage: myframework <build|run|release|new> [arguments]");
-            exit(1);
+            eprintln!(r#"Usage: starberry <build|run|release|new> [arguments]
+- `new <app_name>`: Creates a new project with the given name, a hello world program is provided by default. Dependencies are added to the Cargo.toml file. A templates directory is created at the same level as src. 
+- `build [arguments]`: Build the Starberry project (Do not use cargo build since it does not copies template). Any other extra arguments are passed to `cargo build`. 
+- `run`: Runs the starberry project. 
+- `release`: Build the Starberry project in release mode (Do not use cargo build --release since it does not copies template). Any other extra arguments are passed to `cargo build`.  
+"#);
+            exit(1); 
         }
     }
 }
