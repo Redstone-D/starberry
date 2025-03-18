@@ -9,6 +9,8 @@ pub use crate::request_templates::*;
 pub use crate::akari_render; 
 pub use crate::{lit_url, url}; 
 pub use crate::HttpMethod::*; 
+pub use crate::StatusCode; 
+
 pub use std::sync::Arc; 
 pub use std::thread::sleep; 
 pub use std::time::Duration; 

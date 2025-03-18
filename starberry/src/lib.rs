@@ -22,7 +22,7 @@ pub use starberry_core::akari_render;
 pub use starberry_core::http::request::HttpRequest;
 pub use starberry_core::http::response::HttpResponse;  
 
-pub use starberry_core::http::http_value::HttpMethod; 
+pub use starberry_core::http::http_value::*; 
 
 pub use starberry_macro as sm; 
 pub use sm::log_func_info; 

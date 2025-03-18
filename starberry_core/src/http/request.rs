@@ -284,6 +284,7 @@ pub enum RequestBody{
     Text(String), 
     Binary(Vec<u8>), 
     Form(HashMap<String, String>), 
+    Files(HashMap<String, MultiFormField>), 
     Json(Object), 
     Empty, 
 } 
@@ -295,11 +296,12 @@ impl RequestBody{
             return RequestBody::Empty; 
         } 
 
-        match header.get_content_type().unwrap_or(HttpContentType::Other("".to_string())){ 
-            HttpContentType::ApplicationJson => return Self::parse_json(body), 
-            HttpContentType::TextHtml => return Self::parse_text(body), 
-            HttpContentType::TextPlain => return Self::parse_text(body), 
-            HttpContentType::ApplicationXWwwFormUrlEncoded => return Self::url_encoded_form(body), 
+        match header.get_content_type().unwrap_or(HttpContentType::from_str("")){ 
+            HttpContentType::Application { subtype, .. } if subtype == "json" => return Self::parse_json(body), 
+            HttpContentType::Text { subtype, .. } if subtype == "html" => return Self::parse_text(body), 
+            HttpContentType::Text { subtype, .. } if subtype == "plain"  => return Self::parse_text(body), 
+            HttpContentType::Application { subtype, .. } if subtype == "x-www-form-urlencoded" => return Self::url_encoded_form(body), 
+            HttpContentType::Multipart { subtype, boundary } if subtype == "form-data" => return Self::multipart_form_data(body, boundary.unwrap_or("".to_string())), 
             _ => return Self::parse_text(body), 
         } 
     } 
@@ -330,6 +332,152 @@ impl RequestBody{
             } 
         } 
         return RequestBody::Form(form_map);  
+    } 
+
+    /// Parses a multipart form data body into a HashMap.
+    ///
+    /// # Arguments
+    ///
+    /// * `body` - The raw bytes of the multipart form data body
+    /// * `boundary` - The boundary string specified in the Content-Type header
+    ///
+    /// # Returns
+    ///
+    /// A HashMap where keys are field names and values are parsed form fields
+    ///
+    /// # Examples
+    /// 
+    /// ```
+    /// use starberry_core::http::request::RequestBody;  
+    /// let boundary = "boundary123";
+    /// let body = concat!(
+    ///     "--boundary123\r\n",
+    ///     "Content-Disposition: form-data; name=\"field1\"\r\n\r\n",
+    ///     "value1\r\n",
+    ///     "--boundary123\r\n",
+    ///     "Content-Disposition: form-data; name=\"file1\"; filename=\"example.txt\"\r\n",
+    ///     "Content-Type: text/plain\r\n\r\n",
+    ///     "file content here\r\n",
+    ///     "--boundary123--\r\n"
+    /// ).as_bytes().to_vec();
+    ///
+    /// let form_data = RequestBody::multipart_form_data(body, boundary.to_string());
+    /// let form_data = if let RequestBody::Files(ref data) = form_data { 
+    ///     data 
+    /// } else { 
+    ///    panic!("Expected multipart form data")
+    /// }; 
+    /// assert_eq!(form_data.len(), 2);
+    /// assert!(form_data.contains_key("field1"));
+    /// assert!(form_data.contains_key("file1"));
+    /// // Test the file content and filename 
+    /// assert_eq!(form_data.get("file1").unwrap().filename(), Some("example.txt".to_string()));
+    /// ```
+    pub fn multipart_form_data(body: Vec<u8>, boundary: String) -> Self {
+        
+        /// Finds a subsequence within a larger sequence of bytes.
+        fn find_subsequence(haystack: &[u8], needle: &[u8]) -> Option<usize> {
+            haystack.windows(needle.len()).position(|window| window == needle)
+        }
+
+        /// Extracts the field name from the Content-Disposition header.
+        fn extract_field_name(headers: &str) -> Option<String> {
+            // Simple regex to extract name="value" from Content-Disposition
+            let re = regex::Regex::new(r#"Content-Disposition:.*?name="([^"]+)""#).unwrap();
+            re.captures(headers)
+                .and_then(|cap| cap.get(1))
+                .map(|m| m.as_str().to_string())
+        }
+
+        /// Extracts the filename from the Content-Disposition header if present.
+        fn extract_filename(headers: &str) -> Option<String> {
+            let re = regex::Regex::new(r#"Content-Disposition:.*?filename="([^"]+)""#).unwrap();
+            re.captures(headers)
+                .and_then(|cap| cap.get(1))
+                .map(|m| m.as_str().to_string())
+        }
+
+        /// Extracts the content type from the Content-Type header if present.
+        fn extract_content_type(headers: &str) -> Option<String> {
+            let re = regex::Regex::new(r#"Content-Type:\s*(.+?)(?:\r\n|\r|\n|$)"#).unwrap();
+            re.captures(headers)
+                .and_then(|cap| cap.get(1))
+                .map(|m| m.as_str().trim().to_string())
+        } 
+        
+        let mut form_map = HashMap::new();
+        
+        // The boundary in the body is prefixed with "--"
+        let boundary = format!("--{}", boundary);
+        let boundary_bytes = boundary.as_bytes();
+        let end_boundary = format!("{}--", boundary);
+        let end_boundary_bytes = end_boundary.as_bytes();
+        
+        // Split the body by boundaries
+        let mut parts: Vec<&[u8]> = Vec::new();
+        let mut start_idx = 0;
+        
+        while let Some(idx) = find_subsequence(&body[start_idx..], boundary_bytes) {
+            // Skip the first boundary or add the part if not the first
+            if start_idx > 0 {
+                parts.push(&body[start_idx..start_idx + idx - 2]); // -2 to remove trailing CRLF
+            }
+            
+            // Move past this boundary
+            start_idx += idx + boundary_bytes.len();
+            
+            // Check if this is the end boundary
+            if start_idx < body.len() && 
+            body.len() - start_idx >= 2 && 
+            body[start_idx..start_idx+2] == [b'-', b'-'] {
+                break; // End boundary found
+            }
+        }
+        
+        // Process each part
+        for part in parts {
+            if part.len() < 4 { // Minimum size for valid part
+                continue;
+            }
+            
+            // Find headers and content separation (double CRLF)
+            if let Some(header_end) = find_subsequence(part, b"\r\n\r\n") {
+                let headers = &part[..header_end];
+                let content = &part[header_end + 4..]; // +4 to skip the double CRLF
+                
+                // Parse headers as UTF-8 string
+                if let Ok(headers_str) = std::str::from_utf8(headers) {
+                    let name = extract_field_name(headers_str);
+                    let filename = extract_filename(headers_str);
+                    let content_type = extract_content_type(headers_str);
+                    
+                    if let Some(field_name) = name {
+                        if let Some(filename) = filename {
+                            // This is a file upload
+                            form_map.insert(field_name, MultiFormField::File {
+                                filename: Some(filename),
+                                content_type,
+                                data: content.to_vec(),
+                            });
+                        } else {
+                            // This is a text field - try to convert to UTF-8
+                            if let Ok(text_value) = std::str::from_utf8(content) {
+                                form_map.insert(field_name, MultiFormField::Text(text_value.to_string()));
+                            } else {
+                                // Fallback for non-UTF-8 field content
+                                form_map.insert(field_name, MultiFormField::File {
+                                    filename: None,
+                                    content_type: None,
+                                    data: content.to_vec(),
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        Self::Files(form_map) 
     } 
 }
 
@@ -409,6 +557,14 @@ impl HttpRequest {
 
     pub fn form(&self) -> Option<&HashMap<String, String>> { 
         if let RequestBody::Form(ref data) = self.body { 
+            Some(data) 
+        } else { 
+            None 
+        } 
+    } 
+
+    pub fn files(&self) -> Option<&HashMap<String, MultiFormField>> { 
+        if let RequestBody::Files(ref data) = self.body { 
             Some(data) 
         } else { 
             None 

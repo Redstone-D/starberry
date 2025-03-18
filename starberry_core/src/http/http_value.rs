@@ -1,3 +1,6 @@
+#![allow(non_snake_case)] 
+#![allow(non_camel_case_types)] 
+
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]  
@@ -197,90 +200,136 @@ impl StatusCode {
     } 
 } 
 
+/// Represents the content type of an HTTP message. 
+/// This enum is used to parse and construct HTTP headers related to content type. 
+/// It includes well-known content types like text, application, image, audio, video, and multipart. 
+/// It also includes a generic Other variant for any other content types. 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HttpContentType {
-    TextPlain,
-    TextHtml,
-    TextCss,
-    TextJavascript,
-    ApplicationJson,
-    ApplicationXml,
-    ApplicationJavascript,
-    ApplicationPdf,
-    ApplicationZip,
-    ApplicationXWwwFormUrlEncoded,
-    ApplicationOctetStream,
-    ImagePng,
-    ImageJpeg,
-    ImageGif,
-    ImageSvgXml,
-    AudioMpeg,
-    AudioOgg,
-    VideoMp4,
-    VideoWebm,
-    MultipartFormData,
-    Other(String),
-}
+    // Well-known content types
+    Text { subtype: String, charset: Option<String> },
+    Application { subtype: String, parameters: Option<Vec<(String, String)>> },
+    Image { subtype: String },
+    Audio { subtype: String },
+    Video { subtype: String },
+    Multipart { subtype: String, boundary: Option<String> },
+    Other { type_name: String, subtype: String, parameters: Option<Vec<(String, String)>> },
+} 
 
 impl HttpContentType {
-    /// Converts a string into an HttpContentType enum variant
+    /// Converts a string into an HttpContentType enum variant 
+    /// This function parses the content type string and extracts the main type, subtype, and any parameters.
+    /// It supports well-known content types like text, application, image, audio, video, and multipart. ]
+    /// 
+    /// # Examples 
+    /// 
+    /// ```rust 
+    /// use starberry_core::http::http_value::HttpContentType; 
+    /// let content_type = HttpContentType::from_str("text/html; charset=UTF-8"); 
+    /// assert_eq!(content_type, HttpContentType::Text { subtype: "html".to_string(), charset: Some("UTF-8".to_string()) }); 
+    /// ``` 
     pub fn from_str(content_type: &str) -> Self {
-        match content_type {
-            "text/plain" => Self::TextPlain,
-            "text/html" => Self::TextHtml,
-            "text/css" => Self::TextCss,
-            "text/javascript" => Self::TextJavascript,
-            "application/json" => Self::ApplicationJson,
-            "application/xml" => Self::ApplicationXml,
-            "application/javascript" => Self::ApplicationJavascript,
-            "application/pdf" => Self::ApplicationPdf,
-            "application/zip" => Self::ApplicationZip,
-            "application/x-www-form-urlencoded" => Self::ApplicationXWwwFormUrlEncoded,
-            "application/octet-stream" => Self::ApplicationOctetStream,
-            "image/png" => Self::ImagePng,
-            "image/jpeg" => Self::ImageJpeg,
-            "image/gif" => Self::ImageGif,
-            "image/svg+xml" => Self::ImageSvgXml,
-            "audio/mpeg" => Self::AudioMpeg,
-            "audio/ogg" => Self::AudioOgg,
-            "video/mp4" => Self::VideoMp4,
-            "video/webm" => Self::VideoWebm,
-            "multipart/form-data" => Self::MultipartFormData,
-            other => Self::Other(other.to_string()),
+        let parts: Vec<&str> = content_type.split(';').collect();
+        let main_part = parts[0].trim();
+        let mut parameters = Vec::new();
+
+        for part in &parts[1..] {
+            let param_parts: Vec<&str> = part.split('=').collect();
+            if param_parts.len() == 2 {
+                parameters.push((param_parts[0].trim().to_string(), param_parts[1].trim().to_string()));
+            }
         }
-    }
+
+        let (type_name, subtype) = if let Some(pos) = main_part.find('/') {
+            (&main_part[..pos], &main_part[pos + 1..])
+        } else {
+            ("unknown", "unknown")
+        };
+
+        match type_name {
+            "text" => Self::Text { 
+                subtype: subtype.to_string(), 
+                charset: Self::find_value_from_vec(&parameters, "charset"),
+            }, 
+            "application" => Self::Application { 
+                subtype: subtype.to_string(), 
+                parameters: Some(parameters) 
+            },
+            "image" => Self::Image { 
+                subtype: subtype.to_string() 
+            },
+            "audio" => Self::Audio { 
+                subtype: subtype.to_string() 
+            },
+            "video" => Self::Video { 
+                subtype: subtype.to_string() 
+            },
+            "multipart" => Self::Multipart { 
+                subtype: subtype.to_string(), 
+                boundary: Self::find_value_from_vec(&parameters, "boundary"),  
+            },
+            _ => Self::Other {
+                type_name: type_name.to_string(), 
+                subtype: subtype.to_string(), 
+                parameters: Some(parameters) 
+            },
+        } 
+    } 
+
+    /// Find value from Vec<(String, String)> 
+    /// # Examples 
+    /// ```rust 
+    /// use starberry_core::http::http_value::HttpContentType; 
+    /// let vec = vec![("key1".to_string(), "value1".to_string()), ("key2".to_string(), "value2".to_string())]; 
+    /// let value = HttpContentType::find_value_from_vec(&vec, "key1"); 
+    /// assert_eq!(value, Some("value1".to_string())); 
+    /// ``` 
+    pub fn find_value_from_vec(vec: &Vec<(String, String)>, key: &str) -> Option<String> { 
+        for (k, v) in vec { 
+            if k == key { 
+                return Some(v.clone()); 
+            } 
+        } 
+        None 
+    } 
 
     /// Converts an HttpContentType enum variant into its string representation
-    pub fn as_str(&self) -> &str {
+    pub fn to_string(&self) -> String {
         match self {
-            Self::TextPlain => "text/plain",
-            Self::TextHtml => "text/html",
-            Self::TextCss => "text/css",
-            Self::TextJavascript => "text/javascript",
-            Self::ApplicationJson => "application/json",
-            Self::ApplicationXml => "application/xml",
-            Self::ApplicationJavascript => "application/javascript",
-            Self::ApplicationPdf => "application/pdf",
-            Self::ApplicationZip => "application/zip",
-            Self::ApplicationXWwwFormUrlEncoded => "application/x-www-form-urlencoded",
-            Self::ApplicationOctetStream => "application/octet-stream",
-            Self::ImagePng => "image/png",
-            Self::ImageJpeg => "image/jpeg",
-            Self::ImageGif => "image/gif",
-            Self::ImageSvgXml => "image/svg+xml",
-            Self::AudioMpeg => "audio/mpeg",
-            Self::AudioOgg => "audio/ogg",
-            Self::VideoMp4 => "video/mp4",
-            Self::VideoWebm => "video/webm",
-            Self::MultipartFormData => "multipart/form-data",
-            Self::Other(other) => other.as_str(),
+            HttpContentType::Text { subtype, .. } => format!("text/{}", subtype),
+            HttpContentType::Application { subtype, .. } => format!("application/{}", subtype),
+            HttpContentType::Image { subtype } => format!("image/{}", subtype),
+            HttpContentType::Audio { subtype } => format!("audio/{}", subtype),
+            HttpContentType::Video { subtype } => format!("video/{}", subtype),
+            HttpContentType::Multipart { subtype, .. } => format!("multipart/{}", subtype),
+            HttpContentType::Other { type_name, subtype, .. } => format!("{}/{}", type_name, subtype),
         }
-    }
+    } 
+
+    pub fn TextHtml() -> Self { 
+        Self::Text { subtype: "html".to_string(), charset: Some("UTF-8".to_string()) } 
+    } 
+
+    pub fn TextPlain() -> Self { 
+        Self::Text { subtype: "plain".to_string(), charset: Some("UTF-8".to_string()) } 
+    } 
+
+    pub fn ApplicationJson() -> Self { 
+        Self::Application { subtype: "json".to_string(), parameters: Some(vec![("charset".to_string(), "UTF-8".to_string())]) } 
+    } 
+
+    pub fn ApplicationXml() -> Self { 
+        Self::Application { subtype: "xml".to_string(), parameters: Some(vec![("charset".to_string(), "UTF-8".to_string())]) } 
+    } 
+
+    pub fn ApplicationOctetStream() -> Self { 
+        Self::Application { subtype: "octet-stream".to_string(), parameters: Some(vec![("charset".to_string(), "UTF-8".to_string())]) } 
+    } 
 }
 
 impl std::fmt::Display for HttpContentType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.as_str())
+        write!(f, "{}", self.to_string())
     }
 } 
 
@@ -322,3 +371,52 @@ impl HeaderAttribute{
         Self { main_value, attributes } 
     }
 } 
+
+/// Represents a field in a multipart form.
+#[derive(Debug, Clone)]
+pub enum MultiFormField {
+    Text(String),
+    File {
+        filename: Option<String>,
+        content_type: Option<String>, 
+        data: Vec<u8>,
+    }
+} 
+
+impl MultiFormField {
+    pub fn new_text(value: String) -> Self {
+        Self::Text(value)
+    } 
+
+    pub fn new_file(filename: Option<String>, content_type: Option<String>, data: Vec<u8>) -> Self {
+        Self::File { filename, content_type, data }
+    } 
+
+    pub fn filename(&self) -> Option<String> {
+        match self {
+            Self::File { filename, .. } => filename.clone(),
+            _ => None,
+        }
+    } 
+
+    pub fn content_type(&self) -> Option<String> {
+        match self {
+            Self::File { content_type, .. } => content_type.clone(),
+            _ => None,
+        }
+    } 
+
+    pub fn data(&self) -> Option<&[u8]> {
+        match self {
+            Self::File { data, .. } => Some(data),
+            _ => None,
+        }
+    } 
+
+    pub fn value(&self) -> Option<&str> {
+        match self {
+            Self::Text(value) => Some(value),
+            _ => None,
+        }
+    } 
+}

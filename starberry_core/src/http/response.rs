@@ -103,7 +103,7 @@ pub mod request_templates {
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::TextPlain); 
+        header.set_content_type(HttpContentType::TextPlain()); 
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 
 
@@ -113,7 +113,7 @@ pub mod request_templates {
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::TextHtml); 
+        header.set_content_type(HttpContentType::TextHtml()); 
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 
 
@@ -128,7 +128,7 @@ pub mod request_templates {
             Ok(content) => content,
             Err(_) => return return_status(StatusCode::NOT_FOUND), 
         }; 
-        header.set_content_type(HttpContentType::TextHtml); 
+        header.set_content_type(HttpContentType::TextHtml()); 
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 
 
@@ -147,7 +147,7 @@ pub mod request_templates {
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::ApplicationJson); 
+        header.set_content_type(HttpContentType::ApplicationJson()); 
         let body = body.into_json(); 
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 
@@ -164,7 +164,7 @@ pub mod request_templates {
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::TextHtml); 
+        header.set_content_type(HttpContentType::TextHtml()); 
         // println!("body: {:?}", result);
         let body = result.into_bytes(); 
         HttpResponse::new(start_line, header, body).set_content_length() 

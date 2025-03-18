@@ -12,7 +12,7 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
-0.3.1: (Bug fix) Now starberry run is enabled. Optimized form reading 
+0.3.1: Enabled reading files from request (Reading multiple files are not allowed now). (Bug fix) Now starberry run is enabled. Optimized form reading 
 
 0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
 
@@ -139,6 +139,40 @@ Also know as Any if you directly use starberry::urls::PathPatten. Accept any lit
 **AnyDir** 
 
 Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any number of literal after this 
+
+# Http Resonse and Request 
+
+After getting the request, you may use 
+
+```rust 
+if *request.method() == POST { 
+    match request.form() { 
+        Some(form) => { 
+            return text_response(format!("Form data: {:?}", form)); 
+        } 
+        None => { 
+            return text_response("Error parsing form"); 
+        }  
+    } 
+}  
+``` 
+
+For URL Coded form (datatype is application/x-www-form-urlencoded) you will get a hashmap of data and its form name by using this code 
+
+```rust 
+if *request.method() == POST { 
+    match request.files() { 
+        Some(form) => { 
+            return text_response(form.get("file").unwrap().data().unwrap().to_owned()); 
+        } 
+        None => { 
+            return text_response("Error parsing form"); 
+        }  
+    }  
+} 
+``` 
+
+You may get the file 
 
 # Example 
 
