@@ -405,7 +405,7 @@ impl RequestBody{
                 .map(|m| m.as_str().trim().to_string())
         } 
         
-        let mut form_map = HashMap::new();
+        let mut form_map: HashMap<String, MultiFormField> = HashMap::new();
         
         // The boundary in the body is prefixed with "--"
         let boundary = format!("--{}", boundary);
@@ -453,23 +453,21 @@ impl RequestBody{
                     
                     if let Some(field_name) = name {
                         if let Some(filename) = filename {
-                            // This is a file upload
-                            form_map.insert(field_name, MultiFormField::File {
-                                filename: Some(filename),
-                                content_type,
-                                data: content.to_vec(),
-                            });
+                            match form_map.get_mut(&field_name){ 
+                                Some(field) => { 
+                                    field.insert_file(MultiFormFieldFile::new(Some(filename), content_type, content.to_vec()));
+                                }, 
+                                None => { 
+                                    form_map.insert(field_name.clone(), MultiFormField::new_file(MultiFormFieldFile::new(Some(filename), content_type, content.to_vec()))); 
+                                } 
+                            } 
                         } else {
                             // This is a text field - try to convert to UTF-8
                             if let Ok(text_value) = std::str::from_utf8(content) {
                                 form_map.insert(field_name, MultiFormField::Text(text_value.to_string()));
                             } else {
                                 // Fallback for non-UTF-8 field content
-                                form_map.insert(field_name, MultiFormField::File {
-                                    filename: None,
-                                    content_type: None,
-                                    data: content.to_vec(),
-                                });
+                                form_map.insert(field_name.clone(), MultiFormField::new_file(MultiFormFieldFile::new( None, content_type, content.to_vec()))); 
                             }
                         }
                     }

@@ -376,47 +376,62 @@ impl HeaderAttribute{
 #[derive(Debug, Clone)]
 pub enum MultiFormField {
     Text(String),
-    File {
-        filename: Option<String>,
-        content_type: Option<String>, 
-        data: Vec<u8>,
-    }
+    File(Vec<MultiFormFieldFile>)
 } 
 
-impl MultiFormField {
+/// Represents a file in a multipart form. 
+#[derive(Debug, Clone)]
+pub struct MultiFormFieldFile {
+    filename: Option<String>,
+    content_type: Option<String>, 
+    data: Vec<u8>,
+} 
+
+impl MultiFormField { 
     pub fn new_text(value: String) -> Self {
-        Self::Text(value)
+        Self::Text(value) 
+    } 
+    
+    pub fn new_file(files: MultiFormFieldFile) -> Self {
+        Self::File(vec![files])  
     } 
 
-    pub fn new_file(filename: Option<String>, content_type: Option<String>, data: Vec<u8>) -> Self {
-        Self::File { filename, content_type, data }
-    } 
-
-    pub fn filename(&self) -> Option<String> {
-        match self {
-            Self::File { filename, .. } => filename.clone(),
-            _ => None,
+    /// Creates a new MultiFormField with a file. 
+    /// This function takes a filename, content type, and data as parameters. 
+    /// It returns a MultiFormField::File variant. 
+    /// When the Field is Text type, it will change it into a File type. 
+    pub fn insert_file(&mut self, file: MultiFormFieldFile) {
+        if let Self::File(files) = self {
+            files.push(file); 
+        } else {
+            *self = Self::File(vec![file]); 
         }
-    } 
+    }    
 
-    pub fn content_type(&self) -> Option<String> {
-        match self {
-            Self::File { content_type, .. } => content_type.clone(),
-            _ => None,
-        }
-    } 
-
-    pub fn data(&self) -> Option<&[u8]> {
-        match self {
-            Self::File { data, .. } => Some(data),
-            _ => None,
-        }
-    } 
-
-    pub fn value(&self) -> Option<&str> {
-        match self {
-            Self::Text(value) => Some(value),
-            _ => None,
-        }
+    /// Gets the files value from the MultiFormField. 
+    pub fn get_files(&self) -> Option<&Vec<MultiFormFieldFile>> {
+        if let Self::File(files) = self {
+            Some(files) 
+        } else {
+            None 
+        } 
     } 
 }
+
+impl MultiFormFieldFile{ 
+    pub fn new(filename: Option<String>, content_type: Option<String>, data: Vec<u8>) -> Self { 
+        Self { filename, content_type, data } 
+    } 
+
+    pub fn filename(&self) -> Option<String> { 
+        self.filename.clone() 
+    } 
+
+    pub fn content_type(&self) -> Option<String> { 
+        self.content_type.clone() 
+    } 
+
+    pub fn data(&self) -> &[u8] { 
+        &self.data 
+    } 
+} 
