@@ -218,8 +218,8 @@ impl AppBuilder {
         let workers = ThreadPool::new(self.workers.unwrap_or_else(|| 4)); 
         let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5); 
         let max_header_size = self.max_header_size.unwrap_or_else(|| 1024 * 1024); 
-        let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 1024 * 16 ); 
-        let max_line_length = self.max_line_length.unwrap_or_else(|| 1024 * 16); 
+        let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 512 ); 
+        let max_line_length = self.max_line_length.unwrap_or_else(|| 1024 * 64); 
         let max_headers = self.max_headers.unwrap_or_else(|| 100); 
         let connection_config = ParseConfig::new(max_header_size, max_line_length, max_headers, max_body_size); 
         Arc::new(App { root_url, listener: binding, mode, pool: workers, max_connection_time, connection_config, middlewares: self.middle_wares.unwrap_or_else(|| Self::default_middlewares()).into() }) 

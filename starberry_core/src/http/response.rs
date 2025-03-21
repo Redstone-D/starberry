@@ -202,3 +202,16 @@ pub mod akari_templates {
         };
     }     
 } 
+
+pub mod akari_object { 
+    /// This macro is used to create a JSON response with the given key-value pairs. 
+    /// It is a convenient way to generate JSON responses. 
+    #[macro_export]
+    macro_rules! akari_json {
+        // Forward any input to the object! macro and wrap the result in json_response
+        ($($tokens:tt)*) => {{
+            let obj = object!($($tokens)*);
+            json_response(obj)
+        }};
+    } 
+}
