@@ -1,16 +1,22 @@
-## Latest stable version: 0.2.3 
+## Latest stable version: 0.3.1 
 
 # Starberry Web Framework 
 
 Small, sweet, easy framework for full-stack web application 
 
-Regex and other kinds of URLs are supported, and tree-structured URLs are used for easier URL management.
+Regex and other kinds of URLs are supported, and tree-structured URLs are used for easier URL management. 
 
-Use plain HTML for better compatibility with other web projects and ease of learning.
+Example project: https://github.com/Field-of-Dreams-Studio/starberry-example/tree/main 
+
+Use plain HTML&Akari Template for better compatibility with other web projects and ease of learning. 
+
+Learn more about Akari template: https://crates.io/crates/akari 
 
 https://github.com/Redstone-D/starberry 
 
 # Just updated 
+
+0.3.1: Enabled reading files from request, multiple file in a single input can also be handled. Now nested JSON is supported and you may use akari_json! to directly return a JSON object. (Bug fix) Now starberry run is enabled. Optimized form reading 
 
 0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
 
@@ -18,9 +24,12 @@ The main program is updated. You may use `starberry new` to start a new project 
 
 Read more about akari: https://crates.io/crates/akari 
 
-**Functions that are not fully implemented 0.3.0 version** 
+**Updates going to happen in 0.3 version** 
 
-- middlewares currently always run in single thread 
+- async middlewares (0.3.2) 
+- Session & Cookie manipulation (0.3.2 -> 0.3.3) 
+- Parsing form data (Finished, now fixing special character problems), uploading files (0.3.1 -> 0.3.2) 
+- Render Templates (Finished)  
 
 **What's Next?** 
 
@@ -30,7 +39,7 @@ Version 0.2 has concluded, and development for version 0.3 will commence. The 0.
 2. JSON parsing. 
 3. Session and form manipulation.
 
-**Starberry now supports plain HTML templates, and simpler URL definitions are enabled using macros.**
+**Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
 
 # How to start a server & URL reg 
 
@@ -135,13 +144,39 @@ Also know as Any if you directly use starberry::urls::PathPatten. Accept any lit
 
 Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any number of literal after this 
 
-# TBD 
+# Http Resonse and Request 
 
-(Request & Response) 
+After getting the request, you may use 
 
-1. Session & Cookie manipulation 
-2. Parsing form data (Finished, now fixing special character problems), uploading files 
-3. Render Templates (Finished) 
+```rust 
+if *request.method() == POST { 
+    match request.form() { 
+        Some(form) => { 
+            return text_response(format!("Form data: {:?}", form)); 
+        } 
+        None => { 
+            return text_response("Error parsing form"); 
+        }  
+    } 
+}  
+``` 
+
+For URL Coded form (datatype is application/x-www-form-urlencoded) you will get a hashmap of data and its form name by using this code 
+
+```rust 
+if *request.method() == POST { 
+    match request.files() { 
+        Some(form) => { 
+            return text_response(form.get("file").unwrap().data().unwrap().to_owned()); 
+        } 
+        None => { 
+            return text_response("Error parsing form"); 
+        }  
+    }  
+} 
+``` 
+
+You may get the file 
 
 # Example 
 
@@ -349,4 +384,5 @@ async fn main() {
 
 0.1.2: Updated Request Analyze, Debug to not Generate Panic. Let the program capable for async (The 0.1.1 async is fake) 
  
- 
+  
+  

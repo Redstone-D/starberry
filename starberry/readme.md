@@ -1,12 +1,16 @@
-## Latest stable version: 0.2.3 
+## Latest stable version: 0.3.1 
 
 # Starberry Web Framework 
 
 Small, sweet, easy framework for full-stack web application 
 
-Regex and other kinds of URLs are supported, and tree-structured URLs are used for easier URL management.
+Regex and other kinds of URLs are supported, and tree-structured URLs are used for easier URL management. 
 
-Use plain HTML for better compatibility with other web projects and ease of learning.
+Example project: https://github.com/Field-of-Dreams-Studio/starberry-example/tree/main 
+
+Use plain HTML&Akari Template for better compatibility with other web projects and ease of learning. 
+
+Learn more about Akari template: https://crates.io/crates/akari 
 
 https://github.com/Redstone-D/starberry 
 
