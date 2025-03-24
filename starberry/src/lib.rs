@@ -5,10 +5,8 @@ pub use starberry_core::app::urls::PathPattern;
 pub use starberry_core::app::urls::path_pattern_creator::{
     literal_path as LitUrl, 
     regex_path as RegUrl, 
-}; 
-pub use starberry_core::app::urls::PathPattern::{
-    Any as AnyUrl,  
-    AnyPath, 
+    any as AnyUrl, 
+    any_path as AnyPath, 
 }; 
 
 pub use starberry_core::Object; 

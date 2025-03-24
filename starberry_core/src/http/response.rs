@@ -14,29 +14,93 @@ impl std::fmt::Display for ResponseStartLine {
     } 
 } 
 
+/// The response header struct, 
 pub struct ResponseHeader{ 
+    content_type: Option<HttpContentType>, 
+    content_length: Option<usize>, 
+    cookie: Option<Vec<CookieResponse>>, 
     pub header: HashMap<String, String>, 
 } 
 
 impl ResponseHeader { 
     pub fn new() -> Self { 
-        Self { header: HashMap::new() } 
+        Self { 
+            content_type: None, 
+            content_length: None, 
+            cookie: None, 
+            header: HashMap::new()
+        } 
     } 
 
+    /// Add a header to the response header. 
+    /// Existed header will be replaced. 
     pub fn add(&mut self, key: String, value: String) { 
+        match key.as_str() { 
+            "Content-Type" => self.content_type = Some(HttpContentType::from_str(&value)), 
+            "Content-Length" => self.content_length = Some(value.parse::<usize>().unwrap()), 
+            _ => {} 
+        } 
         self.header.insert(key, value); 
     } 
 
     pub fn set_content_length(&mut self, length: usize) { 
-        self.add(String::from("CONTENT-LENGTH"), length.to_string()); 
+        self.content_length = Some(length); 
+    } 
+
+    pub fn clear_content_length(&mut self) { 
+        self.content_length = None; 
     } 
 
     pub fn set_content_type(&mut self, content_type: HttpContentType) { 
-        self.add(String::from("CONTENT-TYPE"), content_type.to_string()); 
+        self.content_type = Some(content_type);  
+    } 
+
+    pub fn clear_content_type(&mut self) { 
+        self.content_type = None; 
+    } 
+
+    pub fn cookie(mut self, cookie: CookieResponse) -> Self { 
+        self.add_cookie(cookie); 
+        self 
+    } 
+
+    /// Add a cookie to the response header. 
+    pub fn add_cookie(&mut self, cookie: CookieResponse) { 
+        if self.cookie.is_none() { 
+            self.cookie = Some(vec![]); 
+        } 
+        if let Some(ref mut cookies) = self.cookie { 
+            cookies.push(cookie); 
+        } 
+    } 
+
+    /// Clear all cookies in the response header. 
+    pub fn clear_cookie(&mut self) { 
+        self.cookie = None; 
+    } 
+
+    pub fn remove_cookie(&mut self, name: &str) -> Option<CookieResponse> { 
+        if let Some(ref mut cookies) = self.cookie { 
+            if let Some(index) = cookies.iter().position(|c| c.name == name) { 
+                return Some(cookies.remove(index)); 
+            } 
+        } 
+        None 
     } 
 
     pub fn represent(&self) -> String { 
         let mut result = String::new(); 
+        if let Some(ref content_type) = self.content_type { 
+            result.push_str(&format!("Content-Type: {}\r\n", content_type.to_string())); 
+        }
+        if let Some(length) = self.content_length { 
+            result.push_str(&format!("Content-Length: {}\r\n", length)); 
+        } 
+        if let Some(ref cookies) = self.cookie { 
+            for cookie in cookies { 
+                result.push_str(&format!("Set-Cookie: {}\r\n", cookie.to_string())); 
+            } 
+        } 
         for (key, value) in &self.header { 
             result.push_str(&format!("{}: {}\r\n", key, value)); 
         } 
@@ -67,6 +131,11 @@ impl HttpResponse {
         self.header.set_content_length(self.body.as_ref().as_ref().len());  
         self 
     }  
+
+    pub fn add_cookie(mut self, cookie: CookieResponse) -> Self { 
+        self.header.add_cookie(cookie); 
+        self 
+    } 
 
     pub async fn send(&self, stream: &mut TcpStream) {
         let mut writer = BufWriter::new(stream);

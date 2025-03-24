@@ -131,6 +131,7 @@ pub struct RequestHeader{
     pub header: HashMap<String, String>, 
     content_type: Option<HttpContentType>, 
     content_length: Option<usize>, 
+    cookies: Option<HashMap<String, String>>, 
 } 
 
 impl RequestHeader { 
@@ -140,6 +141,7 @@ impl RequestHeader {
             header: HashMap::new(), 
             content_type: None, 
             content_length: None, 
+            cookies: None, 
         } 
     } 
 
@@ -276,6 +278,72 @@ impl RequestHeader {
 
     pub fn clear_content_type(&mut self) { 
         self.content_type = None; 
+    } 
+
+    /// It is used to get the value of a header from the RequestHeader object. 
+    /// # Example 
+    /// ```rust 
+    /// use starberry_core::http::request::RequestHeader; 
+    /// use starberry_core::http::http_value::HttpContentType; 
+    /// use std::collections::HashMap; 
+    /// let headers = vec![ 
+    ///   "Content-Type: text/html".to_string(), 
+    ///   "Content-Length: 123".to_string(), 
+    ///   "Cookie: sessionId=abc123; theme=dark; loggedIn=true".to_string(), 
+    /// ]; 
+    /// let mut request_header = RequestHeader::parse(headers); 
+    /// assert_eq!(request_header.get_cookies(), &HashMap::from([("sessionId".to_string(), "abc123".to_string()), ("theme".to_string(), "dark".to_string()), ("loggedIn".to_string(), "true".to_string())])); 
+    pub fn get_cookies(&mut self) -> &HashMap<String, String> {
+        if self.cookies.is_none() { 
+            self.cookies = Some(self.parse_cookies());
+        } 
+        self.cookies.as_ref().unwrap()
+    } 
+
+    pub fn get_cookie(&mut self, key: &str) -> Option<String> { 
+        if self.cookies.is_none() { 
+            self.cookies = Some(self.parse_cookies());
+        } 
+        return self.cookies.as_ref().unwrap().get(key).cloned(); 
+    } 
+
+    /// It is used to get the value of a header from the RequestHeader object. 
+    /// Taking a string as input. 
+    /// # Example 
+    /// ```rust 
+    /// use starberry_core::http::request::RequestHeader; 
+    /// use starberry_core::http::http_value::HttpContentType; 
+    /// use std::collections::HashMap; 
+    /// let headers = vec![ 
+    ///    "Content-Type: text/html".to_string(), 
+    ///   "Content-Length: 123".to_string(), 
+    ///    "Cookie: sessionId=abc123; theme=dark; loggedIn=true".to_string(), 
+    /// ]; 
+    /// let mut request_header = RequestHeader::parse(headers); 
+    /// request_header.parse_cookies(); 
+    /// assert_eq!(request_header.get_cookies(), HashMap::from([("sessionId".to_string(), "abc123".to_string()), ("theme".to_string(), "dark".to_string()), ("loggedIn".to_string(), "true".to_string())])); 
+    pub fn parse_cookies(&mut self) -> HashMap<String, String> { 
+        let cookies = match self.header.get("COOKIE"){ 
+            Some(cookies) => cookies, 
+            None => return HashMap::new(), 
+        }; 
+        let mut cookie_map = HashMap::new(); 
+        for cookie in cookies.split(';') { 
+            let parts: Vec<&str> = cookie.split('=').collect(); 
+            if parts.len() == 2 { 
+                cookie_map.insert(parts[0].trim().to_string(), parts[1].trim().to_string()); 
+            } 
+        } 
+        self.cookies = Some(cookie_map.clone()); 
+        cookie_map 
+    } 
+
+    pub fn set_cookies(&mut self, cookies: HashMap<String, String>) { 
+        self.cookies = Some(cookies); 
+    } 
+
+    pub fn clear_cookies(&mut self) { 
+        self.cookies = None; 
     } 
 } 
 
@@ -569,7 +637,16 @@ impl HttpRequest {
         } 
     } 
 
-    pub fn method(&self) -> &HttpMethod { 
-        &self.start_line.method 
+    pub fn method(&self) -> HttpMethod { 
+        self.start_line.method.clone()  
     } 
+
+    pub fn get_cookies(&mut self) -> &HashMap<String, String> { 
+        self.header.get_cookies() 
+    } 
+
+    pub fn get_cookie(&mut self, key: &str) -> Option<String> { 
+        self.header.get_cookie(key) 
+    } 
+
 } 

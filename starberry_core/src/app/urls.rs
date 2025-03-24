@@ -56,6 +56,14 @@ impl PathPattern{
     pub fn regex_path<T: Into<String>>(path: T) -> Self { 
         Self::Regex(path.into()) 
     } 
+
+    pub fn any() -> Self { 
+        Self::Any 
+    } 
+
+    pub fn any_path() -> Self { 
+        Self::AnyPath 
+    } 
 } 
 
 pub mod path_pattern_creator { 
@@ -73,6 +81,20 @@ pub mod path_pattern_creator {
     /// This is useful for creating path patterns that are regex. 
     pub fn regex_path<T: Into<String>>(path: T) -> PathPattern { 
         PathPattern::Regex(path.into())  
+    } 
+
+    /// Creates a any pattern. 
+    /// You may use this to match any string. 
+    /// This is faster then regex when any string should be passed into the same endpoint 
+    pub fn any() -> PathPattern { 
+        PathPattern::Any 
+    } 
+
+    /// Creates a any path pattern. 
+    /// This is useful for matching any path. 
+    /// This is faster then regex when any path should be passed into the same endpoint 
+    pub fn any_path() -> PathPattern { 
+        PathPattern::AnyPath 
     } 
 }
 

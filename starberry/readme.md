@@ -16,6 +16,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.3.2: Re-export Url trait properly, enabled cookie manipulation 
+
 0.3.1: Enabled reading files from request, multiple file in a single input can also be handled. Now nested JSON is supported and you may use akari_json! to directly return a JSON object. (Bug fix) Now starberry run is enabled. Optimized form reading 
 
 0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
@@ -74,7 +76,7 @@ crate
 │   ├── lib.rs 
 │   ├── ... 
 └── templates
-    ├── base.html
+    ├── base.html 
     ├── index.html
     └── ... 
 ``` 
