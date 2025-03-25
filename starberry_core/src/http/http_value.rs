@@ -614,3 +614,43 @@ impl std::fmt::Display for CookieResponse {
         write!(f, "{}", self.to_string()) 
     } 
 } 
+
+#[derive(Debug, Clone)] 
+pub struct RequestPath{ 
+    path: Vec<String> 
+} 
+
+impl RequestPath{ 
+    pub fn new(path: Vec<String>) -> Self{ 
+        Self { path }  
+    } 
+
+    pub fn to_string(&self) -> String{ 
+        let mut result = String::new(); 
+        for part in &self.path { 
+            result.push('/'); 
+            result.push_str(part); 
+        } 
+        result 
+    } 
+
+    pub fn from_string(url: &str) -> Self{ 
+        let mut path = Vec::new(); 
+        let parts: Vec<&str> = url.split('/').collect(); 
+        for part in parts { 
+            if !part.is_empty() { 
+                path.push(part.to_string()); 
+            } 
+        } 
+        Self { path } 
+    } 
+
+    pub fn url_part(&self, part: usize) -> String{ 
+        if part < 0 { 
+            return self.path[self.path.len() as usize + part as usize].clone(); 
+        } else if part >= self.path.len() { 
+            return "".to_string(); 
+        } 
+        self.path[part].clone()  
+    }
+} 

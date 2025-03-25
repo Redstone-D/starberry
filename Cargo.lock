@@ -28,9 +28,9 @@ dependencies = [
 
 [[package]]
 name = "akari"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ec22c00726b27b6f9b35ee7131791201258f99c558e0a88d15d8eb63896845ac"
+checksum = "7cd12b5b0fbe6992fddd7bf88366a45b3300ee650c0b72e786eebe35804bb317"
 
 [[package]]
 name = "autocfg"
@@ -426,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "starberry_core"
-version = "0.3.4"
+version = "0.3.5"
 dependencies = [
  "akari",
  "futures",

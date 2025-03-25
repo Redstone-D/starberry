@@ -16,6 +16,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.3.2: Re-export Url trait properly, enabled cookie manipulation. Enable request.get_path() to get segments of URL. Bug fix: Now "any" url can be proporly used. Upgraded Akari into 0.1.3 
+
 0.3.1: Enabled reading files from request, multiple file in a single input can also be handled. Now nested JSON is supported and you may use akari_json! to directly return a JSON object. (Bug fix) Now starberry run is enabled. Optimized form reading 
 
 0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
@@ -26,18 +28,10 @@ Read more about akari: https://crates.io/crates/akari
 
 **Updates going to happen in 0.3 version** 
 
-- async middlewares (0.3.2) 
-- Session & Cookie manipulation (0.3.2 -> 0.3.3) 
-- Parsing form data (Finished, now fixing special character problems), uploading files (0.3.1 -> 0.3.2) 
+- Session & Cookie manipulation (Cookies manipulation finished) 
+- Akari macro usage (0.3.3) 
+- Parsing form data (Finished, now fixing special character problems), uploading files (Finished) 
 - Render Templates (Finished)  
-
-**What's Next?** 
-
-Version 0.2 has concluded, and development for version 0.3 will commence. The 0.3 update will be divided into two parts:
-
-1. Templating system: This includes parsing expressions into templates, introducing for loops, while loops, and simple calculations within the template.
-2. JSON parsing. 
-3. Session and form manipulation.
 
 **Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
 
@@ -74,7 +68,7 @@ crate
 │   ├── lib.rs 
 │   ├── ... 
 └── templates
-    ├── base.html
+    ├── base.html 
     ├── index.html
     └── ... 
 ``` 

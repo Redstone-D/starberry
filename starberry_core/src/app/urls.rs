@@ -76,6 +76,10 @@ pub mod path_pattern_creator {
         PathPattern::Literal(path.into())  
     } 
 
+    pub fn trailing_slash() -> PathPattern { 
+        PathPattern::Literal("".to_string()) 
+    } 
+
     /// Creates a regex path pattern. 
     /// This is a wrapper around the regex_path function. 
     /// This is useful for creating path patterns that are regex. 
@@ -324,7 +328,8 @@ impl Url {
                         }
                     }
                     PathPattern::Any => {
-                        if path.len() > 1 {
+                        if path.len() >= 1 { 
+                            // println!("Found any match: {}, Paths: {:?}", this_segment, path); 
                             return child_url.clone().walk(path).await;
                         } else {
                             return Some(child_url.clone());

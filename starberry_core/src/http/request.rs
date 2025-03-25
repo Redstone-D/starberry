@@ -21,6 +21,7 @@ pub struct RequestStartLine{
     pub http_version: HttpVersion, 
     pub method: HttpMethod, 
     pub path: String, 
+    pub url: Option<RequestPath> 
 } 
 
 pub struct ParseConfig{ 
@@ -75,7 +76,7 @@ impl ParseConfig{
 impl RequestStartLine{ 
     /// It is used to parse the request line and create a new RequestStartLine object. 
     pub fn new(http_version: HttpVersion, method: HttpMethod, path: String) -> Self { 
-        Self { http_version, method, path } 
+        Self { http_version, method, path, url: None } 
     }  
 
     /// It is used to convert the RequestStartLine object to a string. 
@@ -114,8 +115,29 @@ impl RequestStartLine{
         let path = parts[1].to_string(); 
         let http_version = HttpVersion::from_string(parts[2]); 
     
-        Ok(Self { http_version, method, path }) 
-    }
+        Ok(Self::new( http_version, method, path )) 
+    } 
+
+    pub fn get_url(&mut self) -> RequestPath { 
+        match &self.url { 
+            Some(url) => return url.clone(), 
+            None => self.parse_url(),  
+        } 
+    } 
+
+    pub fn parse_url(&mut self) -> RequestPath { 
+        let url = RequestPath::from_string(&self.path); 
+        self.url = Some(url.clone()); 
+        url 
+    } 
+
+    pub fn set_url(&mut self, url: RequestPath) { 
+        self.url = Some(url); 
+    } 
+
+    pub fn clear_url(&mut self) { 
+        self.url = None; 
+    } 
     
 }
 
@@ -615,6 +637,11 @@ impl HttpRequest {
             header, 
             body 
         })
+    } 
+
+    /// Get the segment of the URL path, 0-indexed 
+    pub fn get_path(&mut self, part: usize) -> String { 
+        self.start_line.get_url().url_part(part) 
     } 
 
     pub fn path(&self) -> &str { 

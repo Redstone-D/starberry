@@ -2,7 +2,7 @@ pub use once_cell::sync::Lazy;
 pub use crate::Object;  
 pub use crate::object;  
 pub use crate::{App, RunMode}; 
-pub use crate::{LitUrl, RegUrl, AnyUrl, AnyPath}; 
+pub use crate::{LitUrl, RegUrl, AnyUrl, AnyPath, TrailingSlash}; 
 pub use crate::urls::*; 
 pub use crate::{HttpRequest, HttpResponse}; 
 pub use crate::request_templates::*; 
