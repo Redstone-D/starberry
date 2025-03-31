@@ -1,9 +1,12 @@
+use crate::app::urls::Url;
+
 use super::http_value::*; 
 use std::hash::Hash;
 use std::io::{BufRead, BufReader, Read};
 use std::error::Error;
 use std::net::TcpStream; 
 use std::str;
+use once_cell::sync::Lazy;
 use regex::Regex; 
 use std::collections::HashMap; 
 use akari::Object; 
@@ -373,8 +376,8 @@ impl RequestHeader {
 pub enum RequestBody{ 
     Text(String), 
     Binary(Vec<u8>), 
-    Form(HashMap<String, String>), 
-    Files(HashMap<String, MultiFormField>), 
+    Form(UrlEncodedForm), 
+    Files(MultiForm), 
     Json(Object), 
     Empty, 
 } 
@@ -421,7 +424,7 @@ impl RequestBody{
                 form_map.insert(parts[0].to_string(), parts[1].to_string()); 
             } 
         } 
-        return RequestBody::Form(form_map);  
+        return RequestBody::Form(UrlEncodedForm { data: form_map });  
     } 
 
     /// Parses a multipart form data body into a HashMap.
@@ -565,7 +568,7 @@ impl RequestBody{
             }
         }
         
-        Self::Files(form_map) 
+        Self::Files(form_map.into()) 
     } 
 }
 
@@ -639,7 +642,6 @@ impl HttpRequest {
         })
     } 
 
-    /// Get the segment of the URL path, 0-indexed 
     pub fn get_path(&mut self, part: usize) -> String { 
         self.start_line.get_url().url_part(part) 
     } 
@@ -648,7 +650,9 @@ impl HttpRequest {
         &self.start_line.path 
     } 
 
-    pub fn form(&self) -> Option<&HashMap<String, String>> { 
+    /// Returns the parsed form from the request body if it exists. 
+    /// If the body is not a form, it returns None. 
+    pub fn form(&self) -> Option<&UrlEncodedForm> { 
         if let RequestBody::Form(ref data) = self.body { 
             Some(data) 
         } else { 
@@ -656,12 +660,48 @@ impl HttpRequest {
         } 
     } 
 
-    pub fn files(&self) -> Option<&HashMap<String, MultiFormField>> { 
+    /// Returns a reference to the form data if it exists, or an empty HashMap if it doesn't. 
+    pub fn form_or_default(&self) -> &UrlEncodedForm {
+        self.form().unwrap_or_else(|| {
+            static EMPTY: Lazy<UrlEncodedForm> = Lazy::new(|| HashMap::new().into()); 
+            &EMPTY
+        })
+    }
+
+    /// Returns the request body as parsed MultiPartFormField if it exists. 
+    /// If the body is not a multipart form, it returns None. 
+    pub fn files(&self) -> Option<&MultiForm> { 
         if let RequestBody::Files(ref data) = self.body { 
             Some(data) 
         } else { 
             None 
         } 
+    } 
+
+    /// Returns a reference to the parsed files data if it exists, or an empty HashMap if it doesn't. 
+    pub fn files_or_default(&self) -> &MultiForm {
+        self.files().unwrap_or_else(|| {
+            static EMPTY: Lazy<MultiForm> = Lazy::new(|| HashMap::new().into());
+            &EMPTY
+        })
+    } 
+
+    /// Returns the request body as parsed JSON if it exists. 
+    /// If the body is not JSON, it returns None. 
+    pub fn json(&self) -> Option<&Object> { 
+        if let RequestBody::Json(ref data) = self.body { 
+            Some(data) 
+        } else { 
+            None 
+        } 
+    } 
+
+    /// Returns a reference to the parsed JSON data if it exists, or an empty Object if it doesn't. 
+    pub fn json_or_default(&self) -> &Object {
+        self.json().unwrap_or_else(|| {
+            static EMPTY: Lazy<Object> = Lazy::new(|| Object::new(""));
+            &EMPTY
+        }) 
     } 
 
     pub fn method(&self) -> HttpMethod { 
@@ -676,4 +716,18 @@ impl HttpRequest {
         self.header.get_cookie(key) 
     } 
 
+    pub fn get_cookie_or_default(&mut self, key: &str) -> String { 
+        self.header.get_cookie(key).unwrap_or("".to_string()) 
+    } 
+
+} 
+
+impl Default for HttpRequest { 
+    fn default() -> Self { 
+        Self { 
+            start_line: RequestStartLine::new(HttpVersion::Http11, HttpMethod::GET, "/".to_string()), 
+            header: RequestHeader::new(), 
+            body: RequestBody::Empty, 
+        } 
+    } 
 } 

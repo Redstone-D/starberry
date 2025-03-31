@@ -18,6 +18,7 @@ impl std::fmt::Display for ResponseStartLine {
 pub struct ResponseHeader{ 
     content_type: Option<HttpContentType>, 
     content_length: Option<usize>, 
+    location: Option<String>, 
     cookie: Option<Vec<CookieResponse>>, 
     pub header: HashMap<String, String>, 
 } 
@@ -27,6 +28,7 @@ impl ResponseHeader {
         Self { 
             content_type: None, 
             content_length: None, 
+            location: None, 
             cookie: None, 
             header: HashMap::new()
         } 
@@ -38,9 +40,11 @@ impl ResponseHeader {
         match key.as_str() { 
             "Content-Type" => self.content_type = Some(HttpContentType::from_str(&value)), 
             "Content-Length" => self.content_length = Some(value.parse::<usize>().unwrap()), 
-            _ => {} 
+            "Location" => self.location = Some(value), 
+            _ => { 
+                self.header.insert(key, value); 
+            },
         } 
-        self.header.insert(key, value); 
     } 
 
     pub fn set_content_length(&mut self, length: usize) { 
@@ -57,6 +61,14 @@ impl ResponseHeader {
 
     pub fn clear_content_type(&mut self) { 
         self.content_type = None; 
+    } 
+
+    pub fn set_location(&mut self, location: &str) { 
+        self.location = Some(location.to_string());  
+    } 
+
+    pub fn clear_location(&mut self) { 
+        self.location = None; 
     } 
 
     pub fn cookie(mut self, cookie: CookieResponse) -> Self { 
@@ -95,6 +107,9 @@ impl ResponseHeader {
         }
         if let Some(length) = self.content_length { 
             result.push_str(&format!("Content-Length: {}\r\n", length)); 
+        } 
+        if let Some(ref location) = self.location { 
+            result.push_str(&format!("Location: {}\r\n", location)); 
         } 
         if let Some(ref cookies) = self.cookie { 
             for cookie in cookies { 
@@ -186,6 +201,16 @@ pub mod request_templates {
         HttpResponse::new(start_line, header, body).set_content_length() 
     } 
 
+    pub fn redirect_response(url: &str) -> HttpResponse { 
+        let start_line = ResponseStartLine { 
+            http_version: HttpVersion::Http11, 
+            status_code: StatusCode::FOUND, 
+        }; 
+        let mut header = ResponseHeader::new(); 
+        header.set_location(url); 
+        HttpResponse::new(start_line, header, "").set_content_length() 
+    } 
+
     pub fn plain_template_response(file: &str) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 
@@ -244,43 +269,46 @@ pub mod request_templates {
     } 
 }
 
-pub mod akari_templates { 
-    /// This macro is used to create a template response with the given path and key-value pairs. 
-    /// It renders a template within specified path 
-    /// and inserts the key-value pairs into the template context. 
-    /// It is a convenient way to generate dynamic HTML responses. 
-    /// # Examples 
-    /// ```rust 
-    /// // akari_render!("/path/to/template", key1 = "value1", key2 = "value2"); 
-    /// // This will fail because the template does not exist. 
-    /// ``` 
-    #[macro_export]
-    macro_rules! akari_render {
-        ($path:expr, $($key:ident = $value:tt),* $(,)?) => {{
-            let mut map = std::collections::HashMap::new();
-            $(
-                akari_render!(@insert map, $key = $value);
-            )*
-            template_response($path, map)
-        }};
-        (@insert $map:expr, $key:ident = $value:literal) => {
-            $map.insert(stringify!($key).to_string(), object!($value));
-        };
-        (@insert $map:expr, $key:ident = $value:expr) => {
-            $map.insert(stringify!($key).to_string(), $value);
-        };
-    }     
-} 
+// pub mod akari_templates { 
+//     /// This macro is used to create a template response with the given path and key-value pairs. 
+//     /// It renders a template within specified path 
+//     /// and inserts the key-value pairs into the template context. 
+//     /// It is a convenient way to generate dynamic HTML responses. 
+//     /// # Examples 
+//     /// ```rust 
+//     /// // akari_render!("/path/to/template", key1 = "value1", key2 = "value2"); 
+//     /// // This will fail because the template does not exist. 
+//     /// ``` 
+//     #[macro_export]
+//     macro_rules! akari_render {
+//         ($path:expr) => {{
+//             template_response($path, std::collections::HashMap::new())
+//         }}; 
+//         ($path:expr, $($key:ident = $value:tt),* $(,)?) => {{
+//             let mut map = std::collections::HashMap::new();
+//             $(
+//                 akari_render!(@insert map, $key = $value);
+//             )*
+//             template_response($path, map)
+//         }};
+//         (@insert $map:expr, $key:ident = $value:literal) => {
+//             $map.insert(stringify!($key).to_string(), object!($value));
+//         };
+//         (@insert $map:expr, $key:ident = $value:expr) => {
+//             $map.insert(stringify!($key).to_string(), $value);
+//         };
+//     }     
+// } 
 
-pub mod akari_object { 
-    /// This macro is used to create a JSON response with the given key-value pairs. 
-    /// It is a convenient way to generate JSON responses. 
-    #[macro_export]
-    macro_rules! akari_json {
-        // Forward any input to the object! macro and wrap the result in json_response
-        ($($tokens:tt)*) => {{
-            let obj = object!($($tokens)*);
-            json_response(obj)
-        }};
-    } 
-}
+// pub mod akari_object { 
+//     /// This macro is used to create a JSON response with the given key-value pairs. 
+//     /// It is a convenient way to generate JSON responses. 
+//     #[macro_export]
+//     macro_rules! akari_json {
+//         // Forward any input to the object! macro and wrap the result in json_response
+//         ($($tokens:tt)*) => {{
+//             let obj = object!($($tokens)*);
+//             json_response(obj)
+//         }};
+//     } 
+// }

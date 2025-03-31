@@ -16,6 +16,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.3.3: Short cuts of form access has been enabled. redirect_response() function is now available to provide a redirect response. (Important Syntax Upgrade) akari_render! and akari_json! now can plug in functions, expressions, nested objects and so on inside, no need to first define then use. akari_render! now can accept zero arguments. 
+
 0.3.2: Re-export Url trait properly, enabled cookie manipulation. Enable request.get_path() to get segments of URL. Bug fix: Now "any" url can be proporly used. Upgraded Akari into 0.1.3 
 
 0.3.1: Enabled reading files from request, multiple file in a single input can also be handled. Now nested JSON is supported and you may use akari_json! to directly return a JSON object. (Bug fix) Now starberry run is enabled. Optimized form reading 

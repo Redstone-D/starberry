@@ -10,7 +10,7 @@ categories = ["network-programming", "web-programming::http-server"]
 keywords = ["starberry"]  
 
 [dependencies] 
-akari = "0.1.3" 
+akari = "0.2.0-rc1" 
 regex = "1.5.6" 
 tokio = { version = "1.28", features = ["full"] } 
 futures = "0.3" 

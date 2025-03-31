@@ -28,9 +28,23 @@ dependencies = [
 
 [[package]]
 name = "akari"
-version = "0.1.3"
+version = "0.2.0-rc1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7cd12b5b0fbe6992fddd7bf88366a45b3300ee650c0b72e786eebe35804bb317"
+checksum = "90754b8a2902e691ce7847672766b9c49833a4a05d71fa17b74a520b0bf42316"
+dependencies = [
+ "akari_macro",
+]
+
+[[package]]
+name = "akari_macro"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5359244b48163c01ebd7d0b8b722ed58d18610cbd9192201e17903744fa8c28a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
 
 [[package]]
 name = "autocfg"
@@ -158,7 +172,7 @@ checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.99",
 ]
 
 [[package]]
@@ -412,7 +426,7 @@ dependencies = [
 
 [[package]]
 name = "starberry"
-version = "0.3.2-rc1"
+version = "0.3.2"
 dependencies = [
  "akari",
  "ctor",
@@ -441,9 +455,10 @@ name = "starberry_macro"
 version = "0.2.2"
 dependencies = [
  "ctor",
+ "proc-macro2",
  "quote",
  "starberry_core",
- "syn",
+ "syn 2.0.99",
 ]
 
 [[package]]
@@ -452,6 +467,17 @@ version = "0.1.0"
 dependencies = [
  "starberry_core",
  "starberry_macro",
+]
+
+[[package]]
+name = "syn"
+version = "1.0.109"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "unicode-ident",
 ]
 
 [[package]]
@@ -491,7 +517,7 @@ checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn",
+ "syn 2.0.99",
 ]
 
 [[package]]

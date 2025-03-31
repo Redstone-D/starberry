@@ -1,7 +1,7 @@
 use super::FutureResponse; 
-use starberry_macro::build_macro; 
+use starberry_macro::middleware; 
 
-#[build_macro()]
+#[middleware]
 pub async fn MyMiddleWare(req: HttpRequest) -> FutureResponse {
     println!("Middleware: Received request for {}", req.path()); 
     next(req)  

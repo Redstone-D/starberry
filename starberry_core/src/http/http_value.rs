@@ -1,7 +1,9 @@
 #![allow(non_snake_case)] 
 #![allow(non_camel_case_types)] 
 
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::Hash};
+
+use once_cell::sync::Lazy;
 
 #[derive(Debug, Clone)]  
 pub enum HttpVersion { 
@@ -372,6 +374,53 @@ impl HeaderAttribute{
     }
 } 
 
+#[derive(Debug, Clone)] 
+pub struct UrlEncodedForm{ 
+    pub data: HashMap<String, String>  
+} 
+
+impl UrlEncodedForm{ 
+    /// Creates a new UrlEncodedForm with an empty HashMap. 
+    pub fn new() -> Self { 
+        Self { data: HashMap::new() } 
+    } 
+
+    /// Inserts a key-value pair into the UrlEncodedForm. 
+    pub fn insert(&mut self, key: String, value: String) { 
+        self.data.insert(key, value); 
+    } 
+
+    /// Gets the value from the UrlEncodedForm. 
+    pub fn get(&self, key: &str) -> Option<&String> { 
+        self.data.get(key) 
+    } 
+
+    pub fn get_or_default(&self, key: &str) -> &String { 
+        if let Some(value) = self.data.get(key) { 
+            return value; 
+        } 
+        static EMPTY: Lazy<String> = Lazy::new(|| "".to_string()); 
+        &EMPTY 
+    } 
+
+    /// Gets all values from the UrlEncodedForm. 
+    pub fn get_all(&self) -> &HashMap<String, String> { 
+        &self.data 
+    } 
+} 
+
+impl From<HashMap<String, String>> for UrlEncodedForm { 
+    fn from(data: HashMap<String, String>) -> Self { 
+        Self { data } 
+    } 
+} 
+
+/// Represents a multipart form data. 
+#[derive(Debug, Clone)] 
+pub struct MultiForm{ 
+    data: HashMap<String, MultiFormField> 
+} 
+
 /// Represents a field in a multipart form.
 #[derive(Debug, Clone)]
 pub enum MultiFormField {
@@ -386,6 +435,117 @@ pub struct MultiFormFieldFile {
     content_type: Option<String>, 
     data: Vec<u8>,
 } 
+
+impl From<HashMap<String, MultiFormField>> for MultiForm { 
+    fn from(data: HashMap<String, MultiFormField>) -> Self { 
+        Self { data } 
+    } 
+} 
+
+impl MultiForm{ 
+    /// Creates a new MultiForm with an empty HashMap. 
+    pub fn new() -> Self { 
+        Self { data: HashMap::new() } 
+    } 
+
+    /// Inserts a field into the MultiForm. 
+    pub fn insert(&mut self, key: String, value: MultiFormField) { 
+        self.data.insert(key, value); 
+    } 
+
+    /// Gets the field from the MultiForm. 
+    pub fn get(&self, key: &str) -> Option<&MultiFormField> { 
+        self.data.get(key) 
+    } 
+
+    /// Gets all fields from the MultiForm. 
+    pub fn get_all(&self) -> &HashMap<String, MultiFormField> { 
+        &self.data 
+    } 
+
+    /// Gets the files from the MultiForm. 
+    pub fn get_text(&self, key: &str) -> Option<&String> { 
+        if let Some(field) = self.data.get(key) { 
+            if let MultiFormField::Text(value) = field { 
+                return Some(value); 
+            } 
+        } 
+        None 
+    } 
+
+    pub fn get_text_or_default(&self, key: &str) -> String { 
+        if let Some(field) = self.data.get(key) { 
+            if let MultiFormField::Text(value) = field { 
+                return value.clone(); 
+            } 
+        } 
+        "".to_string() 
+    } 
+
+    /// Gets the files from the MultiForm. 
+    pub fn get_files(&self, key: &str) -> Option<&Vec<MultiFormFieldFile>> { 
+        if let Some(field) = self.data.get(key) { 
+            if let MultiFormField::File(files) = field { 
+                return Some(files); 
+            } 
+        } 
+        None 
+    } 
+
+    /// Gets the files from the MultiForm. 
+    /// This function returns an empty vector if the field is not found or if it is not a file. 
+    pub fn get_files_or_default(&self, key: &str) -> &Vec<MultiFormFieldFile> { 
+        if let Some(field) = self.data.get(key) { 
+            if let MultiFormField::File(files) = field { 
+                return files; 
+            } 
+        } 
+        static EMPTY: Lazy<Vec<MultiFormFieldFile>> = Lazy::new(|| Vec::new()); 
+        &EMPTY 
+    } 
+
+    /// Get the first file from the MultiForm. 
+    pub fn get_first_file(&self, key: &str) -> Option<&MultiFormFieldFile> { 
+        if let Some(field) = self.data.get(key) { 
+            if let MultiFormField::File(files) = field { 
+                return files.first(); 
+            } 
+        } 
+        None 
+    } 
+
+    /// Get the first file from the MultiForm. 
+    /// This function returns the first file as a MultiFormFieldFile. 
+    pub fn get_first_file_or_default(&self, key: &str) -> &MultiFormFieldFile { 
+        if let Some(field) = self.get_first_file(key) { 
+            return field; 
+        } 
+        static EMPTY: Lazy<MultiFormFieldFile> = Lazy::new(|| MultiFormFieldFile::default()); 
+        &EMPTY 
+    } 
+
+    /// Get the first file content from the MultiForm. 
+    /// This function returns the first file content as a byte slice. 
+    pub fn get_first_file_content(&self, key: &str) -> Option<&[u8]> { 
+        if let Some(field) = self.data.get(key) { 
+            if let MultiFormField::File(files) = field { 
+                return files.first().map(|file| file.data.as_slice()); 
+            } 
+        } 
+        None 
+    } 
+
+    /// Get the first file content from the MultiForm. 
+    /// This function returns the first file content as a byte vector. 
+    /// This function returns an empty vector if the field is not found or if it is not a file. 
+    pub fn get_first_file_content_or_default(&self, key: &str) -> &[u8] { 
+        if let Some(content) = self.get_first_file_content(key) { 
+            return content; 
+        } 
+        static EMPTY: Lazy<Vec<u8>> = Lazy::new(|| Vec::new()); 
+        &EMPTY 
+    }
+}
 
 impl MultiFormField { 
     pub fn new_text(value: String) -> Self {
@@ -418,6 +578,13 @@ impl MultiFormField {
     } 
 }
 
+impl Default for MultiFormField { 
+    /// Creates a new MultiFormField with an empty string. 
+    fn default() -> Self { 
+        Self::Text("".to_string()) 
+    } 
+} 
+
 impl MultiFormFieldFile{ 
     pub fn new(filename: Option<String>, content_type: Option<String>, data: Vec<u8>) -> Self { 
         Self { filename, content_type, data } 
@@ -433,6 +600,12 @@ impl MultiFormFieldFile{
 
     pub fn data(&self) -> &[u8] { 
         &self.data 
+    } 
+} 
+
+impl Default for MultiFormFieldFile { 
+    fn default() -> Self { 
+        Self { filename: None, content_type: None, data: Vec::new() } 
     } 
 } 
 
