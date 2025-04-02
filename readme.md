@@ -14,9 +14,128 @@ Learn more about Akari template: https://crates.io/crates/akari
 
 https://github.com/Redstone-D/starberry 
 
+## Why use Starberry? 
+
+Do not need to know how starberry works, just use it, its simple 
+
+**SIMPLE** 
+
+In starberry you only need to do this to parse the form and return the form data as json 
+
+```rust 
+#[lit_url("/submit")]
+fn handle_form(mut request: HttpRequest) -> HttpResponse { 
+    let form = request.form_or_default(); 
+    akari_json!({ 
+        name: form.get_or_default("name"), 
+        age: form.get_or_default("age") 
+    }) 
+} 
+``` 
+
+While for setting a Cookie 
+
+```rust 
+#[lit_url("/cookie")] 
+fn set_cookie(mut request: HttpRequest) { 
+    text_response("Cookie Set").add_cookie( 
+        Cookie::new("global_cookie", "something").path("/")  
+    ) 
+} 
+``` 
+
+**FULL-STACK** 
+
+You are able to return a template in a dynamic way in starberry 
+
+```rust 
+#[lit_url("/template")] 
+fn template(mut request: HttpRequest) { 
+    akari_template!(
+        "template.html", 
+        title="My Website - Home", 
+        page_title="Welcome to My Website", 
+        show_message=true, 
+        message="Hello, world!", 
+        items=[1, 2, 3, 4, 5] 
+    )
+} 
+``` 
+
+template.html
+```HTML
+-[ template "base.html" ]-
+
+-[ block head ]-
+<link rel="stylesheet" href="style.css">
+<meta name="description" content="My awesome page">
+-[ endblock ]-
+
+-[ block header ]-
+<h1>-[ page_title ]-</h1>
+<nav>
+    <ul>
+        <li><a href="/">Home</a></li>
+        <li><a href="/about">About</a></li>
+        <li><a href="/contact">Contact</a></li>
+    </ul>
+</nav>
+-[ endblock ]-
+
+-[ block content ]-
+<div class="container">
+    <h2>Welcome to our website</h2>
+    
+    -[ if show_message ]-
+        <div class="message">-[ message ]-</div>
+    -[ endif ]-
+    
+    <ul class="items">
+        -[ for item items ]-
+            <li class="item">-[ item ]-</li>
+        -[ endfor ]-
+    </ul>
+</div>
+-[ endblock ]- 
+``` 
+
+base.html 
+```HTML 
+<!DOCTYPE html>
+<html>
+<head>
+    <title>-[ title ]-</title>
+    -[ block head ]-
+    <!-- Default head content -->
+    -[ endblock ]-
+</head>
+<body>
+    <header>
+        -[ block header ]-
+        <h1>Default Site Header</h1>
+        -[ endblock ]-
+    </header>
+    
+    <main>
+        -[ block content ]-
+        <p>Default content - override this</p>
+        -[ endblock ]-
+    </main>
+    
+    <footer>
+        -[ block footer ]-
+        <p>&copy; 2025 Starberry</p>
+        -[ endblock ]-
+    </footer>
+</body>
+</html>
+``` 
+
 # Just updated 
 
-0.3.3: Short cuts of form access has been enabled. redirect_response() function is now available to provide a redirect response. (Important Syntax Upgrade) akari_render! and akari_json! now can plug in functions, expressions, nested objects and so on inside, no need to first define then use. akari_render! now can accept zero arguments. 
+0.3.3: Data sent from Url_encoded_form is now being automatically decoded. You may set random key for the Application. Default will be a 32 char long string generated randomly. Short cuts of form access has been enabled. redirect_response() function is now available to provide a redirect response. 
+
+(Important Syntax Upgrade) akari_render! and akari_json! now can plug in functions, expressions, nested objects and so on inside, no need to first define then use. akari_render! now can accept zero arguments. Upgraded Akari into 0.2.0 
 
 0.3.2: Re-export Url trait properly, enabled cookie manipulation. Enable request.get_path() to get segments of URL. Bug fix: Now "any" url can be proporly used. Upgraded Akari into 0.1.3 
 
@@ -28,12 +147,17 @@ The main program is updated. You may use `starberry new` to start a new project 
 
 Read more about akari: https://crates.io/crates/akari 
 
-**Updates going to happen in 0.3 version** 
+**Updates going to happen in 0.4 version** 
 
-- Session & Cookie manipulation (Cookies manipulation finished) 
-- Akari macro usage (0.3.3) 
-- Parsing form data (Finished, now fixing special character problems), uploading files (Finished) 
-- Render Templates (Finished)  
+- Warp HttpResponse with HttpContext 
+- No need to write mut HttpRequest in the argument, it will be automatically added 
+- Enabling function to read URL configuration & rules 
+- Session manipulation 
+
+- Middlewares 
+- Standard middlewre library for starberry (Oauth) 
+
+- Better URL configuration 
 
 **Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
 
@@ -174,125 +298,6 @@ if *request.method() == POST {
 
 You may get the file 
 
-# Example 
-
-```rust 
-use starberry::preload::*; 
-
-#[tokio::main]  
-async fn main() { 
-
-    let furl = APP.clone().reg_from(&[LitUrl("flexible"), LitUrl("url"), LitUrl("may_be_changed")]); 
-    furl.set_method(Arc::new(flexible_access)); 
-
-    APP.clone().run().await; 
-} 
-
-pub static APP: SApp = Lazy::new(|| { 
-    App::new()
-        .binding(String::from("127.0.0.1:1111"))
-        .mode(RunMode::Development)
-        .workers(4) 
-        .max_body_size(1024 * 1024 * 10) 
-        .max_header_size(1024 * 10) 
-        .build() 
-}); 
-
-#[lit_url(APP, "/")] 
-async fn home_route(_: HttpRequest) -> HttpResponse { 
-    html_response("<h1>Home</h1>") 
-} 
-
-#[lit_url(APP, "/random/split/something")]
-async fn random_route(_: HttpRequest) -> HttpResponse {
-    text_response("A random page") 
-}  
-
-#[lit_url(APP, "random")]
-async fn anything_random(_: HttpRequest) -> HttpResponse {
-    text_response("A random page") 
-}  
-
-static TEST_URL: SUrl = Lazy::new(|| {
-    APP.reg_from(&[LitUrl("test")]) 
-}); 
-
-#[url(TEST_URL.clone(), LitUrl("hello"))]
-async fn hello(_: HttpRequest) -> HttpResponse { 
-    text_response("Hello")  
-} 
-
-#[url(TEST_URL.clone(), LitUrl("json"))]
-async fn json_test(_: HttpRequest) -> HttpResponse { 
-    let a = 2; 
-    let body = object!({number: a, string: "Hello", array: [1, 2, 3]}); 
-    json_response(body)
-} 
-
-#[url(TEST_URL.clone(), LitUrl("async_test"))] 
-async fn async_test(_: HttpRequest) -> HttpResponse {
-    sleep(Duration::from_secs(1));
-    println!("1");
-    sleep(Duration::from_secs(1)); 
-    println!("2");
-    sleep(Duration::from_secs(1));
-    println!("3");
-    text_response("Async Test Page") 
-} 
-
-#[url(TEST_URL.clone(), RegUrl("async_test2"))]  
-async fn async_test2(_: HttpRequest) -> HttpResponse {
-    sleep(Duration::from_secs(1));
-    println!("1");
-    sleep(Duration::from_secs(1));
-    println!("2");
-    sleep(Duration::from_secs(1));
-    println!("3");
-    text_response("Async Test Page") 
-} 
-
-#[url(TEST_URL.clone(), RegUrl("[0-9]+"))]  
-// #[set_header_size(max_size: 2048, max_line_size: 1024, max_lines: 200)] 
-async fn testa(_: HttpRequest) -> HttpResponse { 
-    text_response("Number page") 
-} 
-
-#[url(TEST_URL.clone(), LitUrl("form"))]  
-async fn test_form(request: HttpRequest) -> HttpResponse { 
-    println!("Request to this dir"); 
-    if *request.method() == POST { 
-        match request.form() { 
-            Some(form) => { 
-                return text_response(format!("Form data: {:?}", form)); 
-            } 
-            None => { 
-                return text_response("Error parsing form"); 
-            }  
-        } 
-    } 
-    plain_template_response("form.html") 
-} 
-
-#[url(TEST_URL.clone(), LitUrl("temp"))]  
-async fn test_template(_: HttpRequest) -> HttpResponse { 
-    let items = object!([1, 2, 3, 4, 5]); 
-    akari_render!(
-        "home.html", 
-        title="My Website - Home", 
-        page_title="Welcome to My Website", 
-        show_message=true, 
-        message="Hello, world!", 
-        items=items
-    ) 
-} 
-
-async fn flexible_access(_: HttpRequest) -> HttpResponse { 
-    text_response("Flexible") 
-} 
- 
- 
-``` 
-
 # Update log 
 
 0.2.3 Templates now in use. Please use `starberry build` instead of `cargo build` when building exe for running. The config of the command is the same 
@@ -380,5 +385,5 @@ async fn main() {
 
 0.1.2: Updated Request Analyze, Debug to not Generate Panic. Let the program capable for async (The 0.1.1 async is fake) 
  
-  
-  
+
+

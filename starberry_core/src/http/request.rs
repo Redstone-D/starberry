@@ -1,4 +1,5 @@
-use crate::app::urls::Url;
+use crate::app::urls::Url; 
+use starberry_lib::decode_url_owned;  
 
 use super::http_value::*; 
 use std::hash::Hash;
@@ -421,7 +422,7 @@ impl RequestBody{
         for pair in form_data.split('&') { 
             let parts: Vec<&str> = pair.split('=').collect(); 
             if parts.len() == 2 { 
-                form_map.insert(parts[0].to_string(), parts[1].to_string()); 
+                form_map.insert(decode_url_owned(parts[0]), decode_url_owned(parts[1])); 
             } 
         } 
         return RequestBody::Form(UrlEncodedForm { data: form_map });  

@@ -1,10 +1,12 @@
 use core::panic;
+use std::ops::RangeFrom; 
 use std::pin::Pin;
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 use std::{net::TcpListener, thread, sync::mpsc}; 
 use std::net::TcpStream;    
-use tokio::runtime::Runtime;
+use starberry_lib::random_string; 
+use tokio::runtime::Runtime; 
 
 use crate::app::middleware::{LoggingMiddleware}; 
 use crate::app::urls;
@@ -20,6 +22,7 @@ pub struct App {
     pub listener: TcpListener, 
     pub mode: RunMode, 
     pub pool: ThreadPool, 
+    pub secret_key: String, 
     pub max_connection_time: usize, 
     pub connection_config: ParseConfig, 
     pub middlewares: Arc<Vec<Arc<dyn AsyncMiddleware>>>, 
@@ -102,6 +105,7 @@ pub struct AppBuilder {
     binding: Option<String>, 
     mode: Option<RunMode>, 
     workers: Option<usize>, 
+    secret_key: Option<String>, 
     max_connection_time: Option<usize>, 
     max_header_size: Option<usize>, 
     max_body_size: Option<usize>, 
@@ -112,7 +116,7 @@ pub struct AppBuilder {
 
 impl AppBuilder { 
     pub fn new() -> Self { 
-        Self { root_url: None, binding: None, mode: None, workers: None, max_connection_time: None, max_header_size: None, max_body_size: None, max_line_length: None, max_headers: None, middle_wares: Some(Self::default_middlewares()) } 
+        Self { root_url: None, binding: None, mode: None, workers: None, secret_key: None, max_connection_time: None, max_header_size: None, max_body_size: None, max_line_length: None, max_headers: None, middle_wares: Some(Self::default_middlewares()) } 
     } 
 
     pub fn default_middlewares() -> Vec<Arc<dyn AsyncMiddleware>> { 
@@ -136,6 +140,11 @@ impl AppBuilder {
 
     pub fn workers(mut self, workers: usize) -> Self { 
         self.workers = Some(workers); 
+        self 
+    } 
+
+    pub fn secret_key(mut self, secret_key: String) -> Self { 
+        self.secret_key = Some(secret_key); 
         self 
     } 
 
@@ -216,13 +225,14 @@ impl AppBuilder {
         };  
         let mode = self.mode.unwrap_or_else(|| RunMode::Development); 
         let workers = ThreadPool::new(self.workers.unwrap_or_else(|| 4)); 
+        let secret_key = self.secret_key.unwrap_or_else(|| random_string(32));
         let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5); 
         let max_header_size = self.max_header_size.unwrap_or_else(|| 1024 * 1024); 
         let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 512 ); 
         let max_line_length = self.max_line_length.unwrap_or_else(|| 1024 * 64); 
         let max_headers = self.max_headers.unwrap_or_else(|| 100); 
         let connection_config = ParseConfig::new(max_header_size, max_line_length, max_headers, max_body_size); 
-        Arc::new(App { root_url, listener: binding, mode, pool: workers, max_connection_time, connection_config, middlewares: self.middle_wares.unwrap_or_else(|| Self::default_middlewares()).into() }) 
+        Arc::new(App { root_url, listener: binding, mode, pool: workers, secret_key, max_connection_time, connection_config, middlewares: self.middle_wares.unwrap_or_else(|| Self::default_middlewares()).into() }) 
     } 
 }
 

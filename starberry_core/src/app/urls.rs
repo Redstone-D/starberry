@@ -121,7 +121,7 @@ impl std::fmt::Display for PathPattern {
             PathPattern::Regex(path) => write!(f, "Regex: {}", path),
             PathPattern::Any => write!(f, "*"),
             PathPattern::AnyPath => write!(f, "**"),
-        }
+        } 
     }
 } 
 
