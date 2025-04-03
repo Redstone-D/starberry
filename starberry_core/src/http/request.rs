@@ -651,8 +651,6 @@ impl HttpRequest {
         &self.start_line.path 
     } 
 
-    /// Returns the parsed form from the request body if it exists. 
-    /// If the body is not a form, it returns None. 
     pub fn form(&self) -> Option<&UrlEncodedForm> { 
         if let RequestBody::Form(ref data) = self.body { 
             Some(data) 
@@ -661,7 +659,6 @@ impl HttpRequest {
         } 
     } 
 
-    /// Returns a reference to the form data if it exists, or an empty HashMap if it doesn't. 
     pub fn form_or_default(&self) -> &UrlEncodedForm {
         self.form().unwrap_or_else(|| {
             static EMPTY: Lazy<UrlEncodedForm> = Lazy::new(|| HashMap::new().into()); 
@@ -669,8 +666,6 @@ impl HttpRequest {
         })
     }
 
-    /// Returns the request body as parsed MultiPartFormField if it exists. 
-    /// If the body is not a multipart form, it returns None. 
     pub fn files(&self) -> Option<&MultiForm> { 
         if let RequestBody::Files(ref data) = self.body { 
             Some(data) 
@@ -679,7 +674,6 @@ impl HttpRequest {
         } 
     } 
 
-    /// Returns a reference to the parsed files data if it exists, or an empty HashMap if it doesn't. 
     pub fn files_or_default(&self) -> &MultiForm {
         self.files().unwrap_or_else(|| {
             static EMPTY: Lazy<MultiForm> = Lazy::new(|| HashMap::new().into());
@@ -687,8 +681,6 @@ impl HttpRequest {
         })
     } 
 
-    /// Returns the request body as parsed JSON if it exists. 
-    /// If the body is not JSON, it returns None. 
     pub fn json(&self) -> Option<&Object> { 
         if let RequestBody::Json(ref data) = self.body { 
             Some(data) 
@@ -697,7 +689,6 @@ impl HttpRequest {
         } 
     } 
 
-    /// Returns a reference to the parsed JSON data if it exists, or an empty Object if it doesn't. 
     pub fn json_or_default(&self) -> &Object {
         self.json().unwrap_or_else(|| {
             static EMPTY: Lazy<Object> = Lazy::new(|| Object::new(""));
@@ -705,8 +696,8 @@ impl HttpRequest {
         }) 
     } 
 
-    pub fn method(&self) -> HttpMethod { 
-        self.start_line.method.clone()  
+    pub fn method(&self) -> &HttpMethod { 
+        &self.start_line.method 
     } 
 
     pub fn get_cookies(&mut self) -> &HashMap<String, String> { 

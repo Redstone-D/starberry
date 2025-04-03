@@ -1,4 +1,4 @@
-## Latest stable version: 0.3.1 
+## Latest stable version: 0.3.3 
 
 # Starberry Web Framework 
 
@@ -14,9 +14,34 @@ Learn more about Akari template: https://crates.io/crates/akari
 
 https://github.com/Redstone-D/starberry 
 
+
+# Just updated 
+
+0.4.0: Wrap the Request with Request context struct, providing access to App and Url config. Change the name preload into prelude 
+
+(Important syntax update) Please accept Rc as argument instead of HttpRequest when you define an endpoint 
+
+**Updates going to happen in 0.4 version** 
+
+- Warp HttpResponse with HttpContext 
+- No need to write mut HttpRequest in the argument, it will be automatically added 
+- Enabling function to read URL configuration & rules 
+- Session manipulation 
+
+- Middlewares 
+- Standard middlewre library for starberry (Oauth) 
+
+- Better URL configuration 
+
+**Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
+
 ## Why use Starberry? 
 
 Do not need to know how starberry works, just use it, its simple 
+
+**NOTE** 
+
+The code examples given are only for 0.3.3. There is a big grammar change in 0.4. A project defined in 0.3 will not be able to run in 0.4 environment. 
 
 **SIMPLE** 
 
@@ -130,36 +155,6 @@ base.html
 </body>
 </html>
 ``` 
-
-# Just updated 
-
-0.3.3: Data sent from Url_encoded_form is now being automatically decoded. You may set random key for the Application. Default will be a 32 char long string generated randomly. Short cuts of form access has been enabled. redirect_response() function is now available to provide a redirect response. 
-
-(Important Syntax Upgrade) akari_render! and akari_json! now can plug in functions, expressions, nested objects and so on inside, no need to first define then use. akari_render! now can accept zero arguments. Upgraded Akari into 0.2.0 
-
-0.3.2: Re-export Url trait properly, enabled cookie manipulation. Enable request.get_path() to get segments of URL. Bug fix: Now "any" url can be proporly used. Upgraded Akari into 0.1.3 
-
-0.3.1: Enabled reading files from request, multiple file in a single input can also be handled. Now nested JSON is supported and you may use akari_json! to directly return a JSON object. (Bug fix) Now starberry run is enabled. Optimized form reading 
-
-0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
-
-The main program is updated. You may use `starberry new` to start a new project for starberry, also `starberry release` command is ready in use 
-
-Read more about akari: https://crates.io/crates/akari 
-
-**Updates going to happen in 0.4 version** 
-
-- Warp HttpResponse with HttpContext 
-- No need to write mut HttpRequest in the argument, it will be automatically added 
-- Enabling function to read URL configuration & rules 
-- Session manipulation 
-
-- Middlewares 
-- Standard middlewre library for starberry (Oauth) 
-
-- Better URL configuration 
-
-**Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
 
 # How to start a server & URL reg 
 
@@ -299,6 +294,20 @@ if *request.method() == POST {
 You may get the file 
 
 # Update log 
+
+0.3.3: Data sent from Url_encoded_form is now being automatically decoded. You may set random key for the Application. Default will be a 32 char long string generated randomly. Short cuts of form access has been enabled. redirect_response() function is now available to provide a redirect response. 
+
+(Important Syntax Upgrade) akari_render! and akari_json! now can plug in functions, expressions, nested objects and so on inside, no need to first define then use. akari_render! now can accept zero arguments. Upgraded Akari into 0.2.0 
+
+0.3.2: Re-export Url trait properly, enabled cookie manipulation. Enable request.get_path() to get segments of URL. Bug fix: Now "any" url can be proporly used. Upgraded Akari into 0.1.3 
+
+0.3.1: Enabled reading files from request, multiple file in a single input can also be handled. Now nested JSON is supported and you may use akari_json! to directly return a JSON object. (Bug fix) Now starberry run is enabled. Optimized form reading 
+
+0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
+
+The main program is updated. You may use `starberry new` to start a new project for starberry, also `starberry release` command is ready in use 
+
+Read more about akari: https://crates.io/crates/akari 
 
 0.2.3 Templates now in use. Please use `starberry build` instead of `cargo build` when building exe for running. The config of the command is the same 
 

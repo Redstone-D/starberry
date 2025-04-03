@@ -97,6 +97,18 @@ impl std::fmt::Display for HttpMethod {
     } 
 } 
 
+impl PartialEq<&HttpMethod> for HttpMethod { 
+    fn eq(&self, other: &&HttpMethod) -> bool { 
+        self == *other 
+    } 
+} 
+
+impl PartialEq<HttpMethod> for &HttpMethod {
+    fn eq(&self, other: &HttpMethod) -> bool {
+        **self == *other
+    }
+} 
+
 pub enum StatusCode { 
     OK = 200, 
     CREATED = 201, 

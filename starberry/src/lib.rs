@@ -14,6 +14,8 @@ pub use starberry_core::Object;
 pub use starberry_core::TemplateManager; 
 pub use starberry_core::object; 
 
+pub use starberry_core::context::Rc;  
+
 pub use starberry_core::http::response::request_templates; 
 
 pub use starberry_core::http::request::HttpRequest;

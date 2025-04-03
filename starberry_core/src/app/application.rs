@@ -10,6 +10,7 @@ use tokio::runtime::Runtime;
 
 use crate::app::middleware::{LoggingMiddleware}; 
 use crate::app::urls;
+use crate::context::Rc;
 
 use super::super::http::http_value::*; 
 use super::super::http::request::*;  
@@ -33,6 +34,7 @@ pub struct App {
 /// Development: Test on developer's computer, showing the error message and some debug info. May contain sensitive info. 
 /// Beta: Beta mode, showing some debug info. May contain some sensitive info. 
 /// Build: Build mode. For building the starberry binary. Do not use this. 
+#[derive(Clone, Debug)]
 pub enum RunMode { 
     Production, 
     Development, 
@@ -249,32 +251,72 @@ impl App {
         self.listener = TcpListener::bind(binding).unwrap(); 
     } 
 
+    pub fn get_binding(self: &Arc<Self>) -> String { 
+        self.listener.local_addr().unwrap().to_string() 
+    } 
+
     pub fn set_mode(&mut self, mode: RunMode) { 
         self.mode = mode; 
+    } 
+
+    pub fn get_mode(self: &Arc<Self>) -> RunMode { 
+        self.mode.clone() 
     } 
 
     pub fn set_workers(&mut self, workers: usize) { 
         self.pool = ThreadPool::new(workers); 
     } 
 
+    pub fn get_workers(self: &Arc<Self>) -> usize { 
+        self.pool.workers.len() 
+    } 
+
+    pub fn set_secret_key(&mut self, secret_key: String) { 
+        self.secret_key = secret_key; 
+    } 
+
+    pub fn get_secret_key(self: &Arc<Self>) -> &str { 
+        &self.secret_key 
+    } 
+
     pub fn set_max_connection_time(&mut self, max_connection_time: usize) { 
         self.max_connection_time = max_connection_time; 
+    } 
+
+    pub fn get_max_connection_time(self: &Arc<Self>) -> usize { 
+        self.max_connection_time 
     } 
 
     pub fn set_max_header_size(&mut self, max_header_size: usize) { 
         self.connection_config.set_max_header_size(max_header_size); 
     } 
 
+    pub fn get_max_header_size(self: &Arc<Self>) -> usize { 
+        self.connection_config.get_max_header_size() 
+    } 
+
     pub fn set_max_body_size(&mut self, max_body_size: usize) { 
         self.connection_config.set_max_body_size(max_body_size); 
+    } 
+
+    pub fn get_max_body_size(self: &Arc<Self>) -> usize { 
+        self.connection_config.get_max_body_size() 
     } 
 
     pub fn set_max_line_length(&mut self, max_line_length: usize) { 
         self.connection_config.set_max_line_length(max_line_length); 
     } 
 
+    pub fn get_max_line_length(self: &Arc<Self>) -> usize { 
+        self.connection_config.get_max_line_length() 
+    } 
+
     pub fn set_max_headers(&mut self, max_headers: usize) { 
         self.connection_config.set_max_headers(max_headers); 
+    } 
+
+    pub fn get_max_headers(self: &Arc<Self>) -> usize { 
+        self.connection_config.get_max_headers() 
     } 
 
     /// This function add a new url to the app. It will be added to the root url 
@@ -289,14 +331,18 @@ impl App {
         self.root_url.clone().literal_url(&url, function, Some(self.middlewares.clone())) 
     } 
 
-    pub async fn request(&self, request: HttpRequest) -> HttpResponse { 
+    pub async fn request(self: Arc<Self>, request: HttpRequest) -> HttpResponse { 
         let path = request.path(); 
         let mut path = path.split('/').collect::<Vec<&str>>(); 
         path.remove(0); 
         // println!("{:?}", path); 
         let url: Option<_> = Arc::clone(&self.root_url).walk(path.iter()).await; 
         if let Some(url) = url { 
-            return url.run(request).await; 
+            return url.run(Rc::new(
+                request, 
+                self.clone(), 
+                url.clone(), 
+            )).await; 
         } else { 
             return request_templates::return_status(StatusCode::NOT_FOUND);  
         } 

@@ -2,6 +2,7 @@ use super::super::http::request::*;
 use super::super::http::response::*; 
 use super::super::http::http_value::*;
 use super::middleware; 
+use super::super::context::Rc; 
 use std::future::Future;
 use std::pin::Pin;
 use std::slice::Iter; 
@@ -15,20 +16,20 @@ use super::super::app::middleware::*;
 pub trait AsyncUrlHandler: Send + Sync + 'static {
     fn handle(
         &self, 
-        req: HttpRequest
+        rc: Rc
     ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>>;
 }
 
 impl<F, Fut> AsyncUrlHandler for F
 where
-    F: Fn(HttpRequest) -> Fut + Send + Sync + 'static,
+    F: Fn(Rc) -> Fut + Send + Sync + 'static,
     Fut: Future<Output = HttpResponse> + Send + 'static,
 {
     fn handle(
         &self, 
-        req: HttpRequest
+        rc: Rc
     ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>> {
-        Box::pin(self(req))
+        Box::pin(self(rc))
     }
 }
 
@@ -238,7 +239,7 @@ impl IntoIterator for MiddleWares {
 } 
 
 impl Url { 
-    pub async fn run(&self, request: HttpRequest) -> HttpResponse { 
+    pub async fn run(&self, rc: Rc) -> HttpResponse { 
         let handler_opt = { 
             let guard = self.method.read().unwrap();
             guard.clone()
@@ -252,24 +253,24 @@ impl Url {
         if let Some(method) = handler_opt { 
             // Whether middleware found, by using lf let middleware 
             if let MiddleWares::MiddleWare(_) = middlewares {  
-                let base = Arc::new(move |req: HttpRequest| {
-                    method.handle(req)
-                }) as Arc<dyn Fn(HttpRequest) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> + Send + Sync>;
+                let base = Arc::new(move |rc: Rc| {
+                    method.handle(rc)
+                }) as Arc<dyn Fn(Rc) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> + Send + Sync>;
                 
                 // Fold the middleware chain (iterate in reverse order so the first added middleware runs first)
                 let chain = middlewares.clone().into_iter().rev().fold(base, |next, mw| {
                     let next_clone = next.clone();
-                    Arc::new(move |req: HttpRequest| {
+                    Arc::new(move |rc: Rc| {
                         // Clone next_clone for each call so the closure doesn't consume it.
                         let next_fn = next_clone.clone();
-                        mw.handle(req, Box::new(move |r| next_fn(r)))
-                    }) as Arc<dyn Fn(HttpRequest) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> + Send + Sync>
+                        mw.handle(rc, Box::new(move |r| next_fn(r)))
+                    }) as Arc<dyn Fn(Rc) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> + Send + Sync>
                 }); 
                 
                 // Now call the complete chain with the request.
-                return chain(request).await 
+                return chain(rc).await 
             } else { 
-                return method.handle(request).await; 
+                return method.handle(rc).await; 
             }
             // return method.handle(request).await; 
         } 
@@ -348,7 +349,7 @@ impl Url {
     /// If no handler exists, returns `NOT_FOUND`.
     pub fn run_child(
         self: Arc<Self>,
-        request: HttpRequest,
+        rc: Rc,
     ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>> {
         Box::pin(async move {
             let handler_opt = {
@@ -356,11 +357,11 @@ impl Url {
                 guard.clone() 
             };
             if let Some(handler) = handler_opt {
-                handler.handle(request).await
+                handler.handle(rc).await
             } else {
                 request_templates::return_status(StatusCode::NOT_FOUND)
             }
-        })
+        }) 
     } 
 
     /// Delete a child URL under this URL. 
