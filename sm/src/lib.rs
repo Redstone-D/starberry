@@ -22,8 +22,6 @@ pub fn log_func_info(_: TokenStream, input: TokenStream) -> TokenStream {
     quote! { #func }.into()
 } 
 
-use starberry_core::app::urls as Url; 
-
 struct RegisterUrlArgs {
     pub app: Ident,
     pub literal: LitStr, 
@@ -113,53 +111,59 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn middleware(_attr: TokenStream, item: TokenStream) -> TokenStream {
     use syn::parse_macro_input;
-    use syn::ItemFn;
+    use syn::{ItemFn, FnArg, Pat};
     let input_fn = parse_macro_input!(item as ItemFn);
     let fn_name = input_fn.sig.ident;
     let fn_block = input_fn.block; // capture the function body
-
-    // Create a middleware struct name by appending "Middleware" to the function name.
-    let middleware_name = syn::Ident::new(&format!("{}", fn_name), fn_name.span());
+    
+    // Extract parameter name if it exists, otherwise use "req" as default
+    let param_name = if !input_fn.sig.inputs.is_empty() {
+        if let FnArg::Typed(pat_type) = &input_fn.sig.inputs[0] {
+            if let Pat::Ident(pat_ident) = &*pat_type.pat {
+                pat_ident.ident.clone()
+            } else {
+                syn::Ident::new("req", fn_name.span())
+            }
+        } else {
+            syn::Ident::new("req", fn_name.span())
+        }
+    } else {
+        syn::Ident::new("req", fn_name.span())
+    };
 
     let expanded = quote! {
         // Define the generated middleware struct.
-        pub struct #middleware_name;
+        pub struct #fn_name;
 
-        use starberry_core::app::middleware::AsyncMiddleware;
-        use starberry_core::http::request::HttpRequest;
-        use starberry_core::http::response::HttpResponse;
-        use std::pin::Pin;
-        use std::future::Future;
-        use std::any::Any;
-
-        impl AsyncMiddleware for #middleware_name {
-            fn as_any(&self) -> &dyn Any {
+        impl AsyncMiddleware for #fn_name {
+            fn as_any(&self) -> &dyn std::any::Any {
                 self
             }
 
             fn handle<'a>(
                 &self,
-                req: HttpRequest,
+                context: Rc,
                 next: Box<
-                    dyn Fn(HttpRequest) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>>
+                    dyn Fn(Rc) -> std::pin::Pin<Box<dyn std::future::Future<Output = HttpResponse> + Send + 'static>>
                         + Send
                         + Sync
                         + 'static,
                 >,
-            ) -> Pin<Box<dyn Future<Output = HttpResponse> + Send + 'static>> {
-                std::pin::Pin::from(Box::new(async move {
-                    (#fn_block).await // This should be optimized, it should not call await for wny middleware 
-                }))
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = HttpResponse> + Send + 'static>> {
+                Box::pin(async move {
+                    let #param_name = context;
+                    (#fn_block).await
+                })
             }
 
             fn return_self() -> Self where Self: Sized {
-                #middleware_name
+                #fn_name
             }
         }
     };
 
     TokenStream::from(expanded)
-} 
+}
 
 /// A macro to create an Object from a literal or expression.
 /// It can handle dictionaries, lists, booleans, strings, and numeric values. 

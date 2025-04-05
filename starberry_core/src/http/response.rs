@@ -3,6 +3,10 @@ use std::collections::HashMap;
 use std::net::TcpStream; 
 use std::io::{BufWriter, Write}; 
 
+use std::future::{ready, Ready};
+use std::pin::Pin;
+use std::future::Future; 
+
 pub struct ResponseStartLine{ 
     pub http_version: HttpVersion, 
     pub status_code: StatusCode,  
@@ -164,6 +168,17 @@ impl HttpResponse {
         writer.write_all(body_bytes).unwrap();
         
         writer.flush().unwrap(); // Ensure all data is sent
+    } 
+
+    /// Converts this response into a Future that resolves to itself.
+    /// Useful for middleware functions that need to return a Future<Output = HttpResponse>.
+    pub fn future(self) -> impl Future<Output = HttpResponse> + Send {
+        ready(self)
+    }
+
+    /// Creates a boxed future from this response (useful for trait objects).
+    pub fn boxed_future(self) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> {
+        Box::pin(self.future())
     } 
 } 
 

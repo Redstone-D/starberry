@@ -504,7 +504,7 @@ dependencies = [
 
 [[package]]
 name = "starberry_core"
-version = "0.3.7"
+version = "0.4.0"
 dependencies = [
  "akari",
  "futures",
@@ -530,7 +530,6 @@ dependencies = [
  "ctor",
  "proc-macro2",
  "quote",
- "starberry_core",
  "syn 2.0.99",
 ]
 
@@ -538,6 +537,7 @@ dependencies = [
 name = "starberry_middlewares"
 version = "0.1.0"
 dependencies = [
+ "starberry",
  "starberry_core",
  "starberry_macro",
 ]

@@ -349,7 +349,7 @@ impl App {
     }  
 
     // Note: This function is now synchronous, and expects that `self` is shared via an Arc.
-    pub fn handle_connection(self: Arc<Self>, mut stream: TcpStream) {
+    pub fn handle_connection(self: Arc<Self>, mut stream: TcpStream) { 
         // Spawn a new OS thread for this connection. 
         let app = Arc::clone(&self); 
         let job = async move { 

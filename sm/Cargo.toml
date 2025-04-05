@@ -1,6 +1,6 @@
 [package]
 name = "starberry_macro"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "Macro crate for starberry" 
@@ -14,7 +14,6 @@ syn = { version = "2.0", features = ["full"] }
 proc-macro2 = "1.0.89" 
 ctor = "0.4.0" 
 quote = "1.0" 
-starberry_core = { path = "../starberry_core", version = "0.3"}  
 
 [lib]
 proc-macro = true

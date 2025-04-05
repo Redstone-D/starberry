@@ -10,6 +10,8 @@ pub use starberry_core::app::urls::path_pattern_creator::{
     any_path as AnyPath, 
 }; 
 
+pub use starberry_core::app::middleware::AsyncMiddleware; 
+
 pub use starberry_core::Object; 
 pub use starberry_core::TemplateManager; 
 pub use starberry_core::object; 
@@ -29,5 +31,6 @@ pub use starberry_macro as sm;
 pub use sm::log_func_info; 
 pub use sm::lit_url; 
 pub use sm::url; 
+pub use sm::middleware; 
 
-pub mod preload; 
+pub mod prelude; 

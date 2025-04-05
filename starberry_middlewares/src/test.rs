@@ -1,8 +1,21 @@
 use super::FutureResponse; 
 use starberry_macro::middleware; 
+use starberry::prelude::*; 
 
 #[middleware]
-pub async fn MyMiddleWare(req: HttpRequest) -> FutureResponse {
+pub async fn MyMiddleWare1(){ //Default param is req. Req should be mutable 
     println!("Middleware: Received request for {}", req.path()); 
     next(req)  
+}  
+
+#[middleware]
+pub async fn MyMiddleWare2(request_context: Rc){ // Ident name can be set 
+    println!("Middleware: Received request for {}", request_context.path()); 
+    next(request_context)  
+}  
+
+#[middleware]
+pub async fn MyMiddleWare3(request_context: Rc){ // Ident name can be set 
+    println!("Middleware: Received request for {}", request_context.path()); 
+    normal_response(StatusCode::BAD_GATEWAY, "111").boxed_future() // Abropting the middleware chain 
 }  

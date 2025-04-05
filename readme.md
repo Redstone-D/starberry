@@ -16,6 +16,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.4.1: Updated middleware syntax 
+
 0.4.0: Wrap the Request with Request context struct, providing access to App and Url config. Change the name preload into prelude 
 
 (Important syntax update) Please accept Rc as argument instead of HttpRequest when you define an endpoint 
@@ -40,7 +42,7 @@ Do not need to know how starberry works, just use it, its simple
 
 **NOTE** 
 
-The code examples given are only for 0.3.3. There is a big grammar change in 0.4. A project defined in 0.3 will not be able to run in 0.4 environment. 
+The code example is now updated to 0.4 syntax 
 
 **SIMPLE** 
 
