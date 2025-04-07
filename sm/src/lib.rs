@@ -1,107 +1,349 @@
 use proc_macro::{Delimiter, TokenStream, TokenTree};
 use quote::{quote, ToTokens}; 
 use syn::{
-    braced, bracketed, parse::{Parse, ParseStream}, parse_macro_input, parse_quote, punctuated::Punctuated, Expr, Ident, ItemFn, LitInt, LitStr, Result as SynResult, Token
+    braced, bracketed, parse::{Parse, ParseStream}, parse_macro_input, parse_quote, punctuated::Punctuated, spanned::Spanned, Block, Expr, FnArg, Ident, ItemFn, LitInt, LitStr, Pat, PatIdent, Result as SynResult, ReturnType, Token, Type
 }; 
-use proc_macro2::TokenStream as TokenStream2; 
+use proc_macro2::{Span, TokenStream as TokenStream2}; 
 
-#[proc_macro_attribute]
-pub fn log_func_info(_: TokenStream, input: TokenStream) -> TokenStream {
-    let mut func = parse_macro_input!(input as ItemFn);
-    let func_name = &func.sig.ident; 
-    let func_block = &func.block; 
-    let output = quote! {
-        {
-            println!("fun {} starts", stringify!(#func_name));
-            let __log_result = { #func_block };
-            println!("fun {} ends", stringify!(#func_name));
-            __log_result
-        }
-    };
-    func.block = syn::parse2(output).unwrap();
-    quote! { #func }.into()
-} 
+// #[proc_macro_attribute]
+// pub fn log_func_info(_: TokenStream, input: TokenStream) -> TokenStream {
+//     let mut func = parse_macro_input!(input as ItemFn);
+//     let func_name = &func.sig.ident; 
+//     let func_block = &func.block; 
+//     let output = quote! {
+//         {
+//             println!("fun {} starts", stringify!(#func_name));
+//             let __log_result = { #func_block };
+//             println!("fun {} ends", stringify!(#func_name));
+//             __log_result
+//         }
+//     };
+//     func.block = syn::parse2(output).unwrap();
+//     quote! { #func }.into()
+// } 
 
-struct RegisterUrlArgs {
-    pub app: Ident,
-    pub literal: LitStr, 
-} 
+// struct RegisterUrlArgs {
+//     pub app: Ident,
+//     pub literal: LitStr, 
+// } 
 
-impl Parse for RegisterUrlArgs { 
-    fn parse(input: ParseStream) -> SynResult<Self> { 
-        let app: Ident = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let literal: LitStr = input.parse()?;
-        if !input.is_empty() {
-            return Err(input.error("expected exactly two arguments: `app_var, \"literal\"`"));
-        }
-        Ok(RegisterUrlArgs { app, literal })
-    }
-} 
+// impl Parse for RegisterUrlArgs { 
+//     fn parse(input: ParseStream) -> SynResult<Self> { 
+//         let app: Ident = input.parse()?;
+//         input.parse::<Token![,]>()?;
+//         let literal: LitStr = input.parse()?;
+//         if !input.is_empty() {
+//             return Err(input.error("expected exactly two arguments: `app_var, \"literal\"`"));
+//         }
+//         Ok(RegisterUrlArgs { app, literal })
+//     }
+// } 
 
-#[proc_macro_attribute]
-pub fn lit_url(attr: TokenStream, function: TokenStream) -> TokenStream {
-    let RegisterUrlArgs { app, literal } = parse_macro_input!(attr as RegisterUrlArgs);
-    let func = parse_macro_input!(function as ItemFn);
-    let func_ident = &func.sig.ident;
+// #[proc_macro_attribute]
+// pub fn lit_url(attr: TokenStream, function: TokenStream) -> TokenStream {
+//     let RegisterUrlArgs { app, literal } = parse_macro_input!(attr as RegisterUrlArgs);
+//     let func = parse_macro_input!(function as ItemFn);
+//     let func_ident = &func.sig.ident;
 
-    let register_fn_name = format!("__register_{}", func_ident);
-    let register_fn_ident = syn::Ident::new(&register_fn_name, func_ident.span()); 
+//     let register_fn_name = format!("__register_{}", func_ident);
+//     let register_fn_ident = syn::Ident::new(&register_fn_name, func_ident.span()); 
     
-    let inserted_call = quote! { 
-        #func
+//     let inserted_call = quote! { 
+//         #func
 
-        #[ctor::ctor]
-        fn #register_fn_ident() {
-            #app.literal_url(#literal, ::std::sync::Arc::new(#func_ident));
-        } 
-    };
-    inserted_call.into() 
-}
+//         #[ctor::ctor]
+//         fn #register_fn_ident() {
+//             #app.literal_url(#literal, ::std::sync::Arc::new(#func_ident));
+//         } 
+//     };
+//     inserted_call.into() 
+// } 
 
 struct UrlMethodArgs {
-    pub url: Expr,
-    pub path_pattern: Expr,
-}
+    pub url_expr: Expr,
+    pub max_body_size: Option<Expr>,
+    pub allowed_methods: Option<Expr>,
+    pub allowed_content_type: Option<Expr>,
+} 
 
 impl Parse for UrlMethodArgs {
     fn parse(input: ParseStream) -> SynResult<Self> {
-        let url: Expr = input.parse()?;
-        input.parse::<Token![,]>()?;
-        let path_pattern: Expr = input.parse()?;
-        if !input.is_empty() {
-            return Err(input.error("expected exactly two arguments: `url, path_pattern`"));
+        // Parse the required URL expression first
+        let url_expr: Expr = input.parse()?;
+        
+        // Initialize optional parameters
+        let mut max_body_size = None;
+        let mut allowed_methods = None;
+        let mut allowed_content_type = None;
+        
+        // If there are more tokens, process named parameters
+        while !input.is_empty() {
+            // Expect a comma before each parameter
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            } else {
+                return Err(input.error("expected comma before parameter"));
+            }
+            
+            // Parse parameter name
+            if input.peek(Ident) {
+                let param_name: Ident = input.parse()?;
+                let param_name_str = param_name.to_string();
+                
+                // Expect an equals sign
+                input.parse::<Token![=]>()?;
+                
+                // Parse parameter value based on name
+                match param_name_str.as_str() {
+                    "max_body_size" => {
+                        max_body_size = Some(input.parse()?);
+                    },
+                    "allowed_methods" => {
+                        allowed_methods = Some(input.parse()?);
+                    },
+                    "allowed_content_type" => {
+                        allowed_content_type = Some(input.parse()?);
+                    },
+                    _ => return Err(input.error(format!("unknown parameter: {}", param_name_str))),
+                }
+            } else {
+                return Err(input.error("expected parameter name"));
+            }
         }
-        Ok(UrlMethodArgs { url, path_pattern })
+        
+        Ok(UrlMethodArgs {
+            url_expr,
+            max_body_size,
+            allowed_methods,
+            allowed_content_type,
+        })
     }
-}
+} 
 
 #[proc_macro_attribute]
 pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
     // Parse the attribute arguments and the function.
     let args = parse_macro_input!(attr as UrlMethodArgs);
-    let url_expr = args.url;
-    let path_expr = args.path_pattern;
-    let func = parse_macro_input!(function as ItemFn);
+    let url_expr = args.url_expr;
+    let mut func = parse_macro_input!(function as ItemFn);
     let func_ident = &func.sig.ident;
 
     // Create a unique registration function name.
     let register_fn_name = format!("__register_{}", func_ident);
     let register_fn_ident = syn::Ident::new(&register_fn_name, func_ident.span());
 
-    // Generate the code that registers the function.
+    // Generate code for setting optional parameters
+    let set_max_body_size = if let Some(size_expr) = args.max_body_size {
+        quote! {
+            child_url.set_max_body_size(#size_expr);
+        }
+    } else {
+        quote! {}
+    };
+
+    let set_allowed_methods = if let Some(methods_expr) = args.allowed_methods {
+        quote! {
+            child_url.set_allowed_methods(#methods_expr);
+        }
+    } else {
+        quote! {}
+    };
+
+    let set_allowed_content_type = if let Some(content_type_expr) = args.allowed_content_type {
+        quote! {
+            child_url.set_allowed_content_type(#content_type_expr);
+        }
+    } else {
+        quote! {}
+    };
+
+    // Check if the function has a parameter
+    let has_param = !func.sig.inputs.is_empty();
+    
+    // Get return type of function
+    let returns_http_response = if let syn::ReturnType::Type(_, ret_type) = &func.sig.output {
+        // Check if return type is HttpResponse
+        match ret_type.as_ref() {
+            syn::Type::Path(type_path) => {
+                let last_segment = type_path.path.segments.last().unwrap();
+                last_segment.ident.to_string() == "HttpResponse"
+            }
+            _ => false,
+        }
+    } else {
+        // No return type specified, assume it's Rc
+        false
+    };
+
+    // Create a new function with modified signature if needed
+    let wrapper_func_ident = syn::Ident::new(&format!("__wrapper_{}", func_ident), func_ident.span());
+    
+    // Generate wrapper code based on parameter presence and return type
+    let (wrapper_code, param_name) = if has_param {
+        // Extract the first parameter
+        if let syn::FnArg::Typed(pat_type) = &func.sig.inputs[0] {
+            // Get parameter name
+            let param_name = if let syn::Pat::Ident(pat_ident) = pat_type.pat.as_ref() {
+                pat_ident.ident.clone()
+            } else {
+                syn::Ident::new("req", func_ident.span())
+            };
+            
+            // Generate code based on return type
+            if returns_http_response {
+                // Update the function signature to use &mut Rc instead of Rc
+                if let syn::FnArg::Typed(ref mut pat_type) = func.sig.inputs[0] {
+                    // Create &mut Rc type
+                    let rc_path = syn::parse_str::<syn::Path>("Rc").unwrap();
+                    let rc_type = syn::TypePath { 
+                        qself: None,
+                        path: rc_path
+                    };
+                    
+                    let mut_type = syn::TypeReference {
+                        and_token: syn::token::And::default(),
+                        lifetime: None,
+                        mutability: Some(syn::token::Mut::default()),
+                        elem: Box::new(syn::Type::Path(rc_type)),
+                    };
+                    
+                    // Replace the type in the function signature
+                    pat_type.ty = Box::new(syn::Type::Reference(mut_type));
+                }
+                
+                // Create wrapper function
+                (quote! {
+                    async fn #wrapper_func_ident(mut rc: Rc) -> Rc {
+                        let response = #func_ident(&mut rc).await;
+                        rc.response = response;
+                        rc
+                    }
+                }, param_name)
+            } else {
+                // Returning Rc directly, no wrapper needed
+                (quote! {}, param_name)
+            }
+        } else {
+            // Unexpected parameter type, use default
+            let param_name = syn::Ident::new("req", func_ident.span());
+            
+            if returns_http_response {
+                (quote! {
+                    async fn #wrapper_func_ident(mut rc: Rc) -> Rc {
+                        let response = #func_ident(&mut rc).await;
+                        rc.response = response;
+                        rc
+                    }
+                }, param_name)
+            } else {
+                (quote! {}, param_name)
+            }
+        }
+    } else {
+        // No parameters, add default req parameter
+        let param_name = syn::Ident::new("req", func_ident.span());
+        
+        // Modify the original function to add the req parameter
+        let mut new_inputs = syn::punctuated::Punctuated::new();
+        
+        if returns_http_response {
+            // Create &mut Rc type for parameter
+            let rc_path = syn::parse_str::<syn::Path>("Rc").unwrap();
+            let rc_type = syn::TypePath { 
+                qself: None,
+                path: rc_path
+            };
+            
+            let mut_type = syn::TypeReference {
+                and_token: syn::token::And::default(),
+                lifetime: None,
+                mutability: Some(syn::token::Mut::default()),
+                elem: Box::new(syn::Type::Path(rc_type)),
+            };
+            
+            let pat_ident = syn::PatIdent {
+                attrs: vec![],
+                by_ref: None,
+                mutability: None, // No need for mut since the reference is already mut
+                ident: param_name.clone(),
+                subpat: None,
+            };
+            
+            let param = syn::FnArg::Typed(syn::PatType {
+                attrs: vec![],
+                pat: Box::new(syn::Pat::Ident(pat_ident)),
+                colon_token: syn::token::Colon::default(),
+                ty: Box::new(syn::Type::Reference(mut_type)),
+            });
+            
+            new_inputs.push(param);
+        } else {
+            // For Rc return type, keep original behavior with mut Rc parameter
+            let param_path = syn::TypePath { 
+                qself: None,
+                path: syn::Path::from(syn::Ident::new("Rc", func_ident.span()))
+            };
+            
+            let param_type = syn::Type::Path(param_path);
+            let pat_ident = syn::PatIdent {
+                attrs: vec![],
+                by_ref: None,
+                mutability: Some(syn::token::Mut::default()),
+                ident: param_name.clone(),
+                subpat: None,
+            };
+            
+            let param = syn::FnArg::Typed(syn::PatType {
+                attrs: vec![],
+                pat: Box::new(syn::Pat::Ident(pat_ident)),
+                colon_token: syn::token::Colon::default(),
+                ty: Box::new(param_type),
+            });
+            
+            new_inputs.push(param);
+        }
+        
+        func.sig.inputs = new_inputs;
+
+        if returns_http_response {
+            (quote! {
+                async fn #wrapper_func_ident(mut rc: Rc) -> Rc {
+                    let response = #func_ident(&mut rc).await;
+                    rc.response = response;
+                    rc
+                }
+            }, param_name)
+        } else {
+            (quote! {}, param_name)
+        }
+    }; 
+
+    // Choose which function to register
+    let register_function = if returns_http_response { 
+        func.attrs.push(syn::parse_quote!(#[allow(unused_mut)]));
+        func.attrs.push(syn::parse_quote!(#[allow(unused_variables)])); 
+        quote! { #wrapper_func_ident }
+    } else { 
+        func.attrs.push(syn::parse_quote!(#[allow(unused_mut)]));
+        func.attrs.push(syn::parse_quote!(#[allow(unused_variables)])); 
+        quote! { #func_ident }
+    };
+
+    // Generate the final code
     let expanded = quote! {
         #func
+
+        #wrapper_code
 
         // This function will be executed at startup (using the ctor crate).
         #[ctor::ctor]
         fn #register_fn_ident() {
-            let child_url = match #url_expr.get_child_or_create(#path_expr){ 
-                Ok(child_url) => child_url,
-                Err(e) => dangling_url(), 
-            };
-            child_url.set_method(Arc::new(#func_ident)); 
-            child_url.set_middlewares(#url_expr.middlewares.read().unwrap().get_middlewares()); 
+            let child_url = #url_expr;
+            #set_max_body_size
+            #set_allowed_methods
+            #set_allowed_content_type
+            child_url.set_method(Arc::new(#register_function)); 
+            // child_url.set_middlewares(child_url.middlewares.read().unwrap().get_middlewares()); 
         }
     };
 
@@ -111,25 +353,37 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn middleware(_attr: TokenStream, item: TokenStream) -> TokenStream {
     use syn::parse_macro_input;
-    use syn::{ItemFn, FnArg, Pat};
+    use syn::{ItemFn, FnArg, Pat}; 
     let input_fn = parse_macro_input!(item as ItemFn);
     let fn_name = input_fn.sig.ident;
     let fn_block = input_fn.block; // capture the function body
     
     // Extract parameter name if it exists, otherwise use "req" as default
-    let param_name = if !input_fn.sig.inputs.is_empty() {
+    // Also track if the parameter is already mutable
+    let (param_name, is_mut) = if !input_fn.sig.inputs.is_empty() {
         if let FnArg::Typed(pat_type) = &input_fn.sig.inputs[0] {
             if let Pat::Ident(pat_ident) = &*pat_type.pat {
-                pat_ident.ident.clone()
+                // Check if the parameter is already marked as mutable
+                let is_mutable = pat_ident.mutability.is_some();
+                (pat_ident.ident.clone(), is_mutable)
             } else {
-                syn::Ident::new("req", fn_name.span())
+                (syn::Ident::new("req", fn_name.span()), false)
             }
         } else {
-            syn::Ident::new("req", fn_name.span())
+            (syn::Ident::new("req", fn_name.span()), false)
         }
     } else {
-        syn::Ident::new("req", fn_name.span())
-    };
+        (syn::Ident::new("req", fn_name.span()), false)
+    }; 
+
+    // Determine how to declare the parameter in the async block
+    let param_decl = if is_mut {
+        // Parameter is already mutable, use as is
+        quote! { let #param_name = context; }
+    } else {
+        // Parameter needs to be made mutable
+        quote! { let mut #param_name = context; }
+    }; 
 
     let expanded = quote! {
         // Define the generated middleware struct.
@@ -144,16 +398,16 @@ pub fn middleware(_attr: TokenStream, item: TokenStream) -> TokenStream {
                 &self,
                 context: Rc,
                 next: Box<
-                    dyn Fn(Rc) -> std::pin::Pin<Box<dyn std::future::Future<Output = HttpResponse> + Send + 'static>>
+                    dyn Fn(Rc) -> std::pin::Pin<Box<dyn std::future::Future<Output = Rc> + Send + 'static>>
                         + Send
                         + Sync
                         + 'static,
                 >,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = HttpResponse> + Send + 'static>> {
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Rc> + Send + 'static>> {
                 Box::pin(async move {
-                    let #param_name = context;
+                    #param_decl
                     (#fn_block).await
-                })
+                }) 
             }
 
             fn return_self() -> Self where Self: Sized {

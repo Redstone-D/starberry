@@ -5,11 +5,11 @@ pub use crate::{App, RunMode};
 pub use crate::{LitUrl, RegUrl, AnyUrl, AnyPath, TrailingSlash}; 
 pub use crate::urls::*; 
 pub use crate::Rc; 
-pub use crate::{HttpRequest, HttpResponse}; 
+pub use crate::{HttpMeta, HttpResponse}; 
 pub use crate::request_templates::*; 
 pub use crate::sm::akari_render; 
 pub use crate::sm::akari_json; 
-pub use crate::{lit_url, url}; 
+pub use crate::url; 
 pub use crate::middleware; 
 pub use crate::HttpMethod::*; 
 pub use crate::CookieResponse as Cookie;  
@@ -24,3 +24,4 @@ pub use tokio;
 
 pub type SApp = Lazy<Arc<App>>; 
 pub type SUrl = Lazy<Arc<Url>>; 
+pub type SPattern = Lazy<PathPattern>; 

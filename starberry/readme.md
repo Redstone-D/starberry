@@ -16,6 +16,10 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.4.2: Rc is used to send the reponse. Now the request body will not be automatically being parsed 
+
+(Important Syntax Update) Now the middleware chain passes the request context. When you registering function to url, the type passing in can be implied. You may return Rc or HttpRequest 
+
 0.4.1: Updated middleware syntax 
 
 0.4.0: Wrap the Request with Request context struct, providing access to App and Url config. Change the name preload into prelude 
@@ -50,8 +54,8 @@ In starberry you only need to do this to parse the form and return the form data
 
 ```rust 
 #[lit_url("/submit")]
-fn handle_form(mut request: HttpRequest) -> HttpResponse { 
-    let form = request.form_or_default(); 
+async fn handle_form() -> HttpResponse { 
+    let form = req.form_or_default(); 
     akari_json!({ 
         name: form.get_or_default("name"), 
         age: form.get_or_default("age") 
@@ -63,7 +67,7 @@ While for setting a Cookie
 
 ```rust 
 #[lit_url("/cookie")] 
-fn set_cookie(mut request: HttpRequest) { 
+async fn set_cookie() -> HttpResponse { 
     text_response("Cookie Set").add_cookie( 
         Cookie::new("global_cookie", "something").path("/")  
     ) 
@@ -76,7 +80,7 @@ You are able to return a template in a dynamic way in starberry
 
 ```rust 
 #[lit_url("/template")] 
-fn template(mut request: HttpRequest) { 
+async fn template() -> HttpResponse { 
     akari_template!(
         "template.html", 
         title="My Website - Home", 

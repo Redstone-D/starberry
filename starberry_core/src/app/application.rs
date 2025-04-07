@@ -16,7 +16,7 @@ use super::super::http::http_value::*;
 use super::super::http::request::*;  
 use super::super::http::response::*; 
 use super::middleware::{self, AsyncMiddleware};
-use super::urls::*; 
+use super::urls::*;  
 
 pub struct App {
     pub root_url: Arc<Url>, 
@@ -203,7 +203,7 @@ impl AppBuilder {
                 // Keep the middleware if it's NOT of type T
                 !m.as_any().is::<T>() 
             });
-        }
+        } 
         self  
     } 
 
@@ -216,7 +216,8 @@ impl AppBuilder {
                     children: RwLock::new(Children::Nil), 
                     method: RwLock::new(None), 
                     ancestor: Ancestor::Nil, 
-                    middlewares: RwLock::new(MiddleWares::Nil),
+                    middlewares: RwLock::new(MiddleWares::Nil), 
+                    params: RwLock::new(Params::default()), 
                 })
             } 
         }; 
@@ -247,7 +248,7 @@ impl App {
         self.root_url = root_url; 
     } 
 
-    pub fn set_binding(&mut self, binding: &str) { 
+    pub async fn set_binding(&mut self, binding: &str) { 
         self.listener = TcpListener::bind(binding).unwrap(); 
     } 
 
@@ -322,41 +323,34 @@ impl App {
     /// This function add a new url to the app. It will be added to the root url 
     /// # Arguments 
     /// * `url` - The url to add. It should be a string. 
-    pub fn literal_url<T: Into<String>>(
+    // pub fn literal_url<T: Into<String>>(
+    //     self: &Arc<Self>, 
+    //     url: T, 
+    //     function: Arc<dyn AsyncUrlHandler>, 
+    // ) -> Result<Arc<super::urls::Url>, String> { 
+    //     let url = url.into(); 
+    //     self.root_url.clone().literal_url(&url, function, Some(self.middlewares.clone()), default::Default::default()) 
+    // } 
+    pub fn lit_url<T: Into<String>>(
         self: &Arc<Self>, 
         url: T, 
-        function: Arc<dyn AsyncUrlHandler>, 
-    ) -> Result<Arc<super::urls::Url>, String> { 
+    ) -> Arc<super::urls::Url> { 
         let url = url.into(); 
-        self.root_url.clone().literal_url(&url, function, Some(self.middlewares.clone())) 
+        println!("Adding url: {}", url); 
+        match self.root_url.clone().literal_url(&url, None, Some(self.middlewares.clone()), Params::default()) { 
+            Ok(url) => url, 
+            Err(_) => super::urls::dangling_url(), 
+        }
     } 
 
-    pub async fn request(self: Arc<Self>, request: HttpRequest) -> HttpResponse { 
-        let path = request.path(); 
-        let mut path = path.split('/').collect::<Vec<&str>>(); 
-        path.remove(0); 
-        // println!("{:?}", path); 
-        let url: Option<_> = Arc::clone(&self.root_url).walk(path.iter()).await; 
-        if let Some(url) = url { 
-            return url.run(Rc::new(
-                request, 
-                self.clone(), 
-                url.clone(), 
-            )).await; 
-        } else { 
-            return request_templates::return_status(StatusCode::NOT_FOUND);  
-        } 
-    }  
-
     // Note: This function is now synchronous, and expects that `self` is shared via an Arc.
+    #[allow(unused_mut)]
     pub fn handle_connection(self: Arc<Self>, mut stream: TcpStream) { 
         // Spawn a new OS thread for this connection. 
         let app = Arc::clone(&self); 
         let job = async move { 
-            if let Ok(request) = HttpRequest::from_request_stream(&mut stream, &app.connection_config).await {
-                // Process the request asynchronously and send the response. 
-                app.request(request).await.send(&mut stream).await;
-            }
+            let rc = Rc::handle(app.clone(), stream).await; 
+            rc.run().await; 
         }; 
         // Box the async closure and pass it to the thread pool.
         self.pool.execute(Box::pin(job)); 
@@ -370,18 +364,18 @@ impl App {
             stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();  
             Arc::clone(&self).handle_connection(stream); 
         } 
-    } 
+    }  
 
     pub fn app_url(
         self: &Arc<Self>,
         segments: &[PathPattern]
     ) -> Result<Arc<Url>, String> {
         let mut current = self.root_url.clone();
-        for seg in segments {
+        for seg in segments { 
             current = current.get_child_or_create(seg.clone())?; 
             current.set_middlewares(Some(self.middlewares.clone())); 
         } 
-        Ok(current)
+        Ok(current) 
     } 
 
     pub fn reg_from(
@@ -390,7 +384,7 @@ impl App {
     ) -> Arc<Url> { 
         match self.app_url(segments){ 
             Ok(url) => url, 
-            Err(e) => { 
+            Err(_) => { 
                 // eprintln!("Error getting url: {}", e);  
                 urls::dangling_url() 
             } 

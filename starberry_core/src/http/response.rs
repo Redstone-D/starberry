@@ -156,7 +156,7 @@ impl HttpResponse {
         self 
     } 
 
-    pub async fn send(&self, stream: &mut TcpStream) {
+    pub fn send(&self, stream: &mut TcpStream) {
         let mut writer = BufWriter::new(stream);
     
         let start_line_bytes = format!("{}\r\n", self.start_line).into_bytes();
@@ -170,15 +170,27 @@ impl HttpResponse {
         writer.flush().unwrap(); // Ensure all data is sent
     } 
 
-    /// Converts this response into a Future that resolves to itself.
-    /// Useful for middleware functions that need to return a Future<Output = HttpResponse>.
-    pub fn future(self) -> impl Future<Output = HttpResponse> + Send {
-        ready(self)
-    }
+    // /// Converts this response into a Future that resolves to itself.
+    // /// Useful for middleware functions that need to return a Future<Output = HttpResponse>.
+    // pub fn future(self) -> impl Future<Output = HttpResponse> + Send {
+    //     ready(self)
+    // }
 
-    /// Creates a boxed future from this response (useful for trait objects).
-    pub fn boxed_future(self) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> {
-        Box::pin(self.future())
+    // /// Creates a boxed future from this response (useful for trait objects).
+    // pub fn boxed_future(self) -> Pin<Box<dyn Future<Output = HttpResponse> + Send>> {
+    //     Box::pin(self.future())
+    // } 
+} 
+
+impl Default for HttpResponse { 
+    fn default() -> Self { 
+        let start_line = ResponseStartLine { 
+            http_version: HttpVersion::Http11, 
+            status_code: StatusCode::OK, 
+        }; 
+        let header = ResponseHeader::new(); 
+        let body = ""; // Default body is empty string
+        HttpResponse::new(start_line, header, body) 
     } 
 } 
 
