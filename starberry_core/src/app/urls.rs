@@ -1,3 +1,5 @@
+use crate::http::response::request_templates::return_status;
+
 use super::super::http::request::*; 
 use super::super::http::response::*; 
 use super::super::http::http_value::*;
@@ -447,6 +449,27 @@ impl Url {
             dangling_url() 
         }) 
     } 
+
+    /// Check whether the request's meta matches the URL's parameters. 
+    /// Return false if the request's method is not allowed, or if the content type is not allowed. 
+    /// The Rc's response will be written to the appropriate status code. 
+    pub async fn request_check(self: Arc<Self>, rc: &mut Rc) -> bool { 
+        if let Some(methods) = self.get_allowed_methods () { 
+            if !methods.contains(rc.method()) { 
+                rc.response = return_status(StatusCode::METHOD_NOT_ALLOWED);  
+                return false; 
+            } 
+        } 
+        if let Some(content_types) = self.get_allowed_content_type() { 
+            if let Some(uploaded_content_type) = rc.meta.header.get_content_type() { 
+                if !content_types.contains(&uploaded_content_type) { 
+                    rc.response = return_status(StatusCode::UNSUPPORTED_MEDIA_TYPE); 
+                    return false; 
+                } 
+            } 
+        } 
+        true 
+    }
 
     /// Runs the handler (if any) attached to this URL.
     /// If no handler exists, returns `NOT_FOUND`.

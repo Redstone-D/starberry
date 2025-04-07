@@ -16,6 +16,10 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.4.4: Enable early return if the request does not match with the allowed request method & allow content types 
+
+(Bug fix) The blank project will no longer use the old syntax. `starberry version` impled   
+
 0.4.3: Enable passing arguments and locals into Rc 
 
 0.4.2: Rc is used to send the reponse. Now the request body will not be automatically being parsed 
@@ -42,7 +46,7 @@ https://github.com/Redstone-D/starberry
 - [x] Better URL configuration 
 - [ ] Url registering macro 
 - [ ] m:n thread scale 
-- [ ] Early abropt 
+- [x] Early abropt 
 
 **Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
 
@@ -172,7 +176,7 @@ base.html
 **Quick start**
 
 ```rust 
-use starberry::preload::*;  
+use starberry::prelude::*;  
 
 #[tokio::main]  
 async fn main() { 
@@ -184,7 +188,7 @@ pub static APP: SApp = Lazy::new(|| {
 }); 
 
 #[lit_url(APP, "/")]
-async fn home_route(_: HttpRequest) -> HttpResponse {
+async fn home_route() -> HttpResponse {
     text_response("Hello, world!") 
 } 
 ``` 
@@ -217,7 +221,7 @@ We assume that you have created an App named APP as static variable as the code 
 
 ```rust 
 #[lit_url(APP, "/random/split/something")]
-async fn random_route(_: HttpRequest) -> HttpResponse {
+async fn random_route() -> HttpResponse {
     text_response("A random page") 
 }  
 ``` 
@@ -230,7 +234,7 @@ static TEST_URL: Lazy<Arc<Url>> = Lazy::new(|| {
 }); 
 
 #[url(TEST_URL.clone(), LitUrl("/hello"))]
-async fn hello(_: HttpRequest) -> HttpResponse {
+async fn hello() -> HttpResponse {
     text_response("Hello, world!") 
 } 
 ``` 

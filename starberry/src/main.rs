@@ -4,6 +4,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
 
+static VERSION: &str = env!("CARGO_PKG_VERSION"); 
+
 /// Recursively copy all files and subdirectories from `src` to `dst`.
 fn copy_dir_all(src: &Path, dst: &Path) -> io::Result<()> {
     if !dst.exists() {
@@ -83,7 +85,7 @@ fn create_new_project(app_name: &str) {
     }
 
     // Define the new main.rs content using Starberry sample code.
-    let main_rs_content = r#"use starberry::preload::*;
+    let main_rs_content = r#"use starberry::prelude::*;
 
 #[tokio::main]
 async fn main() {
@@ -94,8 +96,8 @@ pub static APP: SApp = once_cell::sync::Lazy::new(|| {
     App::new().build()
 });
 
-#[lit_url(APP, "/")]
-async fn home_route(_: HttpRequest) -> HttpResponse {
+#[url(APP.lit_url("/"))] 
+async fn home_route() -> HttpResponse {
     text_response("Hello, world!")
 }
 "#;
@@ -110,11 +112,13 @@ async fn home_route(_: HttpRequest) -> HttpResponse {
 
     // Update Cargo.toml with the extra dependencies.
     let cargo_toml_path = Path::new(app_name).join("Cargo.toml");
-    let deps = r#"starberry = "0.3"
+    let deps = format!(
+        r#"starberry = "{VERSION}"
 ctor = "0.4.0"
 once_cell = "1.17"
-tokio = { version = "1", features = ["full"] }
-"#;
+tokio = {{ version = "1", features = ["full"] }}
+"#, 
+    ); 
     let mut file = OpenOptions::new()
         .append(true)
         .open(&cargo_toml_path)
@@ -177,7 +181,13 @@ fn main() {
     let mut args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!("Usage: starberry <command> [arguments]");
-        eprintln!("Commands: build, run, release, new");
+        eprintln!(r#"Usage: starberry <build|run|release|new> [arguments]
+        - `new <app_name>`: Creates a new project with the given name, a hello world program is provided by default. Dependencies are added to the Cargo.toml file. A templates directory is created at the same level as src. 
+        - `build [arguments]`: Build the Starberry project (Do not use cargo build since it does not copies template). Any other extra arguments are passed to `cargo build`. 
+        - `run`: Runs the starberry project. 
+        - `release`: Build the Starberry project in release mode (Do not use cargo build --release since it does not copies template). Any other extra arguments are passed to `cargo build`.  
+        - `version`: Prints the version of Starberry. 
+        "#);
         exit(1);
     }
     
@@ -215,7 +225,11 @@ fn main() {
             }
             let app_name = &args[0];
             create_new_project(app_name);
-        },
+        }, 
+        "version" => {
+            println!("Starberry version: {}", VERSION); 
+            exit(0); 
+        }, 
         _ => {
             eprintln!("Unknown command: {}", command);
             eprintln!(r#"Usage: starberry <build|run|release|new> [arguments]
@@ -223,6 +237,7 @@ fn main() {
 - `build [arguments]`: Build the Starberry project (Do not use cargo build since it does not copies template). Any other extra arguments are passed to `cargo build`. 
 - `run`: Runs the starberry project. 
 - `release`: Build the Starberry project in release mode (Do not use cargo build --release since it does not copies template). Any other extra arguments are passed to `cargo build`.  
+- `version`: Prints the version of Starberry. 
 "#);
             exit(1); 
         }

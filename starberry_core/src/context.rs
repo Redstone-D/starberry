@@ -47,7 +47,7 @@ impl Rc  {
             body,
             reader,
             app,
-            endpoint,
+            endpoint, 
             response: HttpResponse::default(), 
             params: HashMap::new(),
             locals: HashMap::new(), 
@@ -71,13 +71,17 @@ impl Rc  {
         Rc::new(meta, body, reader, app.clone(), endpoint.clone())
     } 
 
-    pub async fn run(self) { 
+    pub async fn run(mut self) { 
         let endpoint = self.endpoint.clone(); 
+        if !endpoint.clone().request_check(&mut self).await { 
+            self.response.send(self.reader.get_mut()); 
+            return; 
+        }
         let parsed = endpoint.run(self); 
         parsed.await.send_response(); 
     } 
 
-    pub fn send_response(mut self) {
+    pub fn send_response(mut self) { 
         self.response.send(self.reader.get_mut());
     } 
 
