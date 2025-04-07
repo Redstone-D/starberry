@@ -58,6 +58,7 @@ impl ThreadPool {
         for id in 0..size {
             // Pass a separate receiver to each worker
             let worker_receiver = Arc::clone(&receiver);
+            println!("Creating worker {id}"); 
             workers.push(Worker::new(id, worker_receiver));
         }
         ThreadPool { workers, sender }
