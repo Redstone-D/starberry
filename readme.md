@@ -16,6 +16,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.4.3: Enable passing arguments and locals into Rc 
+
 0.4.2: Rc is used to send the reponse. Now the request body will not be automatically being parsed 
 
 (Important Syntax Update) Now the middleware chain passes the request context. When you registering function to url, the type passing in can be implied. You may return Rc or HttpRequest 

@@ -14,9 +14,9 @@ Learn more about Akari template: https://crates.io/crates/akari
 
 https://github.com/Redstone-D/starberry 
 
-Install by using `cargo install starberry` 
-
 # Just updated 
+
+0.4.3: Enable passing arguments and locals into Rc 
 
 0.4.2: Rc is used to send the reponse. Now the request body will not be automatically being parsed 
 
@@ -45,6 +45,10 @@ Install by using `cargo install starberry`
 ## Why use Starberry? 
 
 Do not need to know how starberry works, just use it, its simple 
+
+**NOTE** 
+
+The code example is now updated to 0.4 syntax 
 
 **SIMPLE** 
 

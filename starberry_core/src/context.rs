@@ -3,6 +3,7 @@ use std::pin::Pin;
 use std::{collections::HashMap, sync::Arc}; 
 use std::net::TcpStream; 
 use std::future::{ready, Ready}; 
+use std::any::{Any, TypeId}; 
 
 use akari::Object;
 use once_cell::sync::Lazy;
@@ -23,6 +24,14 @@ pub struct Rc {
     pub app: Arc<App>, 
     pub endpoint: Arc<Url>, 
     pub response: HttpResponse, 
+
+    /// Type-based extension storage, typically used by middleware
+    /// Each type can have exactly one value
+    params: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    
+    /// String-based extension storage, typically used by application code
+    /// Multiple values of the same type can be stored with different keys
+    locals: HashMap<String, Box<dyn Any + Send + Sync>>,
 } 
 
 impl Rc  { 
@@ -31,7 +40,7 @@ impl Rc  {
         body: HttpRequestBody,
         reader: BufReader<TcpStream>,
         app: Arc<App>,
-        endpoint: Arc<Url>,
+        endpoint: Arc<Url>, 
     ) -> Self {
         Self {
             meta,
@@ -39,7 +48,9 @@ impl Rc  {
             reader,
             app,
             endpoint,
-            response: HttpResponse::default(),
+            response: HttpResponse::default(), 
+            params: HashMap::new(),
+            locals: HashMap::new(), 
         }
     } 
 
@@ -163,6 +174,214 @@ impl Rc  {
             static EMPTY: Lazy<Object> = Lazy::new(|| Object::new(""));
             &EMPTY
         })
+    } 
+
+        //
+    // Type-based params methods (for middleware)
+    //
+    
+    /// Stores a value in the type-based params storage.
+    /// Any previous value of the same type will be replaced.
+    /// 
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut req = HttpRequest::default();
+    /// 
+    /// // Store authentication information
+    /// req.set_param(User { id: 123, name: "Alice".to_string() });
+    /// 
+    /// // Store timing information
+    /// req.set_param(RequestTimer::start());
+    /// ```
+    pub fn set_param<T: 'static + Send + Sync>(&mut self, value: T) {
+        self.params.insert(TypeId::of::<T>(), Box::new(value));
+    }
+    
+    /// Retrieves a reference to a value from the type-based params storage.
+    /// Returns `None` if no value of this type has been stored.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // In an authentication middleware
+    /// if let Some(user) = req.param::<User>() {
+    ///     println!("Request by: {}", user.name);
+    ///     // Proceed with authenticated user
+    /// } else {
+    ///     return HttpResponse::unauthorized();
+    /// }
+    /// ```
+    pub fn param<T: 'static + Send + Sync>(&self) -> Option<&T> {
+        self.params
+            .get(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast_ref::<T>())
+    }
+    
+    /// Retrieves a mutable reference to a value from the type-based params storage.
+    /// Returns `None` if no value of this type has been stored.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Update a request timer
+    /// if let Some(timer) = req.param_mut::<RequestTimer>() {
+    ///     timer.mark("after_db_query");
+    /// }
+    /// ```
+    pub fn param_mut<T: 'static + Send + Sync>(&mut self) -> Option<&mut T> {
+        self.params
+            .get_mut(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast_mut::<T>())
+    }
+    
+    /// Removes a value from the type-based params storage and returns it.
+    /// Returns `None` if no value of this type has been stored.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Take ownership of a value
+    /// if let Some(token) = req.take_param::<AuthToken>() {
+    ///     // Use and consume the token
+    ///     validate_token(token);
+    /// }
+    /// ```
+    pub fn take_param<T: 'static + Send + Sync>(&mut self) -> Option<T> {
+        self.params
+            .remove(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast::<T>().ok())
+            .map(|boxed| *boxed)
+    }
+    
+    //
+    // String-based locals methods (for application code)
+    //
+    
+    /// Stores a value in the string-based locals storage with the given key.
+    /// Any previous value with the same key will be replaced.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// let mut req = HttpRequest::default();
+    ///
+    /// // Store various data with descriptive keys
+    /// req.set_local("user_id", 123);
+    /// req.set_local("is_premium", true);
+    /// req.set_local("cart_items", vec!["item1", "item2"]);
+    /// ```
+    pub fn set_local<T: 'static + Send + Sync>(&mut self, key: impl Into<String>, value: T) {
+        self.locals.insert(key.into(), Box::new(value));
+    }
+    
+    /// Retrieves a reference to a value from the string-based locals storage by key.
+    /// Returns `None` if no value with this key exists or if the type doesn't match.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // In a request handler
+    /// if let Some(is_premium) = req.local::<bool>("is_premium") {
+    ///     if *is_premium {
+    ///         // Show premium content
+    ///     }
+    /// }
+    ///
+    /// // With different types
+    /// let user_id = req.local::<i32>("user_id");
+    /// let items = req.local::<Vec<String>>("cart_items");
+    /// ```
+    pub fn local<T: 'static + Send + Sync>(&self, key: &str) -> Option<&T> {
+        self.locals
+            .get(key)
+            .and_then(|boxed| boxed.downcast_ref::<T>())
+    }
+    
+    /// Retrieves a mutable reference to a value from the string-based locals storage by key.
+    /// Returns `None` if no value with this key exists or if the type doesn't match.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Modify a list of items
+    /// if let Some(items) = req.local_mut::<Vec<String>>("cart_items") {
+    ///     items.push("new_item".to_string());
+    /// }
+    /// ```
+    pub fn local_mut<T: 'static + Send + Sync>(&mut self, key: &str) -> Option<&mut T> {
+        self.locals
+            .get_mut(key)
+            .and_then(|boxed| boxed.downcast_mut::<T>())
+    }
+    
+    /// Removes a value from the string-based locals storage and returns it.
+    /// Returns `None` if no value with this key exists or if the type doesn't match.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Take ownership of a value
+    /// if let Some(token) = req.take_local::<String>("session_token") {
+    ///     // Use and consume the token
+    ///     validate_and_destroy_token(token);
+    /// }
+    /// ```
+    pub fn take_local<T: 'static + Send + Sync>(&mut self, key: &str) -> Option<T> {
+        self.locals
+            .remove(key)
+            .and_then(|boxed| boxed.downcast::<T>().ok())
+            .map(|boxed| *boxed)
+    }
+    
+    /// Returns all keys currently stored in the locals map
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Inspect what data is attached to the request
+    /// for key in req.local_keys() {
+    ///     println!("Request has data with key: {}", key);
+    /// }
+    /// ```
+    pub fn local_keys(&self) -> Vec<&str> {
+        self.locals.keys().map(|s| s.as_str()).collect()
+    }
+    
+    //
+    // Utility bridging methods
+    //
+    
+    /// Exports a param value to the locals storage with the given key.
+    /// The value must implement Clone. Does nothing if the param doesn't exist.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Make the authenticated user available in locals for convenience
+    /// req.export_param_to_local::<User>("current_user");
+    /// ```
+    pub fn export_param_to_local<T: 'static + Clone + Send + Sync>(&mut self, key: impl Into<String>) {
+        if let Some(value) = self.param::<T>() {
+            let cloned = value.clone();
+            self.set_local(key, cloned);
+        }
+    }
+    
+    /// Imports a local value into the params storage.
+    /// The value must implement Clone. Does nothing if the local doesn't exist.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// // Make a manually set user available to middleware expecting it in params
+    /// req.import_local_to_param::<User>("manual_user");
+    /// ```
+    pub fn import_local_to_param<T: 'static + Clone + Send + Sync>(&mut self, key: &str) {
+        if let Some(value) = self.local::<T>(key) {
+            let cloned = value.clone();
+            self.set_param(cloned);
+        }
     } 
 
     /// Converts this response into a Future that resolves to itself.
