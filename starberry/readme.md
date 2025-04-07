@@ -33,7 +33,8 @@ https://github.com/Redstone-D/starberry
 - [x] Warp HttpResponse with HttpContext 
 - [x] No need to write mut HttpRequest in the argument, it will be automatically added 
 - [x] Enabling function to read URL configuration & rules 
-- Session manipulation 
+- [ ] Session manipulation 
+- [ ] Removing cookies 
 
 - [x] Middlewares 
 - [ ] Standard middlewre library for starberry (Oauth) 
@@ -41,6 +42,7 @@ https://github.com/Redstone-D/starberry
 - [x] Better URL configuration 
 - [ ] Url registering macro 
 - [ ] m:n thread scale 
+- [ ] Early abropt 
 
 **Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 
 

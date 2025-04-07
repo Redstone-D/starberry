@@ -66,7 +66,7 @@ impl Rc  {
             .root_url
             .clone()
             .walk_str(meta.path())
-            .await;
+            .await; 
 
         Rc::new(meta, body, reader, app.clone(), endpoint.clone())
     } 

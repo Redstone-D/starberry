@@ -28,9 +28,9 @@ dependencies = [
 
 [[package]]
 name = "akari"
-version = "0.2.0"
+version = "0.2.1-rc1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e660cbf55f82eca51c3064a974d56029bb31cd2889658b89341e79d0b2517655"
+checksum = "37698b43af23eed79e73a31ffe0403268fcce882c79cec6b8b9eb6d1f1e22f13"
 dependencies = [
  "akari_macro",
 ]
