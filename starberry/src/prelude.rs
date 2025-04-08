@@ -11,6 +11,7 @@ pub use crate::sm::akari_render;
 pub use crate::sm::akari_json; 
 pub use crate::url; 
 pub use crate::middleware; 
+pub use crate::reg; 
 pub use crate::HttpMethod::*; 
 pub use crate::CookieResponse as Cookie;  
 pub use crate::StatusCode; 

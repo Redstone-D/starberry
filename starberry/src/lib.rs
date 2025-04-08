@@ -32,5 +32,6 @@ pub use starberry_macro as sm;
 // pub use sm::lit_url; 
 pub use sm::url; 
 pub use sm::middleware; 
+pub use sm::reg; 
 
 pub mod prelude; 

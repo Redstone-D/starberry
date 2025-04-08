@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "starberry"
-version = "0.4.3"
+version = "0.4.4"
 dependencies = [
  "akari",
  "ctor",
@@ -504,7 +504,7 @@ dependencies = [
 
 [[package]]
 name = "starberry_core"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "akari",
  "futures",

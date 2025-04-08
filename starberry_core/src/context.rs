@@ -56,8 +56,12 @@ impl Rc  {
 
     pub async fn handle(app: Arc<App>, stream: TcpStream) -> Self {
         // Create one BufReader up-front, pass this throughout.
-        let mut reader = BufReader::new(stream);
-        let meta = HttpMeta::from_request_stream(&mut reader, &app.connection_config)
+        let mut reader = BufReader::new(stream); 
+        let meta = HttpMeta::from_request_stream(
+            &mut reader, 
+            &app.connection_config, 
+            app.get_mode() == crate::app::application::RunMode::Build, 
+        )
             .await
             .unwrap_or_default();
 

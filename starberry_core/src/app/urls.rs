@@ -624,8 +624,7 @@ impl Url {
         } 
         // println!("Child not found, creating new one: {:?}", child); 
         self.childbirth(child, None, None, Params::default()) 
-    }
-    
+    } 
 
     pub fn child_exists(self: Arc<Self>, child: &PathPattern) -> bool {
         // Acquire a read lock

@@ -657,15 +657,18 @@ impl HttpMeta {
 
     pub async fn from_request_stream(
         buf_reader: &mut BufReader<TcpStream>,
-        config: &ParseConfig,
+        config: &ParseConfig, 
+        print_raw: bool, 
     ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
         let mut headers = Vec::new();
 
         let mut total_header_size = 0;
         loop {
             let mut line = String::new();
-            let bytes_read = buf_reader.read_line(&mut line)?;
-            // println!("Read line: {}, buffer: {}", line, bytes_read);
+            let bytes_read = buf_reader.read_line(&mut line)?; 
+            if print_raw {
+                println!("Read line: {}, buffer: {}", line, bytes_read); 
+            }
             if bytes_read == 0 || line.trim_end().is_empty() {
                 break; // End of headers
             }
@@ -707,6 +710,11 @@ impl HttpMeta {
         //     buf_reader.read_exact(&mut body_buffer)?;
         //     body = RequestBody::parse(body_buffer, &mut header);
         // } 
+
+        if print_raw { 
+            println!("Parsed headers: {:?}", header.header); 
+            println!("Parsed start line: {:?}", start_line);  
+        }
 
         Ok(HttpMeta {
             start_line,

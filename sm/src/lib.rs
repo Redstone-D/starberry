@@ -143,7 +143,7 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
 
     let set_allowed_methods = if let Some(methods_expr) = args.allowed_methods {
         quote! {
-            child_url.set_allowed_methods(#methods_expr);
+            child_url.set_allowed_methods(#methods_expr.to_vec());
         }
     } else {
         quote! {}
@@ -151,7 +151,7 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
 
     let set_allowed_content_type = if let Some(content_type_expr) = args.allowed_content_type {
         quote! {
-            child_url.set_allowed_content_type(#content_type_expr);
+            child_url.set_allowed_content_type(#content_type_expr.to_vec());
         }
     } else {
         quote! {}
@@ -439,7 +439,106 @@ pub fn akari_json(input: TokenStream) -> TokenStream {
     };
     
     TokenStream::from(expanded)
+} 
+
+#[proc_macro]
+pub fn reg(input: TokenStream) -> TokenStream {
+    // Parse the comma-separated items inside reg![ ... ]
+    let items = parse_macro_input!(input with parse_items);
+
+    // We expect at least one item (the "ancestor" which can be App/Url in various forms)
+    if items.is_empty() {
+        return syn::Error::new_spanned(
+            quote!(),
+            "reg! macro requires at least one argument"
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let first = &items[0];        // The first argument (App/Url/Arc<App>/Arc<Url> etc.)
+    let rest = &items[1..];       // Subsequent arguments (UrlPattern, &str, etc.)
+
+    // We'll convert the rest into a Vec<PathPattern> expression
+    // for example, by wrapping string-likes with LitUrl(), or calling .clone() for references.
+    // In a real-world scenario, you'd do more complex type checks, but here's a simplified approach:
+    let mut path_segments = Vec::new();
+
+    for expr in rest {
+        path_segments.push(convert_expr_to_pathpattern(expr));
+    }
+
+    // Decide expansion depending on the first argument type.
+    // In a full-blown macro you'd likely do advanced type-checking or pattern matching with `syn`,
+    // but for illustration, we produce code that calls either .reg_from(...) or .register(...)
+    // based on whether it "looks" like App or Url. In practice, you'd do more robust matching.
+
+    // Simplistic check: if the first token string contains "Url", call .register(...),
+    // otherwise call .reg_from(...). This is purely demonstrative.
+    let first_str = quote! { #first }.to_string();
+    let expansion = if first_str.contains("Url") {
+        // Url path
+        quote! {
+            {
+                let ancestor = #first;
+                // Suppose function=None, middleware = ancestor.get_middlewares(), path=our segments:
+                let _segments: Vec<PathPattern> = vec![#(#path_segments),*];
+                // Call the .register(...) method
+                ancestor
+                    .register(
+                        _segments,
+                        None, 
+                        ancestor.get_middlewares(), 
+                        Params::default()
+                    )
+                    .map_err(|e| e.to_string())
+            }
+        }
+    } else {
+        // App path
+        quote! {
+            {
+                let ancestor = #first;
+                let _segments: Vec<PathPattern> = vec![#(#path_segments),*];
+                // Call .reg_from() if the type is an App-like
+                ancestor.reg_from(&_segments)
+            }
+        }
+    };
+
+    TokenStream::from(expansion)
 }
+
+/// Parse the items inside the macro call as a list of expressions
+fn parse_items(input: syn::parse::ParseStream) -> syn::Result<Vec<Expr>> {
+    let items = Punctuated::<Expr, Token![,]>::parse_terminated(input)?;
+    Ok(items.into_iter().collect())
+}
+
+/// Convert an expression (e.g. string literal, UrlPattern, etc.) into a PathPattern expression
+fn convert_expr_to_pathpattern(expr: &Expr) -> proc_macro2::TokenStream {
+    // Very naive approach: if it's a literal string, call LitUrl(...).
+    // If it's something else, assume we can clone() or pass it directly as a PathPattern.
+    match expr {
+        Expr::Lit(expr_lit) => {
+            // We'll wrap with LitUrl(...) for string-literal or numeric-literal (simplified approach)
+            quote! {
+                PathPattern::LitUrl(#expr_lit.to_string())
+            }
+        }
+        Expr::Path(_) | Expr::Call(_) | Expr::Reference(_) => {
+            // We assume it's a UrlPattern or something that can be tried as clone() or used directly.
+            // If you need .clone(), you'd do something like `#expr.clone()`.
+            quote! {
+                (#expr).clone()
+            }
+        }
+        _ => {
+            // Fallback, just pass directly (in a real macro you'd add more refined handling).
+            quote! { #expr }
+        }
+    }
+} 
 
 /// A macro for rendering templates with context data.
 /// 

@@ -16,6 +16,8 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
+0.4.5: Better url reg macro. Enable debugging in Build mode. Note don't use this mode in production 
+
 0.4.4: Enable early return if the request does not match with the allowed request method & allow content types 
 
 (Bug fix) The blank project will no longer use the old syntax. `starberry version` impled   
@@ -37,14 +39,13 @@ https://github.com/Redstone-D/starberry
 - [x] Warp HttpResponse with HttpContext 
 - [x] No need to write mut HttpRequest in the argument, it will be automatically added 
 - [x] Enabling function to read URL configuration & rules 
-- [ ] Session manipulation 
 - [ ] Removing cookies 
 
 - [x] Middlewares 
 - [ ] Standard middlewre library for starberry (Oauth) 
 
 - [x] Better URL configuration 
-- [ ] Url registering macro 
+- [x] Url registering macro 
 - [ ] m:n thread scale 
 - [x] Early abropt 
 
@@ -54,16 +55,12 @@ https://github.com/Redstone-D/starberry
 
 Do not need to know how starberry works, just use it, its simple 
 
-**NOTE** 
-
-The code example is now updated to 0.4 syntax 
-
 **SIMPLE** 
 
 In starberry you only need to do this to parse the form and return the form data as json 
 
 ```rust 
-#[lit_url("/submit")]
+#[url(APP.lit_url("/submit"))] 
 async fn handle_form() -> HttpResponse { 
     let form = req.form_or_default(); 
     akari_json!({ 
@@ -76,7 +73,7 @@ async fn handle_form() -> HttpResponse {
 While for setting a Cookie 
 
 ```rust 
-#[lit_url("/cookie")] 
+#[url(APP.lit_url("/cookie"))] 
 async fn set_cookie() -> HttpResponse { 
     text_response("Cookie Set").add_cookie( 
         Cookie::new("global_cookie", "something").path("/")  
@@ -89,7 +86,7 @@ async fn set_cookie() -> HttpResponse {
 You are able to return a template in a dynamic way in starberry 
 
 ```rust 
-#[lit_url("/template")] 
+#[url(APP.lit_url("/template"))] 
 async fn template() -> HttpResponse { 
     akari_template!(
         "template.html", 
@@ -220,10 +217,10 @@ We assume that you have created an App named APP as static variable as the code 
 **Without a function** 
 
 ```rust 
-#[lit_url(APP, "/random/split/something")]
+#[url(APP.lit_url("/random/split/something"))]
 async fn random_route() -> HttpResponse {
     text_response("A random page") 
-}  
+}   
 ``` 
 
 The code above defines a absolute url, "/random/split/something" returns text showing "A random page" 
@@ -233,7 +230,7 @@ static TEST_URL: Lazy<Arc<Url>> = Lazy::new(|| {
     APP.reg_from(&[LitUrl("test")]) 
 }); 
 
-#[url(TEST_URL.clone(), LitUrl("/hello"))]
+#[url(reg![&APP, LitUrl("hello")])]
 async fn hello() -> HttpResponse {
     text_response("Hello, world!") 
 } 

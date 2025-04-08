@@ -34,7 +34,7 @@ pub struct App {
 /// Development: Test on developer's computer, showing the error message and some debug info. May contain sensitive info. 
 /// Beta: Beta mode, showing some debug info. May contain some sensitive info. 
 /// Build: Build mode. For building the starberry binary. Do not use this. 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RunMode { 
     Production, 
     Development, 
