@@ -8,6 +8,7 @@ use std::any::{Any, TypeId};
 use akari::Object;
 use once_cell::sync::Lazy;
 
+use crate::app::urls::dangling_url;
 use crate::app::{application::App, urls::Url};
 use crate::http::response::HttpResponse;
 use crate::http::{http_value::{HttpMethod, MultiForm, UrlEncodedForm}, request::{HttpMeta, HttpRequestBody}}; 
@@ -57,15 +58,17 @@ impl Rc  {
     pub async fn handle(app: Arc<App>, stream: TcpStream) -> Self {
         // Create one BufReader up-front, pass this throughout.
         let mut reader = BufReader::new(stream); 
-        let meta = HttpMeta::from_request_stream(
+        let meta = match HttpMeta::from_request_stream(
             &mut reader, 
             &app.connection_config, 
             app.get_mode() == crate::app::application::RunMode::Build, 
-        )
-            .unwrap_or_else(|err| {
-                eprintln!("Error parsing request: {}", err);
-                HttpMeta::default()
-            }); 
+        ) {
+            Ok(meta) => meta,
+            Err(e) => {
+                println!("Error parsing request: {}", e); 
+                return Self::new(HttpMeta::default(), HttpRequestBody::Unparsed, reader, app.clone(), dangling_url()); 
+            }
+        }; 
 
         let body = HttpRequestBody::Unparsed;
         let endpoint = app
