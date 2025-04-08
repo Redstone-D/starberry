@@ -63,7 +63,10 @@ impl Rc  {
             app.get_mode() == crate::app::application::RunMode::Build, 
         )
             .await
-            .unwrap_or_default();
+            .unwrap_or_else(|err| {
+                eprintln!("Error parsing request: {}", err);
+                HttpMeta::default()
+            }); 
 
         let body = HttpRequestBody::Unparsed;
         let endpoint = app

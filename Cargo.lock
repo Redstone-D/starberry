@@ -489,7 +489,7 @@ dependencies = [
 
 [[package]]
 name = "starberry"
-version = "0.4.4"
+version = "0.4.5-rc1"
 dependencies = [
  "akari",
  "ctor",
@@ -525,7 +525,7 @@ dependencies = [
 
 [[package]]
 name = "starberry_macro"
-version = "0.4.1"
+version = "0.4.2"
 dependencies = [
  "ctor",
  "proc-macro2",
