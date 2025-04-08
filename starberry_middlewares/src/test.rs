@@ -17,5 +17,6 @@ pub async fn MyMiddleWare2(request_context: Rc){ // Ident name can be set
 #[middleware]
 pub async fn MyMiddleWare3(request_context: Rc){ // Ident name can be set 
     println!("Middleware: Received request for {}", request_context.path()); 
-    normal_response(StatusCode::BAD_GATEWAY, "111").boxed_future() // Abropting the middleware chain 
+    request_context.response = normal_response(StatusCode::BAD_GATEWAY, "111"); 
+    request_context.boxed_future() // Abropting the middleware chain 
 }  

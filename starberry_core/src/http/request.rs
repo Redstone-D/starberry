@@ -655,7 +655,7 @@ impl HttpMeta {
         }
     }
 
-    pub async fn from_request_stream(
+    pub fn from_request_stream(
         buf_reader: &mut BufReader<TcpStream>,
         config: &ParseConfig, 
         print_raw: bool, 

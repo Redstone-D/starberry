@@ -62,7 +62,6 @@ impl Rc  {
             &app.connection_config, 
             app.get_mode() == crate::app::application::RunMode::Build, 
         )
-            .await
             .unwrap_or_else(|err| {
                 eprintln!("Error parsing request: {}", err);
                 HttpMeta::default()
