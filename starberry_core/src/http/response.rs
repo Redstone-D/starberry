@@ -1,7 +1,7 @@
 use super::http_value::{self, *}; 
 use std::collections::HashMap;
-use std::net::TcpStream; 
-use std::io::{BufWriter, Write}; 
+use tokio::net::TcpStream; 
+use tokio::io::{AsyncWriteExt, BufWriter}; 
 
 use std::future::{ready, Ready};
 use std::pin::Pin;
@@ -156,18 +156,18 @@ impl HttpResponse {
         self 
     } 
 
-    pub fn send(&self, stream: &mut TcpStream) {
+    pub async fn send(&self, stream: &mut TcpStream) {
         let mut writer = BufWriter::new(stream);
     
         let start_line_bytes = format!("{}\r\n", self.start_line).into_bytes();
         let headers_bytes = format!("{}\r\n", self.header.represent()).into_bytes();
         let body_bytes = self.body.as_ref().as_ref();
     
-        writer.write_all(&start_line_bytes).unwrap();
-        writer.write_all(&headers_bytes).unwrap();
-        writer.write_all(body_bytes).unwrap();
+        writer.write_all(&start_line_bytes).await.unwrap();
+        writer.write_all(&headers_bytes).await.unwrap();
+        writer.write_all(body_bytes).await.unwrap();
         
-        writer.flush().unwrap(); // Ensure all data is sent
+        writer.flush().await.unwrap(); // Ensure all data is sent
     } 
 
     // /// Converts this response into a Future that resolves to itself.

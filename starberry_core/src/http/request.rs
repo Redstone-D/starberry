@@ -8,8 +8,8 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::error::Error;
 use std::hash::Hash;
-use std::io::{BufRead, BufReader, Read};
-use std::net::TcpStream;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader}; 
+use tokio::net::TcpStream;
 use std::str;
 
 #[derive(Debug)]
@@ -410,7 +410,7 @@ pub enum HttpRequestBody {
 
 impl HttpRequestBody {
     pub fn parse(
-        mut buf_reader: impl Read + Send,
+        buf_reader: &mut BufReader<TcpStream>, 
         max_size: usize,
         header: &mut RequestHeader,
     ) -> Self {
@@ -655,7 +655,7 @@ impl HttpMeta {
         }
     }
 
-    pub fn from_request_stream(
+    pub async fn from_request_stream(
         buf_reader: &mut BufReader<TcpStream>,
         config: &ParseConfig, 
         print_raw: bool, 
@@ -665,7 +665,7 @@ impl HttpMeta {
         let mut total_header_size = 0;
         loop {
             let mut line = String::new();
-            let bytes_read = buf_reader.read_line(&mut line)?; 
+            let bytes_read = buf_reader.read_line(&mut line).await?; 
             if print_raw {
                 println!("Read line: {}, buffer: {}", line, bytes_read); 
             }

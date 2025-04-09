@@ -16,7 +16,9 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
-0.4.5: Better url reg macro. Enable debugging in Build mode. Note don't use this mode in production 
+0.4.5: Update with tokio, enable m:n scaling 
+
+Better url reg macro. Enable debugging in Build mode. Note don't use this mode in production 
 
 0.4.4: Enable early return if the request does not match with the allowed request method & allow content types 
 
@@ -46,7 +48,7 @@ https://github.com/Redstone-D/starberry
 
 - [x] Better URL configuration 
 - [x] Url registering macro 
-- [ ] m:n thread scale 
+- [x] m:n thread scale 
 - [x] Early abropt 
 
 **Starberry now supports templateing through akari, and simpler URL definitions are enabled using macros.** 

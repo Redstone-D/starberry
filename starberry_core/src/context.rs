@@ -1,17 +1,22 @@
-use std::io::BufReader;
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+use std::future::{ready, Future, Ready};
 use std::pin::Pin;
-use std::{collections::HashMap, sync::Arc}; 
-use std::net::TcpStream; 
-use std::future::{ready, Ready}; 
-use std::any::{Any, TypeId}; 
+use std::sync::Arc;
+
+use tokio::net::TcpStream;
+use tokio::io::BufReader;
 
 use akari::Object;
 use once_cell::sync::Lazy;
 
-use crate::app::urls::dangling_url;
 use crate::app::{application::App, urls::Url};
-use crate::http::response::HttpResponse;
-use crate::http::{http_value::{HttpMethod, MultiForm, UrlEncodedForm}, request::{HttpMeta, HttpRequestBody}}; 
+use crate::app::urls::dangling_url;
+use crate::http::{
+    http_value::{HttpMethod, MultiForm, UrlEncodedForm},
+    request::{HttpMeta, HttpRequestBody},
+    response::HttpResponse
+}; 
 
 pub trait SendResponse { 
     fn send(&self, stream: &mut TcpStream); 
@@ -62,7 +67,7 @@ impl Rc  {
             &mut reader, 
             &app.connection_config, 
             app.get_mode() == crate::app::application::RunMode::Build, 
-        ) {
+        ).await {
             Ok(meta) => meta,
             Err(e) => {
                 println!("Error parsing request: {}", e); 
@@ -83,15 +88,15 @@ impl Rc  {
     pub async fn run(mut self) { 
         let endpoint = self.endpoint.clone(); 
         if !endpoint.clone().request_check(&mut self).await { 
-            self.response.send(self.reader.get_mut()); 
+            self.response.send(self.reader.get_mut()).await; 
             return; 
         }
         let parsed = endpoint.run(self); 
-        parsed.await.send_response(); 
+        parsed.await.send_response().await; 
     } 
 
-    pub fn send_response(mut self) { 
-        self.response.send(self.reader.get_mut());
+    pub async fn send_response(mut self) { 
+        self.response.send(self.reader.get_mut()).await;
     } 
 
     pub fn meta(&self) -> &HttpMeta { 
