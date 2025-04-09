@@ -16,9 +16,11 @@ https://github.com/Redstone-D/starberry
 
 # Just updated 
 
-0.4.5: Update with tokio, enable m:n scaling 
+0.4.5: Update with tokio, enable m:n scaling. Graceful shut down enabled 
 
 Better url reg macro. Enable debugging in Build mode. Note don't use this mode in production 
+
+(Important Syntax Change) You now must use .await after Rc.form, Rc.json or Rc.file 
 
 0.4.4: Enable early return if the request does not match with the allowed request method & allow content types 
 
@@ -64,7 +66,7 @@ In starberry you only need to do this to parse the form and return the form data
 ```rust 
 #[url(APP.lit_url("/submit"))] 
 async fn handle_form() -> HttpResponse { 
-    let form = req.form_or_default(); 
+    let form = req.form_or_default().await; 
     akari_json!({ 
         name: form.get_or_default("name"), 
         age: form.get_or_default("age") 
@@ -247,8 +249,8 @@ This is the way we recommended for making a URL tree, so that URL management wil
 **Within a function** 
 
 ```rust 
-    let furl = APP.clone().reg_from(&[LitUrl("flexible"), LitUrl("url"), LitUrl("may_be_changed")]); 
-    furl.set_method(Arc::new(flexible_access)); 
+let furl = APP.clone().reg_from(&[LitUrl("flexible"), LitUrl("url"), LitUrl("may_be_changed")]); 
+furl.set_method(Arc::new(flexible_access)); 
 ``` 
 
 Getting the URL instance from APP so that we can set URL for them. 
@@ -278,8 +280,8 @@ Also know as AnyPath if you directly use starberry::urls::PathPatten. Accept any
 After getting the request, you may use 
 
 ```rust 
-if *request.method() == POST { 
-    match request.form() { 
+if request.method() == POST { 
+    match request.form().await { 
         Some(form) => { 
             return text_response(format!("Form data: {:?}", form)); 
         } 
@@ -293,8 +295,8 @@ if *request.method() == POST {
 For URL Coded form (datatype is application/x-www-form-urlencoded) you will get a hashmap of data and its form name by using this code 
 
 ```rust 
-if *request.method() == POST { 
-    match request.files() { 
+if request.method() == POST { 
+    match request.files().await { 
         Some(form) => { 
             return text_response(form.get("file").unwrap().data().unwrap().to_owned()); 
         } 
