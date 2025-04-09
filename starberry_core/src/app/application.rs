@@ -296,7 +296,7 @@ impl App {
         let app = Arc::clone(&self);
         let job = async move {
             let rc = Rc::handle(app.clone(), stream).await;
-            rc.run().await;
+            rc.run().await; 
         };
         tokio::spawn(job);
     }
@@ -331,8 +331,7 @@ impl App {
                             Arc::clone(&self).handle_connection(stream);
                         }
                         Err(e) => {
-                            eprintln!("Failed to accept connection: {e}");
-                            break;
+                            eprintln!("Failed to accept connection: {e}"); 
                         }
                     }
                 }

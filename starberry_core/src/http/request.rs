@@ -408,9 +408,9 @@ pub enum HttpRequestBody {
     Unparsed, 
 }
 
-impl HttpRequestBody {
-    pub fn parse(
-        buf_reader: &mut BufReader<TcpStream>, 
+impl HttpRequestBody { 
+    pub async fn parse(
+        buf_reader: &mut tokio::io::BufReader<tokio::net::TcpStream>, 
         max_size: usize,
         header: &mut RequestHeader,
     ) -> Self {
@@ -421,7 +421,8 @@ impl HttpRequestBody {
             parsed = HttpRequestBody::Empty;
         } else {
             let mut body_buffer = vec![0; content_length];
-            let _ = buf_reader.read_exact(&mut body_buffer);
+            let _ = buf_reader.read_exact(&mut body_buffer).await; 
+            
             println!("Body buffer: {:?}", body_buffer); 
 
             parsed = match header

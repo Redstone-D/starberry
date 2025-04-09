@@ -111,16 +111,73 @@ impl Rc  {
         self.endpoint.clone() 
     } 
 
-    pub fn parse_body(&mut self) {
+    pub async fn parse_body(&mut self) {
         if let HttpRequestBody::Unparsed = self.body {
             self.body = HttpRequestBody::parse(
                 &mut self.reader,
                 self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()),
                 &mut self.meta.header,
-            );
+            ).await;
         }
     } 
 
+    pub async fn form(&mut self) -> Option<&UrlEncodedForm> {
+        self.parse_body().await; // Await the Future<Output = ()>
+        if let HttpRequestBody::Form(ref data) = self.body {
+            Some(data)
+        } else {
+            None
+        }
+    }
+    
+    pub async fn form_or_default(&mut self) -> &UrlEncodedForm {
+        match self.form().await {
+            Some(form) => form,
+            None => {
+                static EMPTY: Lazy<UrlEncodedForm> = Lazy::new(|| HashMap::new().into());
+                &EMPTY
+            }
+        }
+    }
+    
+    pub async fn files(&mut self) -> Option<&MultiForm> {
+        self.parse_body().await; // Await the Future<Output = ()>
+        if let HttpRequestBody::Files(ref data) = self.body {
+            Some(data)
+        } else {
+            None
+        }
+    }
+    
+    pub async fn files_or_default(&mut self) -> &MultiForm {
+        match self.files().await {
+            Some(files) => files,
+            None => {
+                static EMPTY: Lazy<MultiForm> = Lazy::new(|| HashMap::new().into());
+                &EMPTY
+            }
+        }
+    }
+    
+    pub async fn json(&mut self) -> Option<&Object> {
+        self.parse_body().await; // Await the Future<Output = ()>
+        if let HttpRequestBody::Json(ref data) = self.body {
+            Some(data)
+        } else {
+            None
+        }
+    }
+    
+    pub async fn json_or_default(&mut self) -> &Object {
+        match self.json().await {
+            Some(json) => json,
+            None => {
+                static EMPTY: Lazy<Object> = Lazy::new(|| Object::new(""));
+                &EMPTY
+            }
+        }
+    } 
+    
     pub fn get_path(&mut self, part: usize) -> String { 
         self.meta.get_path(part) 
     }
@@ -146,55 +203,7 @@ impl Rc  {
         self.meta.get_cookie_or_default(key) 
     } 
 
-    pub fn form(&mut self) -> Option<&UrlEncodedForm> {
-        self.parse_body();
-        if let HttpRequestBody::Form(ref data) = self.body {
-            Some(data)
-        } else {
-            None
-        }
-    }
-
-    pub fn form_or_default(&mut self) -> &UrlEncodedForm {
-        self.form().unwrap_or_else(|| {
-            static EMPTY: Lazy<UrlEncodedForm> = Lazy::new(|| HashMap::new().into());
-            &EMPTY
-        })
-    }
-
-    pub fn files(&mut self) -> Option<&MultiForm> {
-        self.parse_body(); 
-        if let HttpRequestBody::Files(ref data) = self.body {
-            Some(data)
-        } else {
-            None
-        }
-    }
-
-    pub fn files_or_default(&mut self) -> &MultiForm {
-        self.files().unwrap_or_else(|| {
-            static EMPTY: Lazy<MultiForm> = Lazy::new(|| HashMap::new().into());
-            &EMPTY
-        })
-    }
-
-    pub fn json(&mut self) -> Option<&Object> {
-        self.parse_body();  
-        if let HttpRequestBody::Json(ref data) = self.body {
-            Some(data)
-        } else {
-            None
-        }
-    }
-
-    pub fn json_or_default(&mut self) -> &Object {
-        self.json().unwrap_or_else(|| {
-            static EMPTY: Lazy<Object> = Lazy::new(|| Object::new(""));
-            &EMPTY
-        })
-    } 
-
-        //
+    // 
     // Type-based params methods (for middleware)
     //
     
