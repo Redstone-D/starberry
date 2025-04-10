@@ -1,0 +1,121 @@
+0.4.5: Update with tokio, enable m:n scaling. Graceful shut down enabled 
+
+Better url reg macro. Enable debugging in Build mode. Note don't use this mode in production 
+
+(Important Syntax Change) You now must use .await after Rc.form, Rc.json or Rc.file 
+
+0.4.4: Enable early return if the request does not match with the allowed request method & allow content types 
+
+(Bug fix) The blank project will no longer use the old syntax. `starberry version` impled   
+
+0.4.3: Enable passing arguments and locals into Rc 
+
+0.4.2: Rc is used to send the reponse. Now the request body will not be automatically being parsed 
+
+(Important Syntax Update) Now the middleware chain passes the request context. When you registering function to url, the type passing in can be implied. You may return Rc or HttpRequest 
+
+0.4.1: Updated middleware syntax 
+
+0.4.0: Wrap the Request with Request context struct, providing access to App and Url config. Change the name preload into prelude 
+
+(Important syntax update) Please accept Rc as argument instead of HttpRequest when you define an endpoint 
+
+0.3.3: Data sent from Url_encoded_form is now being automatically decoded. You may set random key for the Application. Default will be a 32 char long string generated randomly. Short cuts of form access has been enabled. redirect_response() function is now available to provide a redirect response. 
+
+(Important Syntax Upgrade) akari_render! and akari_json! now can plug in functions, expressions, nested objects and so on inside, no need to first define then use. akari_render! now can accept zero arguments. Upgraded Akari into 0.2.0 
+
+0.3.2: Re-export Url trait properly, enabled cookie manipulation. Enable request.get_path() to get segments of URL. Bug fix: Now "any" url can be proporly used. Upgraded Akari into 0.1.3 
+
+0.3.1: Enabled reading files from request, multiple file in a single input can also be handled. Now nested JSON is supported and you may use akari_json! to directly return a JSON object. (Bug fix) Now starberry run is enabled. Optimized form reading 
+
+0.3.0: Akari template in use. You may call `akari_render!` to return a HttpResponse using the template system. Json response are also ready for use. You may parse a json using Object module, a json can be generated using `object!` macro. 
+
+The main program is updated. You may use `starberry new` to start a new project for starberry, also `starberry release` command is ready in use 
+
+Read more about akari: https://crates.io/crates/akari 
+
+0.2.3 Templates now in use. Please use `starberry build` instead of `cargo build` when building exe for running. The config of the command is the same 
+
+0.2.2 Security enhancement: The request size, connection time is restricted automatically. Middlewares are implemented but not in use. Add preload modules 
+
+0.2.1 Enable URL reg everywhere in the projects, enabling Regex, Any and Any Path to be URL. URLs are stored in a tree structure for easier config 
+
+0.2.0 Update the url pattern. *For this version, Regex/Path/Any is no longer supported. It will be available in the next version.* 
+
+0.1.5: Reexport the methods and enable dynamic function loading. Enable &str, String, Vec<u8> and so on to act as the response body 
+
+You are able to start the surver by using the following codes 
+
+
+```use starberry::app::app::App;
+use starberry::App;
+use starberry::urls; 
+use starberry::text_response; 
+use starberry::RunMode;
+
+use std::time::Duration; 
+use std::thread::sleep; 
+use std::sync::Arc; 
+
+pub async fn test() {
+    let app = App::new(init_urls().into()) 
+    .binding(String::from("127.0.0.1:1111")) 
+    .mode(RunMode::Development) 
+    .workers(4) 
+    .build(); 
+    let runner = Arc::new(app); 
+    runner.run().await; 
+}
+
+pub fn init_urls() -> urls::Url {
+    urls::Url {
+        path: urls::PathPattern::literal_path("/"),
+        children: urls::Children::Some(vec![
+            Arc::new(urls::Url {
+                path: urls::PathPattern::literal_path("about"),
+                children: urls::Children::Nil,
+                method: Some(Box::new(|_req| async {
+                    text_response("About Page")
+                })),
+            }),
+            Arc::new(urls::Url {
+                path: urls::PathPattern::regex_path("[0-9]+"), 
+                children: urls::Children::Nil,
+                method: Some(Box::new(|_req| async {
+                    text_response("Number page")
+                })),
+            }),
+            Arc::new(urls::Url {
+                path: urls::PathPattern::Any,
+                children: urls::Children::Nil,
+                method: Some(Box::new(|_req| async {
+                    sleep(Duration::from_secs(1));
+                    println!("1");
+                    sleep(Duration::from_secs(1));
+                    println!("2");
+                    sleep(Duration::from_secs(1));
+                    println!("3");
+                    text_response("Async Test Page")
+                })),
+            }),
+        ]),
+        method: Some(Box::new(|_req| async {
+            text_response("Home Page") 
+        })), 
+    }  
+} 
+
+#[tokio::main]  
+
+async fn main() {
+    test::test().await; 
+}  
+
+``` 
+
+0.1.4: Optimized way in starting app, optimized Response class 
+
+0.1.3: Use thread pooling, enable user to set number of threads. Use better URL approach 
+
+0.1.2: Updated Request Analyze, Debug to not Generate Panic. Let the program capable for async (The 0.1.1 async is fake) 
+ 
