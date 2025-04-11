@@ -1,7 +1,7 @@
 #![allow(non_snake_case)] 
 #![allow(non_camel_case_types)] 
 
-use std::{collections::HashMap, hash::Hash};
+use std::{collections::HashMap, hash::Hash, path::Display};
 
 use once_cell::sync::Lazy;
 
@@ -221,6 +221,12 @@ impl StatusCode {
             "503 Service Unavailable" => StatusCode::SERVICE_UNAVAILABLE,  
             _ => StatusCode::INTERNAL_SERVER_ERROR, 
         } 
+    } 
+} 
+
+impl std::fmt::Display for StatusCode { 
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
+        write!(f, "{}", self.to_string()) 
     } 
 } 
 

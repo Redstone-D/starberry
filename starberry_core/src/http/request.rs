@@ -25,17 +25,17 @@ pub struct RequestStartLine {
     pub method: HttpMethod,
     pub path: String,
     pub url: Option<RequestPath>,
-}
+} 
 
 pub struct ParseConfig {
     pub max_header_size: usize,
     pub max_line_length: usize,
     pub max_headers: usize,
     pub max_body_size: usize,
-}
+} 
 
 impl ParseConfig {
-    pub fn new(
+    pub fn new ( 
         max_header_size: usize,
         max_line_length: usize,
         max_headers: usize,
@@ -54,7 +54,7 @@ impl ParseConfig {
     }
 
     pub fn set_max_body_size(&mut self, size: usize) {
-        self.max_body_size = size;
+        self.max_body_size = size; 
     }
 
     pub fn set_max_line_length(&mut self, size: usize) {

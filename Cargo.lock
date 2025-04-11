@@ -448,6 +448,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
 
 [[package]]
+name = "sbmstd"
+version = "0.4.0"
+dependencies = [
+ "starberry_core",
+ "starberry_macro",
+]
+
+[[package]]
 name = "scopeguard"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -531,15 +539,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.99",
-]
-
-[[package]]
-name = "starberry_middlewares"
-version = "0.1.0"
-dependencies = [
- "starberry",
- "starberry_core",
- "starberry_macro",
 ]
 
 [[package]]

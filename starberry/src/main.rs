@@ -181,13 +181,13 @@ fn main() {
     let mut args: Vec<String> = env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!("Usage: starberry <command> [arguments]");
-        eprintln!(r#"Usage: starberry <build|run|release|new> [arguments]
-        - `new <app_name>`: Creates a new project with the given name, a hello world program is provided by default. Dependencies are added to the Cargo.toml file. A templates directory is created at the same level as src. 
-        - `build [arguments]`: Build the Starberry project (Do not use cargo build since it does not copies template). Any other extra arguments are passed to `cargo build`. 
-        - `run`: Runs the starberry project. 
-        - `release`: Build the Starberry project in release mode (Do not use cargo build --release since it does not copies template). Any other extra arguments are passed to `cargo build`.  
-        - `version`: Prints the version of Starberry. 
-        "#);
+        eprintln!(r#"Usage: starberry <build|run|release|new|version> [arguments]
+- `new <app_name>`: Creates a new project with the given name, a hello world program is provided by default. Dependencies are added to the Cargo.toml file. A templates directory is created at the same level as src. 
+- `build [arguments]`: Build the Starberry project (Do not use cargo build since it does not copies template). Any other extra arguments are passed to `cargo build`. 
+- `run`: Runs the starberry project. 
+- `release`: Build the Starberry project in release mode (Do not use cargo build --release since it does not copies template). Any other extra arguments are passed to `cargo build`.  
+- `version`: Prints the version of Starberry. 
+"#);
         exit(1);
     }
     

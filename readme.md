@@ -1,6 +1,6 @@
 # Starberry Web Framework
 
-![Latest Version](https://img.shields.io/badge/version-0.4.5-brightgreen)
+![Latest Version](https://img.shields.io/badge/version-0.3.3-brightgreen)
 [![Crates.io](https://img.shields.io/crates/v/starberry)](https://crates.io/crates/starberry)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 

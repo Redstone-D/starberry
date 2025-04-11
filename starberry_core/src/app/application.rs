@@ -76,7 +76,7 @@ impl AppBuilder {
     }
 
     pub fn default_middlewares() -> Vec<Arc<dyn AsyncMiddleware>> { 
-        vec![Arc::new(LoggingMiddleware)]
+        vec![]
     }
 
     pub fn root_url(mut self, root_url: Arc<Url>) -> Self { 
@@ -299,7 +299,7 @@ impl App {
             rc.run().await; 
         };
         tokio::spawn(job);
-    }
+    } 
 
     /// Main loop listening for connections - now creates the TcpListener at runtime
     pub async fn run(self: Arc<Self>) {
