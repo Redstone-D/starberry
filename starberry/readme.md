@@ -1,6 +1,6 @@
 # Starberry Web Framework
 
-![Latest Version](https://img.shields.io/badge/version-0.3.3-brightgreen)
+![Latest Version](https://img.shields.io/badge/version-0.4.7-brightgreen)
 [![Crates.io](https://img.shields.io/crates/v/starberry)](https://crates.io/crates/starberry)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -227,6 +227,13 @@ async fn redirect() -> HttpResponse {
 ## 📋 Changelog
 
 ### 0.4.7 (Latest stable) 
+- Added config and statics to APP 
+- Updated Akari into 0.2.2 
+- Removed unnecessary printing 
+
+### 0.4.6 
+- Starberry standard middleware enabled 
+- Removed standard logging 
 
 ### 0.4.5 
 - Updates with tokio, enable m:n scaling
@@ -264,11 +271,13 @@ async fn redirect() -> HttpResponse {
 
 ## 🔮 Planned Updates
 
-- [ ] Standard middleware library (OAuth)
-- [x] Better URL configuration
-- [x] URL registering macros
-- [x] m:n thread scale
-- [x] Early abort
+**All planned updates for 0.4 is already finished** 
+
+- [ ] Standard middleware library (Session) 
+- [ ] Middleware libraries (OAuth, Surreal) 
+- [ ] Static file serving 
+- [ ] Logging 
+- [ ] Seperate Http from core 
 
 ## 📚 Learn More
 
@@ -277,3 +286,5 @@ Learn more about Akari template: https://crates.io/crates/akari
 ## 📄 License
 
 MIT License
+ 
+ 
