@@ -1,3 +1,7 @@
+0.4.7: Enable storing config data into APP 
+
+0.4.6: Starberry standard middleware enabled, including standard logging 
+
 0.4.5: Update with tokio, enable m:n scaling. Graceful shut down enabled 
 
 Better url reg macro. Enable debugging in Build mode. Note don't use this mode in production 

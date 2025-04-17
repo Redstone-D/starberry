@@ -1,16 +1,17 @@
 [package]
 name = "starberry"
-version = "0.4.6" 
+version = "0.4.7" 
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "Small, sweet, easy framework for full-stack web application" 
 license = "MIT" 
 repository = "https://github.com/Redstone-D/starberry" 
+homepage = "https://fds.rs" 
 categories = ["network-programming", "web-programming::http-server" ]
 keywords = ["full-stack", "web-framework", "starberry"] 
 
 [dependencies] 
-akari = "0.2.1" 
+akari = "0.2.2" 
 regex = "1.5.6" 
 tokio = { version = "1.28", features = ["full"] } 
 futures = "0.3" 

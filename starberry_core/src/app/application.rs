@@ -1,4 +1,7 @@
 use core::panic;
+use std::any::{Any, TypeId};
+use std::collections::HashMap;
+use std::hash::Hash;
 use tokio::net::{TcpListener, TcpStream};
 
 use std::pin::Pin;
@@ -39,10 +42,11 @@ pub struct App {
     pub root_url: Arc<Url>, 
     pub binding_address: String, // Changed from listener to binding_address
     pub mode: RunMode, 
-    pub secret_key: String, 
     pub max_connection_time: usize, 
     pub connection_config: ParseConfig, 
     pub middlewares: Arc<Vec<Arc<dyn AsyncMiddleware>>>, 
+    pub config: HashMap<String, Box<dyn Any + Send + Sync>>, 
+    pub statics: HashMap<TypeId, Box<dyn Any + Send + Sync>>, 
 }
 
 /// Builder for App
@@ -50,13 +54,14 @@ pub struct AppBuilder {
     root_url: Option<Arc<Url>>, 
     binding: Option<String>, 
     mode: Option<RunMode>, 
-    secret_key: Option<String>, 
     max_connection_time: Option<usize>, 
     max_header_size: Option<usize>, 
     max_body_size: Option<usize>, 
     max_line_length: Option<usize>, 
     max_headers: Option<usize>, 
     middle_wares: Option<Vec<Arc<dyn AsyncMiddleware>>>, 
+    config: HashMap<String, Box<dyn Any + Send + Sync>>, 
+    statics: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
 }
 
 impl AppBuilder {
@@ -64,14 +69,15 @@ impl AppBuilder {
         Self {
             root_url: None,
             binding: None,
-            mode: None,
-            secret_key: None,
+            mode: None, 
             max_connection_time: None,
             max_header_size: None,
             max_body_size: None,
             max_line_length: None,
             max_headers: None,
-            middle_wares: Some(Self::default_middlewares()),
+            middle_wares: Some(Self::default_middlewares()), 
+            config: HashMap::new(), 
+            statics: HashMap::new(), 
         }
     }
 
@@ -92,12 +98,7 @@ impl AppBuilder {
     pub fn mode(mut self, mode: RunMode) -> Self { 
         self.mode = Some(mode); 
         self 
-    }
-
-    pub fn secret_key(mut self, secret_key: String) -> Self { 
-        self.secret_key = Some(secret_key); 
-        self 
-    }
+    } 
 
     pub fn max_connection_time(mut self, max_connection_time: usize) -> Self { 
         self.max_connection_time = Some(max_connection_time); 
@@ -154,7 +155,17 @@ impl AppBuilder {
             });
         } 
         self  
-    }
+    } 
+
+    pub fn set_statics<T: 'static + Send + Sync>(mut self, value: T) -> Self { 
+        self.statics.insert(TypeId::of::<T>(), Box::new(value)); 
+        self 
+    } 
+
+    pub fn set_config<T: 'static + Send + Sync>(mut self, key: impl Into<String>, value: T) -> Self {
+        self.config.insert(key.into(), Box::new(value)); 
+        self 
+    } 
 
     /// Build method: create the `App`, storing binding address without creating a TcpListener
     pub fn build(self) -> Arc<App> { 
@@ -176,7 +187,6 @@ impl AppBuilder {
         let binding_address = self.binding.unwrap_or_else(|| String::from("127.0.0.1:3003")); 
         
         let mode = self.mode.unwrap_or_else(|| RunMode::Development);
-        let secret_key = self.secret_key.unwrap_or_else(|| random_string(32));
         let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5); 
         let max_header_size = self.max_header_size.unwrap_or_else(|| 1024 * 1024); 
         let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 512); 
@@ -193,13 +203,14 @@ impl AppBuilder {
             root_url,
             binding_address,
             mode,
-            secret_key,
             max_connection_time,
             connection_config,
             middlewares: self
                 .middle_wares
                 .unwrap_or_else(|| Self::default_middlewares())
-                .into(),
+                .into(), 
+            config: self.config, 
+            statics: self.statics, 
         })
     }
 }
@@ -223,15 +234,7 @@ impl App {
 
     pub fn get_mode(self: &Arc<Self>) -> RunMode { 
         self.mode.clone() 
-    }
-
-    pub fn set_secret_key(&mut self, secret_key: String) { 
-        self.secret_key = secret_key; 
-    }
-
-    pub fn get_secret_key(self: &Arc<Self>) -> &str { 
-        &self.secret_key 
-    }
+    } 
 
     pub fn set_max_connection_time(&mut self, max_connection_time: usize) { 
         self.max_connection_time = max_connection_time; 
@@ -271,7 +274,19 @@ impl App {
 
     pub fn get_max_headers(self: &Arc<Self>) -> usize { 
         self.connection_config.get_max_headers() 
-    }
+    } 
+
+    pub fn statics<T: 'static + Send + Sync>(self: &Arc<Self>) -> Option<&T> {
+        self.statics
+            .get(&TypeId::of::<T>())
+            .and_then(|boxed| boxed.downcast_ref::<T>())
+    } 
+
+    pub fn config<T: 'static + Send + Sync>(self: &Arc<Self>, key: &str) -> Option<&T> {
+        self.config
+            .get(key)
+            .and_then(|boxed| boxed.downcast_ref::<T>())
+    } 
 
     /// This function add a new url to the app. It will be added to the root url 
     /// # Arguments 
@@ -327,11 +342,13 @@ impl App {
                 accept_result = listener.accept() => {
                     match accept_result {
                         Ok((stream, addr)) => {
-                            println!("Accepted connection from {addr}");
+                            // println!("Accepted connection from {addr}");
                             Arc::clone(&self).handle_connection(stream);
                         }
-                        Err(e) => {
-                            eprintln!("Failed to accept connection: {e}"); 
+                        Err(e) => { 
+                            if self.get_mode() == RunMode::Build{ 
+                                eprintln!("Failed to accept connection: {e}"); 
+                            } 
                         }
                     }
                 }

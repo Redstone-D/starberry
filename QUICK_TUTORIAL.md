@@ -300,9 +300,75 @@ if let Some(token) = req.take_local::<String>("session_token") {
 } 
 ``` 
 
+### Standard Middleware 
+
+Installing sbmstd to use starberry's standard middleware library 
+
+### Building Application 
+
+In Chapter 1, we talked about starting a fairly application 
+
+```rust 
+pub static APP: SApp = once_cell::sync::Lazy::new(|| {
+    App::new().build()
+}); 
+``` 
+
+Now let's deep dive into setting configs, middlewares and settings in the application 
+
+The statement 
+
+```rust 
+App::new() 
+``` 
+
+Initiates an AppBuilder instance. For the AppBuilder instance a set methods passing its owned value in while returning a modified owned value out is provided. 
+
+After manipulating and setting the variable into the AppBuilder, we use 
+
+```rust 
+AppBuilder::build() 
+``` 
+
+To build and return a App instance. **Once a APP instance is built, you are not allowed to change its config**. 
+
+For example, in the Starberry example project the following code is provided 
+
+```rust 
+    App::new() 
+        .binding(String::from("127.0.0.1:1111"))
+        .mode(RunMode::Build)
+        .max_body_size(1024 * 1024 * 10) 
+        .max_header_size(1024 * 10) 
+        .append_middleware::<PrintLog>() 
+        .append_middleware::<MyMiddleWare2>() 
+        .insert_middleware::<MyMiddleWare1>() 
+        .set_config("serect_key", "key") 
+        .set_statics("static".to_string())
+        .build() 
+``` 
+
+Let's talk about each function 
+
+- Binding: The way of accessing the application 
+- Mode: Production (Production environment), Development (Developing the application), Beta (Testing the application publically), Build (Internal testing for Starberry development) 
+- Max body size, max header size 
+- Append middleware: Append a middleware in the end of the middleware chain 
+- Insert middleware: Insert a middleware in the head of the middleware chain 
+- Set config: the same as set_local in Rc 
+- Set statics: the same as set_params in Rc 
+
+After that the APP is built and run 
+
 # Chapter 7: Form, file and Akari Json 
 
-# Chapter 8: Cookies & Session (Not implemented) 
+# Chapter 8: Cookies & Session
+
+**Note: Session is not implemented in 0.4 version** 
+
+### Reading Cookies from the Request 
+
+
 
 # Chapter 9: Advanced Akari operations & templating 
 
