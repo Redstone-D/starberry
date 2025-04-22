@@ -12,3 +12,6 @@ keywords = ["starberry"]
 [dependencies]
 starberry_macro = { path = "../sm", version="0.4"} 
 starberry_core = { path = "../starberry_core", version="0.4" }  
+dashmap = "6.1.0" 
+tokio = { version = "1.28", features = ["full"] }  
+lazy_static = "1.5.0" 

@@ -372,6 +372,20 @@ After that the APP is built and run
 
 # Chapter 9: Advanced Akari operations & templating 
 
+### Akari Object 
+
+Akari Object, as discussed in Chapter 3, is a Json like data structure. This also leads to the result of that Akari Object is never type safe 
+
+Akari Object is able to hold 5 types of value, they are: numerical, boolean, String, List and Object 
+
+You may extract the value from Akari by using `match` or `if let`, just like any other Rust enums. You may also use a shorthand, just append the data type after the value, such as 
+
+```rust 
+let a = object!(3); 
+assert!(a.numerical, 3.0); 
+assert!(a.boolean, true); 
+``` 
+
 # Chapter 10: Middlewares 
 
 ### The easiest middleware 
