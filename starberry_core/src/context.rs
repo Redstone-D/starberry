@@ -81,6 +81,7 @@ impl Rc  {
             .clone()
             .walk_str(meta.path())
             .await; 
+        // let endpoint = dangling_url(); 
 
         Rc::new(meta, body, reader, app.clone(), endpoint.clone())
     } 
@@ -88,7 +89,7 @@ impl Rc  {
     pub async fn run(mut self) { 
         let endpoint = self.endpoint.clone(); 
         if !endpoint.clone().request_check(&mut self).await { 
-            self.response.send(self.reader.get_mut()).await; 
+            let _ = self.response.send(self.reader.get_mut()).await; 
             return; 
         }
         let parsed = endpoint.run(self); 
@@ -96,7 +97,7 @@ impl Rc  {
     } 
 
     pub async fn send_response(mut self) { 
-        self.response.send(self.reader.get_mut()).await;
+        let _ = self.response.send(self.reader.get_mut()).await;
     } 
 
     pub fn meta(&self) -> &HttpMeta { 

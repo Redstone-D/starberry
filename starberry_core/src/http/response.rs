@@ -1,5 +1,6 @@
 use super::http_value::{self, *}; 
 use std::collections::HashMap;
+use std::fmt::Write;
 use tokio::net::TcpStream; 
 use tokio::io::{AsyncWriteExt, BufWriter}; 
 
@@ -156,18 +157,23 @@ impl HttpResponse {
         self 
     } 
 
-    pub async fn send(&self, stream: &mut TcpStream) {
+    pub async fn send(&self, stream: &mut TcpStream) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
+        let mut headers = String::with_capacity(256);
     
-        let start_line_bytes = format!("{}\r\n", self.start_line).into_bytes();
-        let headers_bytes = format!("{}\r\n", self.header.represent()).into_bytes();
-        let body_bytes = self.body.as_ref().as_ref();
+        write!(
+            &mut headers,
+            "{}\r\n\
+            {}\r\n",
+            self.start_line,
+            self.header.represent()
+        ).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     
-        writer.write_all(&start_line_bytes).await.unwrap();
-        writer.write_all(&headers_bytes).await.unwrap();
-        writer.write_all(body_bytes).await.unwrap();
+        writer.write_all(headers.as_bytes()).await?;
+        writer.write_all(self.body.as_ref().as_ref()).await?; 
+        writer.flush().await?; 
         
-        writer.flush().await.unwrap(); // Ensure all data is sent
+        Ok(()) 
     } 
 
     // /// Converts this response into a Future that resolves to itself.

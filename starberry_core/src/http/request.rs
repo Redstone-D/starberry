@@ -662,67 +662,128 @@ impl HttpMeta {
         print_raw: bool, 
     ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
         let mut headers = Vec::new();
-
         let mut total_header_size = 0;
-        loop {
-            let mut line = String::new();
-            let bytes_read = buf_reader.read_line(&mut line).await?; 
+        
+        // Try to fill the buffer with a single read first
+        buf_reader.fill_buf().await?;
+        
+        // Fast path: Check if we got all headers in one go
+        let buffer = buf_reader.buffer();
+        if let Some((header_lines, headers_end)) = Self::extract_headers_from_buffer(buffer, config) {
+            // We found the complete headers in the buffer
             if print_raw {
-                println!("Read line: {}, buffer: {}", line, bytes_read); 
+                println!("Fast path: got all headers in single read");
             }
-            if bytes_read == 0 || line.trim_end().is_empty() {
-                break; // End of headers
+            
+            // Process headers from buffer
+            for line in header_lines {
+                if line.len() > config.max_line_length {
+                    return Err("Header line too long".into());
+                }
+                
+                total_header_size += line.len() + 2; // +2 for CRLF
+                if total_header_size > config.max_header_size {
+                    return Err("Headers too large".into());
+                }
+                
+                if headers.len() >= config.max_headers {
+                    return Err("Too many headers".into());
+                }
+                
+                // Strip CRLF injection and store
+                let safe_line = line.replace("\r", "");
+                headers.push(safe_line);
             }
-
-            // Reject requests with an extremely long header line
-            if line.len() > config.max_line_length {
-                return Err("Header line too long".into());
+            
+            // Consume the processed data from the buffer
+            buf_reader.consume(headers_end);
+        } else {
+            // Slow path: read headers line by line as before
+            if print_raw {
+                println!("Slow path: reading headers line by line");
             }
-
-            total_header_size += line.len();
-
-            // Enforce max header size limit
-            if total_header_size > config.max_header_size {
-                return Err("Headers too large".into());
+            
+            loop {
+                let mut line = String::new();
+                let bytes_read = buf_reader.read_line(&mut line).await?;
+                if print_raw {
+                    println!("Read line: {}, buffer: {}", line, bytes_read);
+                }
+                
+                if bytes_read == 0 || line.trim_end().is_empty() {
+                    break; // End of headers
+                }
+                
+                // Reject requests with an extremely long header line
+                if line.len() > config.max_line_length {
+                    return Err("Header line too long".into());
+                }
+                
+                total_header_size += line.len();
+                
+                // Enforce max header size limit
+                if total_header_size > config.max_header_size {
+                    return Err("Headers too large".into());
+                }
+                
+                // Enforce max number of headers
+                if headers.len() >= config.max_headers {
+                    return Err("Too many headers".into());
+                }
+                
+                // Strip CRLF injection and store the header
+                let safe_line = line.trim_end().replace("\r", "");
+                headers.push(safe_line);
             }
-
-            // Enforce max number of headers
-            if headers.len() >= config.max_headers {
-                return Err("Too many headers".into());
-            }
-
-            // Strip CRLF injection and store the header
-            let safe_line = line.trim_end().replace("\r", "");
-            headers.push(safe_line);
         }
-
+        
         if headers.is_empty() {
             return Err("Empty request".into());
         }
-
+        
         let start_line = RequestStartLine::parse(headers.remove(0))?;
         let header = RequestHeader::parse(headers);
-
-        // let content_length = header.get_content_length().unwrap_or(0).min(config.max_body_size);
-        // let mut body_buffer = vec![0; content_length];
-
-        // let mut body = RequestBody::Empty;
-        // if content_length != 0 {
-        //     buf_reader.read_exact(&mut body_buffer)?;
-        //     body = RequestBody::parse(body_buffer, &mut header);
-        // } 
-
-        if print_raw { 
-            println!("Parsed headers: {:?}", header.header); 
-            println!("Parsed start line: {:?}", start_line);  
+        
+        if print_raw {
+            println!("Parsed headers: {:?}", header.header);
+            println!("Parsed start line: {:?}", start_line);
         }
-
+        
         Ok(HttpMeta {
             start_line,
-            header 
+            header
         })
     }
 
+    /// Helper function to extract complete headers from a buffer if possible
+    fn extract_headers_from_buffer<'a>(buffer: &'a [u8], config: &ParseConfig) -> Option<(Vec<&'a str>, usize)> {
+        // Look for the end of headers marker (double CRLF)
+        let mut i = 0;
+        while i + 3 < buffer.len() {
+            if buffer[i] == b'\r' && buffer[i+1] == b'\n' && 
+            buffer[i+2] == b'\r' && buffer[i+3] == b'\n' {
+                
+                // Found end of headers
+                let headers_section = std::str::from_utf8(&buffer[..i+2]).ok()?;
+                
+                // Split into lines
+                let lines: Vec<&str> = headers_section
+                    .split("\r\n")
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                    
+                if lines.len() > config.max_headers {
+                    return None; // Too many headers, fall back to slow path
+                }
+                
+                return Some((lines, i + 4)); // +4 to include the final \r\n\r\n
+            }
+            i += 1;
+        }
+        
+        None // Didn't find complete headers
+    } 
+    
     pub fn get_path(&mut self, part: usize) -> String {
         self.start_line.get_url().url_part(part)
     }

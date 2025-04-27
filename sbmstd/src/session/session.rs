@@ -87,7 +87,7 @@ impl<'a> SessionRW<'a> {
     }
 
     pub fn set(&mut self, key: String, value: String) {
-        self.guard.data.insert(key, value);
+        self.guard.data.insert(key, value); 
     }
 
     pub fn set_all(&mut self, data: HashMap<String, String>) {
@@ -120,7 +120,8 @@ pub fn Session(){
     req.set_param(session); 
     let mut req = next(req).await; // Continue middleware chain 
     req.response = req.response.add_cookie(
-        CookieResponse::new("session_id", session_id.to_string())
+        CookieResponse::new("session_id", session_id.to_string()) 
+            .path("/") 
     ); // Set cookie with session ID 
     req.boxed_future() 
 } 

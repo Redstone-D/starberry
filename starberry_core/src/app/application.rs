@@ -42,6 +42,7 @@ pub struct App {
     pub root_url: Arc<Url>, 
     pub binding_address: String, // Changed from listener to binding_address
     pub mode: RunMode, 
+    pub worker: usize, 
     pub max_connection_time: usize, 
     pub connection_config: ParseConfig, 
     pub middlewares: Arc<Vec<Arc<dyn AsyncMiddleware>>>, 
@@ -54,6 +55,7 @@ pub struct AppBuilder {
     root_url: Option<Arc<Url>>, 
     binding: Option<String>, 
     mode: Option<RunMode>, 
+    worker: Option<usize>, 
     max_connection_time: Option<usize>, 
     max_header_size: Option<usize>, 
     max_body_size: Option<usize>, 
@@ -70,6 +72,7 @@ impl AppBuilder {
             root_url: None,
             binding: None,
             mode: None, 
+            worker: None, 
             max_connection_time: None,
             max_header_size: None,
             max_body_size: None,
@@ -98,6 +101,11 @@ impl AppBuilder {
     pub fn mode(mut self, mode: RunMode) -> Self { 
         self.mode = Some(mode); 
         self 
+    } 
+
+    pub fn worker(mut self, threads: usize) -> Self {
+        self.worker = Some(threads);
+        self
     } 
 
     pub fn max_connection_time(mut self, max_connection_time: usize) -> Self { 
@@ -187,6 +195,7 @@ impl AppBuilder {
         let binding_address = self.binding.unwrap_or_else(|| String::from("127.0.0.1:3003")); 
         
         let mode = self.mode.unwrap_or_else(|| RunMode::Development);
+        let worker = self.worker.unwrap_or_else(|| num_cpus()); 
         let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5); 
         let max_header_size = self.max_header_size.unwrap_or_else(|| 1024 * 1024); 
         let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 512); 
@@ -202,7 +211,8 @@ impl AppBuilder {
         Arc::new(App {
             root_url,
             binding_address,
-            mode,
+            mode, 
+            worker, 
             max_connection_time,
             connection_config,
             middlewares: self
@@ -318,6 +328,12 @@ impl App {
 
     /// Main loop listening for connections - now creates the TcpListener at runtime
     pub async fn run(self: Arc<Self>) {
+        // let runtime = tokio::runtime::Builder::new_multi_thread()
+        // .worker_threads(self.worker)
+        // .enable_all()
+        // .build()
+        // .unwrap(); 
+        
         // Create TcpListener only when run() is called, within the tokio runtime
         let listener = match TcpListener::bind(&self.binding_address).await {
             Ok(listener) => listener,
@@ -385,5 +401,13 @@ impl App {
                 urls::dangling_url()
             }
         }
+    }
+} 
+
+// Helper function for determining CPU count
+fn num_cpus() -> usize {
+    match std::thread::available_parallelism() {
+        Ok(n) => n.get(),
+        Err(_) => 1, // Fallback if we can't determine
     }
 } 
