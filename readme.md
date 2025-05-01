@@ -271,13 +271,20 @@ async fn redirect() -> HttpResponse {
 
 ## 🔮 Planned Updates
 
-**All planned updates for 0.4 is already finished** 
+**0.5 Updates** 
 
+- [ ] Request sending 
 - [ ] Standard middleware library (Session) 
 - [ ] Middleware libraries (OAuth, Surreal) 
 - [ ] Static file serving 
 - [ ] Logging 
 - [ ] Seperate Http from core 
+
+**Optimization todo list** 
+
+- Enable Akari Template manager to avoid parsing template for each time 
+- Connection Tcpthread Pool 
+- Max concurrent accepted connection 
 
 ## 📚 Learn More
 

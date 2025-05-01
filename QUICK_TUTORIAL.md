@@ -382,9 +382,17 @@ You may extract the value from Akari by using `match` or `if let`, just like any
 
 ```rust 
 let a = object!(3); 
-assert!(a.numerical, 3.0); 
-assert!(a.boolean, true); 
+assert!(a.numerical, 3.0); // Akari stores numericals as float 
+assert!(a.boolean, true); // Akari applies auto conversion, if != 0.0 then return true 
 ``` 
+
+### Akari template 
+
+**Note: Some grammar does not implemented in 0.2.2 (The version used in default in Starberry 0.4.7), but you may update this manually** 
+
+**Extend, Insert and Blocks** 
+
+**Accessing dictionaries and lists** 
 
 # Chapter 10: Middlewares 
 

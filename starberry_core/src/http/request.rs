@@ -8,15 +8,19 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::error::Error;
 use std::hash::Hash;
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader}; 
+use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader}; 
 use tokio::net::TcpStream;
 use std::str;
 
+/// RequestHeader is a struct that represents the headers of an HTTP request. 
 #[derive(Debug)]
-pub struct HttpMeta {
-    pub start_line: RequestStartLine,
-    pub header: RequestHeader, 
-}
+pub struct HttpMeta { 
+    pub start_line: RequestStartLine, 
+    pub header: HashMap<String, String>,
+    content_type: Option<HttpContentType>,
+    content_length: Option<usize>,
+    cookies: Option<HashMap<String, String>>,
+} 
 
 /// RequestStartLine is the first line of the HTTP request, which contains the method, path, and HTTP version.
 #[derive(Debug, Clone)]
@@ -172,31 +176,147 @@ impl std::fmt::Display for RequestStartLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} {} {}", self.http_version, self.method, self.path)
     }
-}
+} 
 
-/// RequestHeader is a struct that represents the headers of an HTTP request.
-#[derive(Debug)]
-pub struct RequestHeader {
-    pub header: HashMap<String, String>,
-    content_type: Option<HttpContentType>,
-    content_length: Option<usize>,
-    cookies: Option<HashMap<String, String>>,
-}
-
-impl RequestHeader {
+impl HttpMeta { 
     /// It is used to create a new RequestHeader object.
-    pub fn new() -> Self {
-        Self {
-            header: HashMap::new(),
+    pub fn new(
+        start_line: RequestStartLine, 
+        headers: HashMap<String, String> 
+    ) -> Self {
+        Self { 
+            start_line, 
+            header: headers,
             content_type: None,
             content_length: None,
-            cookies: None,
+            cookies: None, 
         }
-    }
+    } 
 
-    pub fn set_header_hashmap(&mut self, header: HashMap<String, String>) {
-        self.header = header;
-    }
+    pub async fn from_request_stream<R: AsyncRead + Unpin>(
+        buf_reader: &mut BufReader<R>,
+        config: &ParseConfig, 
+        print_raw: bool, 
+    ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
+        let mut headers = Vec::new();
+        let mut total_header_size = 0;
+        
+        // Try to fill the buffer with a single read first
+        buf_reader.fill_buf().await?;
+        
+        // Fast path: Check if we got all headers in one go
+        let buffer = buf_reader.buffer();
+        if let Some((header_lines, headers_end)) = Self::extract_headers_from_buffer(buffer, config) {
+            // We found the complete headers in the buffer
+            if print_raw {
+                println!("Fast path: got all headers in single read");
+            }
+            
+            // Process headers from buffer
+            for line in header_lines {
+                if line.len() > config.max_line_length {
+                    return Err("Header line too long".into());
+                }
+                
+                total_header_size += line.len() + 2; // +2 for CRLF
+                if total_header_size > config.max_header_size {
+                    return Err("Headers too large".into());
+                }
+                
+                if headers.len() >= config.max_headers {
+                    return Err("Too many headers".into());
+                }
+                
+                // Strip CRLF injection and store
+                let safe_line = line.replace("\r", "");
+                headers.push(safe_line);
+            }
+            
+            // Consume the processed data from the buffer
+            buf_reader.consume(headers_end);
+        } else {
+            // Slow path: read headers line by line as before
+            if print_raw {
+                println!("Slow path: reading headers line by line");
+            }
+            
+            loop {
+                let mut line = String::new();
+                let bytes_read = buf_reader.read_line(&mut line).await?;
+                if print_raw {
+                    println!("Read line: {}, buffer: {}", line, bytes_read);
+                }
+                
+                if bytes_read == 0 || line.trim_end().is_empty() {
+                    break; // End of headers
+                }
+                
+                // Reject requests with an extremely long header line
+                if line.len() > config.max_line_length {
+                    return Err("Header line too long".into());
+                }
+                
+                total_header_size += line.len();
+                
+                // Enforce max header size limit
+                if total_header_size > config.max_header_size {
+                    return Err("Headers too large".into());
+                }
+                
+                // Enforce max number of headers
+                if headers.len() >= config.max_headers {
+                    return Err("Too many headers".into());
+                }
+                
+                // Strip CRLF injection and store the header
+                let safe_line = line.trim_end().replace("\r", "");
+                headers.push(safe_line);
+            } 
+        }
+        
+        if headers.is_empty() {
+            return Err("Empty request".into());
+        }
+        
+        let start_line = RequestStartLine::parse(headers.remove(0))?;
+        let header = Self::parse(headers);
+        
+        if print_raw {
+            println!("Parsed headers: {:?}", header);
+            println!("Parsed start line: {:?}", start_line);
+        }
+        
+        Ok(HttpMeta::new(start_line, header))
+    } 
+
+    /// Helper function to extract complete headers from a buffer if possible
+    fn extract_headers_from_buffer<'a>(buffer: &'a [u8], config: &ParseConfig) -> Option<(Vec<&'a str>, usize)> {
+        // Look for the end of headers marker (double CRLF)
+        let mut i = 0;
+        while i + 3 < buffer.len() {
+            if buffer[i] == b'\r' && buffer[i+1] == b'\n' && 
+            buffer[i+2] == b'\r' && buffer[i+3] == b'\n' {
+                
+                // Found end of headers
+                let headers_section = std::str::from_utf8(&buffer[..i+2]).ok()?;
+                
+                // Split into lines
+                let lines: Vec<&str> = headers_section
+                    .split("\r\n")
+                    .filter(|s| !s.is_empty())
+                    .collect();
+                    
+                if lines.len() > config.max_headers {
+                    return None; // Too many headers, fall back to slow path
+                }
+                
+                return Some((lines, i + 4)); // +4 to include the final \r\n\r\n
+            }
+            i += 1;
+        }
+        
+        None // Didn't find complete headers
+    }   
 
     /// It is used to add a new header to the RequestHeader object.
     /// Taking Vector of String as input.
@@ -214,7 +334,7 @@ impl RequestHeader {
     /// let request_header = RequestHeader::parse(headers);
     /// println!("{:?}", request_header);
     /// ```
-    pub fn parse(headers: Vec<String>) -> Self {
+    pub fn parse(headers: Vec<String>) -> HashMap<String, String> {
         let mut header_map = HashMap::new();
         for line in headers {
             let parts: Vec<&str> = line.splitn(2, ':').collect();
@@ -223,11 +343,25 @@ impl RequestHeader {
                 let value = parts[1].trim().to_string();
                 header_map.insert(key, value);
             }
-        }
-        let mut header = Self::new();
-        header.set_header_hashmap(header_map);
-        header
+        } 
+        header_map 
+    } 
+
+    pub fn set_header_hashmap(&mut self, header: HashMap<String, String>) {
+        self.header = header;
+    } 
+
+    pub fn get_path(&mut self, part: usize) -> String {
+        self.start_line.get_url().url_part(part)
     }
+
+    pub fn path(&self) -> &str {
+        &self.start_line.path
+    } 
+
+    pub fn method(&self) -> &HttpMethod {
+        &self.start_line.method
+    } 
 
     /// It is used to get the value of a header from the RequestHeader object.
     /// Taking a string as input.
@@ -328,7 +462,7 @@ impl RequestHeader {
 
     pub fn clear_content_type(&mut self) {
         self.content_type = None;
-    }
+    } 
 
     /// It is used to get the value of a header from the RequestHeader object.
     /// # Example
@@ -355,7 +489,11 @@ impl RequestHeader {
             self.cookies = Some(self.parse_cookies());
         }
         return self.cookies.as_ref().unwrap().get(key).cloned();
-    }
+    } 
+
+    pub fn get_cookie_or_default(&mut self, key: &str) -> String {
+        self.get_cookie(key).unwrap_or("".to_string())
+    } 
 
     /// It is used to get the value of a header from the RequestHeader object.
     /// Taking a string as input.
@@ -394,7 +532,23 @@ impl RequestHeader {
 
     pub fn clear_cookies(&mut self) {
         self.cookies = None;
-    }
+    } 
+} 
+
+impl Default for HttpMeta { 
+    fn default() -> Self {
+        Self { 
+            start_line: RequestStartLine::new(
+                HttpVersion::Http11,
+                HttpMethod::GET,
+                "/".to_string(),
+            ), 
+            header: HashMap::new(),
+            content_type: None,
+            content_length: None,
+            cookies: None, 
+        }
+    } 
 }
 
 #[derive(Debug, Clone)]
@@ -409,10 +563,10 @@ pub enum HttpRequestBody {
 }
 
 impl HttpRequestBody { 
-    pub async fn parse(
-        buf_reader: &mut tokio::io::BufReader<tokio::net::TcpStream>, 
+    pub async fn parse<R: AsyncRead + Unpin>(
+        buf_reader: &mut tokio::io::BufReader<R>, 
         max_size: usize,
-        header: &mut RequestHeader,
+        header: &mut HttpMeta,
     ) -> Self {
         let parsed;
         let content_length = header.get_content_length().unwrap_or(0).min(max_size);
@@ -645,179 +799,5 @@ impl HttpRequestBody {
         }
 
         Self::Files(form_map.into())
-    }
-}
-
-impl HttpMeta {
-    pub fn new(method: HttpMethod, path: String) -> Self {
-        Self {
-            start_line: RequestStartLine::new(HttpVersion::Http11, method.clone(), path.clone()),
-            header: RequestHeader::new() 
-        }
-    }
-
-    pub async fn from_request_stream(
-        buf_reader: &mut BufReader<TcpStream>,
-        config: &ParseConfig, 
-        print_raw: bool, 
-    ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
-        let mut headers = Vec::new();
-        let mut total_header_size = 0;
-        
-        // Try to fill the buffer with a single read first
-        buf_reader.fill_buf().await?;
-        
-        // Fast path: Check if we got all headers in one go
-        let buffer = buf_reader.buffer();
-        if let Some((header_lines, headers_end)) = Self::extract_headers_from_buffer(buffer, config) {
-            // We found the complete headers in the buffer
-            if print_raw {
-                println!("Fast path: got all headers in single read");
-            }
-            
-            // Process headers from buffer
-            for line in header_lines {
-                if line.len() > config.max_line_length {
-                    return Err("Header line too long".into());
-                }
-                
-                total_header_size += line.len() + 2; // +2 for CRLF
-                if total_header_size > config.max_header_size {
-                    return Err("Headers too large".into());
-                }
-                
-                if headers.len() >= config.max_headers {
-                    return Err("Too many headers".into());
-                }
-                
-                // Strip CRLF injection and store
-                let safe_line = line.replace("\r", "");
-                headers.push(safe_line);
-            }
-            
-            // Consume the processed data from the buffer
-            buf_reader.consume(headers_end);
-        } else {
-            // Slow path: read headers line by line as before
-            if print_raw {
-                println!("Slow path: reading headers line by line");
-            }
-            
-            loop {
-                let mut line = String::new();
-                let bytes_read = buf_reader.read_line(&mut line).await?;
-                if print_raw {
-                    println!("Read line: {}, buffer: {}", line, bytes_read);
-                }
-                
-                if bytes_read == 0 || line.trim_end().is_empty() {
-                    break; // End of headers
-                }
-                
-                // Reject requests with an extremely long header line
-                if line.len() > config.max_line_length {
-                    return Err("Header line too long".into());
-                }
-                
-                total_header_size += line.len();
-                
-                // Enforce max header size limit
-                if total_header_size > config.max_header_size {
-                    return Err("Headers too large".into());
-                }
-                
-                // Enforce max number of headers
-                if headers.len() >= config.max_headers {
-                    return Err("Too many headers".into());
-                }
-                
-                // Strip CRLF injection and store the header
-                let safe_line = line.trim_end().replace("\r", "");
-                headers.push(safe_line);
-            }
-        }
-        
-        if headers.is_empty() {
-            return Err("Empty request".into());
-        }
-        
-        let start_line = RequestStartLine::parse(headers.remove(0))?;
-        let header = RequestHeader::parse(headers);
-        
-        if print_raw {
-            println!("Parsed headers: {:?}", header.header);
-            println!("Parsed start line: {:?}", start_line);
-        }
-        
-        Ok(HttpMeta {
-            start_line,
-            header
-        })
-    }
-
-    /// Helper function to extract complete headers from a buffer if possible
-    fn extract_headers_from_buffer<'a>(buffer: &'a [u8], config: &ParseConfig) -> Option<(Vec<&'a str>, usize)> {
-        // Look for the end of headers marker (double CRLF)
-        let mut i = 0;
-        while i + 3 < buffer.len() {
-            if buffer[i] == b'\r' && buffer[i+1] == b'\n' && 
-            buffer[i+2] == b'\r' && buffer[i+3] == b'\n' {
-                
-                // Found end of headers
-                let headers_section = std::str::from_utf8(&buffer[..i+2]).ok()?;
-                
-                // Split into lines
-                let lines: Vec<&str> = headers_section
-                    .split("\r\n")
-                    .filter(|s| !s.is_empty())
-                    .collect();
-                    
-                if lines.len() > config.max_headers {
-                    return None; // Too many headers, fall back to slow path
-                }
-                
-                return Some((lines, i + 4)); // +4 to include the final \r\n\r\n
-            }
-            i += 1;
-        }
-        
-        None // Didn't find complete headers
-    } 
-    
-    pub fn get_path(&mut self, part: usize) -> String {
-        self.start_line.get_url().url_part(part)
-    }
-
-    pub fn path(&self) -> &str {
-        &self.start_line.path
-    } 
-
-    pub fn method(&self) -> &HttpMethod {
-        &self.start_line.method
-    }
-
-    pub fn get_cookies(&mut self) -> &HashMap<String, String> {
-        self.header.get_cookies()
-    }
-
-    pub fn get_cookie(&mut self, key: &str) -> Option<String> {
-        self.header.get_cookie(key)
-    }
-
-    pub fn get_cookie_or_default(&mut self, key: &str) -> String {
-        self.header.get_cookie(key).unwrap_or("".to_string())
-    }
-}
-
-impl Default for HttpMeta {
-    fn default() -> Self {
-        Self {
-            start_line: RequestStartLine::new(
-                HttpVersion::Http11,
-                HttpMethod::GET,
-                "/".to_string(),
-            ),
-            header: RequestHeader::new(), 
-        }
     }
 }

@@ -117,7 +117,7 @@ impl Rc  {
             self.body = HttpRequestBody::parse(
                 &mut self.reader,
                 self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()),
-                &mut self.meta.header,
+                &mut self.meta,
             ).await;
         }
     } 

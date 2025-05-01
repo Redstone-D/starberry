@@ -462,7 +462,7 @@ impl Url {
             } 
         } 
         if let Some(content_types) = self.get_allowed_content_type() { 
-            if let Some(uploaded_content_type) = rc.meta.header.get_content_type() { 
+            if let Some(uploaded_content_type) = rc.meta.get_content_type() { 
                 if !content_types.contains(&uploaded_content_type) { 
                     rc.response = return_status(StatusCode::UNSUPPORTED_MEDIA_TYPE); 
                     return false; 

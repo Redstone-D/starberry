@@ -44,6 +44,8 @@ By using `Session` middleware, you will be able to store session in the memory
 
 ```rust 
 pub static APP: SApp = Lazy::new(|| {
-    App::new().append_middleware::<PrintLog>().build()
+    App::new().append_middleware::<Session>().build()
 }); 
+
+#[url(reg!(APP, LitUrl("session")))] 
 ``` 
