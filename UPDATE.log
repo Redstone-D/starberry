@@ -1,3 +1,9 @@
+0.5.0: Enable argumented url 
+
+Possible for starberry to send out-going request 
+
+Performance improvement by reducing io calls 
+
 0.4.7: Enable storing config data into APP 
 
 0.4.6: Starberry standard middleware enabled, including standard logging 

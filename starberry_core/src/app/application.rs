@@ -42,7 +42,7 @@ pub struct App {
     pub root_url: Arc<Url>, 
     pub binding_address: String, // Changed from listener to binding_address
     pub mode: RunMode, 
-    pub worker: usize, 
+    pub worker: usize, // Did not implemented 
     pub max_connection_time: usize, 
     pub connection_config: ParseConfig, 
     pub middlewares: Arc<Vec<Arc<dyn AsyncMiddleware>>>, 
@@ -145,7 +145,7 @@ impl AppBuilder {
     }
 
     // Insert a middleware instance created by T at the beginning of the vector.
-    pub fn insert_middleware<T: 'static + AsyncMiddleware>(mut self) -> Self { 
+    pub fn extend_middleware<T: 'static + AsyncMiddleware>(mut self) -> Self { 
         let middleware = Arc::new(T::return_self());
         if let Some(middle_wares) = &mut self.middle_wares {
             middle_wares.insert(0, middleware);

@@ -187,6 +187,17 @@ impl Rc  {
         self.meta.path() 
     } 
 
+    pub fn get_arg_index<S: AsRef<str>>(&self, arg: S) -> Option<usize> { 
+        self.endpoint.get_segment_index(arg.as_ref()) 
+    } 
+
+    pub fn get_arg<S: AsRef<str>>(&mut self, arg: S) -> Option<String> { 
+        match self.get_arg_index(arg.as_ref()) { 
+            Some(index) => Some(self.meta.get_path(index)),
+            None => None, 
+        }
+    } 
+
     /// Returns the method of the request. 
     pub fn method(&mut self) -> &HttpMethod { 
         self.meta.method() 

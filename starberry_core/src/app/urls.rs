@@ -1,17 +1,14 @@
 use crate::http::response::request_templates::return_status;
 
-use super::super::http::request::*; 
 use super::super::http::response::*; 
-use super::super::http::http_value::*;
-use super::middleware; 
+use super::super::http::http_value::*; 
 use super::super::context::Rc; 
 use std::future::Future;
 use std::pin::Pin;
 use std::slice::Iter; 
 use std::sync::Arc;
 use std::sync::OnceLock;
-use std::sync::RwLock;
-use std::task::Context;
+use std::sync::RwLock; 
 use regex::Regex; 
 pub static ROOT_URL: OnceLock<Url> = OnceLock::new();  
 use super::super::app::middleware::*; 
@@ -47,10 +44,12 @@ pub struct Url {
 
 #[derive(Clone, Debug)] 
 pub enum PathPattern { 
-    Literal(String), 
-    Regex(String), 
-    Any,
-    AnyPath, 
+    Literal(String), // A literal path, e.g. "foo"
+    Regex(String), // A regex path, e.g. "\d+" 
+    Pattern(String, String), // A regex pattern with a pattern name associated with it 
+    Any, // A wildcard path, e.g. "*" 
+    Argument(String), // A path with an argument 
+    AnyPath, // A wildcard path with a trailing slash, e.g. "**" 
 } 
 
 impl PathPattern{ 
@@ -62,9 +61,17 @@ impl PathPattern{
         Self::Regex(path.into()) 
     } 
 
+    pub fn regex_pattern<T: Into<String>, A: Into<String>>(path: T, name: A) -> Self { 
+        Self::Pattern(path.into(), name.into())
+    } 
+
     pub fn any() -> Self { 
         Self::Any 
     } 
+
+    pub fn argument<A: Into<String>>(name: A) -> Self { 
+        Self::Argument(name.into()) 
+    }
 
     pub fn any_path() -> Self { 
         Self::AnyPath 
@@ -92,11 +99,26 @@ pub mod path_pattern_creator {
         PathPattern::Regex(path.into())  
     } 
 
+    /// Creates a regex path pattern with a variable name. 
+    /// The variable name will be able to search the user's input into the url at this segment. 
+    /// This is a wrapper around the regex_path function. 
+    /// This is useful for creating path patterns that are regex. 
+    pub fn regex_pattern<T: Into<String>, A: Into<String>>(path: T, name: A) -> PathPattern { 
+        PathPattern::regex_pattern(path.into(), name.into()) 
+    } 
+
     /// Creates a any pattern. 
     /// You may use this to match any string. 
     /// This is faster then regex when any string should be passed into the same endpoint 
     pub fn any() -> PathPattern { 
         PathPattern::Any 
+    } 
+
+    /// Creates a any pattern with a variable name. 
+    /// This is useful for matching any string. 
+    /// This is faster then regex when any string should be passed into the same endpoint 
+    pub fn argument<A: Into<String>>(name: A) -> PathPattern { 
+        PathPattern::Argument(name.into()) 
     } 
 
     /// Creates a any path pattern. 
@@ -111,7 +133,7 @@ impl PartialEq for PathPattern {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (PathPattern::Literal(l), PathPattern::Literal(r)) => l == r,
-            (PathPattern::Regex(l), PathPattern::Regex(r)) => l == r,
+            (PathPattern::Regex(l), PathPattern::Regex(r)) => l == r, 
             (PathPattern::Any, PathPattern::Any) => true,
             (PathPattern::AnyPath, PathPattern::AnyPath) => true,
             _ => false,
@@ -122,9 +144,11 @@ impl PartialEq for PathPattern {
 impl std::fmt::Display for PathPattern {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            PathPattern::Literal(path) => write!(f, "Literal: {}", path),
-            PathPattern::Regex(path) => write!(f, "Regex: {}", path),
-            PathPattern::Any => write!(f, "*"),
+            PathPattern::Literal(path) => write!(f, "Literal: {}", path), 
+            PathPattern::Regex(path) => write!(f, "Regex: {}", path), 
+            PathPattern::Pattern(path, arg) => write!(f, "Regex {}: {}", arg, path), 
+            PathPattern::Any => write!(f, "*"), 
+            PathPattern::Argument(arg) => write!(f, "* {}", arg), 
             PathPattern::AnyPath => write!(f, "**"),
         } 
     }
@@ -400,8 +424,10 @@ impl Url {
         // Now create the async portion to iterate over the children
         Box::pin(async move {
             for child_url in children.iter() { 
-                // println!("Comparing: {}, {}", child_url.path, this_segment); 
-                match &child_url.path {
+                // println!("Comparing: {}, {}", child_url.path, this_segment);  
+                match &child_url.path { 
+
+                    // Matching the literal paths 
                     PathPattern::Literal(p) => {
                         if p == this_segment { 
                             // println!("Found literal match: {}, {}, Paths: {:?}", p, this_segment, path); 
@@ -411,8 +437,10 @@ impl Url {
                                 return Some(child_url.clone());
                             }
                         }
-                    }
-                    PathPattern::Regex(regex_str) => {
+                    } 
+
+                    // Matches the Regex Path 
+                    PathPattern::Regex(regex_str) | PathPattern::Pattern(regex_str, _ )=> {
                         let re = Regex::new(regex_str).unwrap(); 
                         // println!("Comparing Regex match: {}, {}, Paths: {:?}", re, this_segment, path);  
                         if re.is_match(this_segment) { 
@@ -422,15 +450,19 @@ impl Url {
                                 return Some(child_url.clone());
                             }
                         }
-                    }
-                    PathPattern::Any => {
+                    } 
+
+                    // Matching the Any path 
+                    PathPattern::Any | PathPattern::Argument(_) => {
                         if path.len() >= 1 { 
                             // println!("Found any match: {}, Paths: {:?}", this_segment, path); 
                             return child_url.clone().walk(path).await;
                         } else {
                             return Some(child_url.clone());
                         }
-                    }
+                    } 
+
+                    // Else 
                     PathPattern::AnyPath => {
                         return Some(child_url.clone());
                     }
@@ -451,10 +483,50 @@ impl Url {
         }) 
     } 
 
-    /// Check whether the request's meta matches the URL's parameters. 
-    /// Return false if the request's method is not allowed, or if the content type is not allowed. 
-    /// The Rc's response will be written to the appropriate status code. 
-    pub async fn request_check(self: Arc<Self>, rc: &mut Rc) -> bool { 
+    /// Get the index of segment of the URL by using the argument name 
+    /// If two url pattern have the same name, it will return the last one 
+    /// It will return none if no match is found 
+    pub fn get_segment_index<S: AsRef<str>>(self: &Arc<Self>, name: S) -> Option<usize> { 
+        let mut index = None; 
+        self._step_get_segment_index(name.as_ref(), &mut index); 
+        index 
+    } 
+
+    /// The recursive function will check the ancestor 
+    /// During the first call, the index is None 
+    fn _step_get_segment_index(self: &Arc<Self>, match_path: &str, index: &mut Option<usize>) { 
+        if let None = index {    
+            match &self.path { 
+                PathPattern::Argument(arg) | PathPattern::Pattern(_, arg) => { 
+                    if arg == &match_path { 
+                        *index = Some(0); 
+                    } 
+                } 
+                _ => {} 
+            } 
+        } 
+
+        match &self.ancestor { 
+            Ancestor::Nil => {
+                if let Some(i) = index {
+                    if *i > 0 { 
+                        *i -= 1; 
+                    } 
+                } 
+            } 
+            Ancestor::Some(ancestor) => { 
+                if let Some(i) = index {
+                    *i += 1; 
+                } 
+                ancestor._step_get_segment_index(match_path, index);
+            }
+        }
+    }
+
+    /// Check whether the request's meta matches the URL's parameters.
+    /// Return false if the request's method is not allowed, or if the content type is not allowed.
+    /// The Rc's response will be written to the appropriate status code.
+    pub async fn request_check(self: Arc<Self>, rc: &mut Rc) -> bool {
         if let Some(methods) = self.get_allowed_methods () { 
             if !methods.contains(rc.method()) { 
                 rc.response = return_status(StatusCode::METHOD_NOT_ALLOWED);  

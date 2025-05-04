@@ -19,7 +19,9 @@ Starberry is a lightweight, intuitive web framework focused on simplicity and pr
 - **Flexible Routing**: Support for regex patterns, literal URLs, and nested routes
 - **Asynchronous**: Built with Tokio for efficient async handling
 - **Form Handling**: Easy processing of form data and file uploads
-- **Middleware Support**: Create reusable request processing chains
+- **Middleware Support**: Create reusable request processing chains 
+
+- **Multi-Protocal Support**: Starberry is now planning to handle ingoing or outgoing http(s), ws(s), db and other tcp protocals. This will be implemented after **0.7** 
 
 ## 🚀 Getting Started
 
@@ -224,67 +226,29 @@ async fn redirect() -> HttpResponse {
 }
 ```
 
-## 📋 Changelog
+## 📋 Changelog 
 
-### 0.4.7 (Latest stable) 
-- Added config and statics to APP 
-- Updated Akari into 0.2.2 
-- Removed unnecessary printing 
+### 0.5.0 
+- Enable sending requests through a Connection 
+- Argumented URL 
 
-### 0.4.6 
-- Starberry standard middleware enabled 
-- Removed standard logging 
-
-### 0.4.5 
-- Updates with tokio, enable m:n scaling
-- Graceful shutdown enabled
-- Better URL reg macro
-- Debugging in Build mode 
-- **Important Syntax Change**: You now must use `.await` after `Rc.form`, `Rc.json` or `Rc.file`
-
-### 0.4.4
-- Enable early return if request doesn't match allowed method
-- Bug fix: The blank project will no longer use old syntax
-- `starberry version` implemented
-
-### 0.4.3
-- Enable passing arguments and locals into Rc
-
-### 0.4.2
-- Rc is used to send the response
-- Request body will not be automatically parsed
-- **Important Syntax Update**: Middleware chain passes request context
-
-### 0.4.1
-- Updated middleware syntax
-
-### 0.4.0
-- Wrap the Request with Request context struct
-- Change the name preload into prelude
-- **Important syntax update**: Accept Rc as argument instead of HttpRequest
-
-### 0.3.x and earlier
+### 0.4.x and earlier 
+- Request Context holding all contexts of a request 
+- Simplified middleware definition pattern & Standard middleware library 
 - Added Akari templating support
 - Added cookie manipulation
 - File upload handling
-- Form data processing improvements
+- Form data processing improvements 
 
 ## 🔮 Planned Updates
 
-**0.5 Updates** 
+**All planned updates for 0.4 is already finished** 
 
-- [ ] Request sending 
 - [ ] Standard middleware library (Session) 
 - [ ] Middleware libraries (OAuth, Surreal) 
 - [ ] Static file serving 
 - [ ] Logging 
 - [ ] Seperate Http from core 
-
-**Optimization todo list** 
-
-- Enable Akari Template manager to avoid parsing template for each time 
-- Connection Tcpthread Pool 
-- Max concurrent accepted connection 
 
 ## 📚 Learn More
 
@@ -293,3 +257,5 @@ Learn more about Akari template: https://crates.io/crates/akari
 ## 📄 License
 
 MIT License
+ 
+ 

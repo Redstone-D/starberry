@@ -867,11 +867,11 @@ dependencies = [
 
 [[package]]
 name = "sbmstd"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "dashmap",
  "lazy_static",
- "starberry_core",
+ "starberry_core 0.4.8",
  "starberry_macro",
  "tokio",
 ]
@@ -956,15 +956,15 @@ dependencies = [
 
 [[package]]
 name = "starberry"
-version = "0.5.0-rc1"
+version = "0.5.0-rc2"
 dependencies = [
  "akari",
  "ctor",
  "futures",
  "once_cell",
  "regex",
- "starberry_core",
- "starberry_lib",
+ "starberry_core 0.5.1",
+ "starberry_lib 0.3.0",
  "starberry_macro",
  "tokio",
 ]
@@ -972,6 +972,21 @@ dependencies = [
 [[package]]
 name = "starberry_core"
 version = "0.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fbbf47085dfb9cf6c2b312acf731cd9ca67b068725a82d3ea31d5f8ef58bd064"
+dependencies = [
+ "akari",
+ "futures",
+ "include_dir",
+ "once_cell",
+ "regex",
+ "starberry_lib 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "tokio",
+]
+
+[[package]]
+name = "starberry_core"
+version = "0.5.1"
 dependencies = [
  "akari",
  "futures",
@@ -980,7 +995,7 @@ dependencies = [
  "regex",
  "rustls",
  "rustls-platform-verifier",
- "starberry_lib",
+ "starberry_lib 0.3.0",
  "tokio",
  "tokio-rustls",
  "webpki-roots",
@@ -989,6 +1004,16 @@ dependencies = [
 [[package]]
 name = "starberry_lib"
 version = "0.3.0"
+dependencies = [
+ "percent-encoding",
+ "rand",
+]
+
+[[package]]
+name = "starberry_lib"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd060f7709036d6a2cefd44501f7579cbc74e93d61de7d4945c284ccdf5f9ed8"
 dependencies = [
  "percent-encoding",
  "rand",

@@ -6,7 +6,9 @@ pub use starberry_core::app::urls::path_pattern_creator::{
     literal_path as LitUrl, 
     trailing_slash as TrailingSlash, 
     regex_path as RegUrl, 
+    regex_pattern as PatUrl,  
     any as AnyUrl, 
+    argument as ArgUrl, 
     any_path as AnyPath, 
 }; 
 
