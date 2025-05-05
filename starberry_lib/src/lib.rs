@@ -1,5 +1,29 @@
-use percent_encoding::percent_decode; 
+use percent_encoding::{percent_decode, percent_encode, NON_ALPHANUMERIC}; 
 use rand::Rng; 
+
+/// Encodes a string for URL safety and returns an owned `String`
+/// 
+/// # Example
+/// ```
+/// let encoded = encode_url_owned("Hello World!");
+/// assert_eq!(encoded, "Hello%20World%21");
+/// ```
+pub fn encode_url_owned(input: &str) -> String {
+    percent_encode(input.as_bytes(), NON_ALPHANUMERIC).to_string()
+}
+
+/// Encodes a string in place for URL safety
+/// 
+/// # Example
+/// ```
+/// let mut s = String::from("Hello World!");
+/// encode_url(&mut s);
+/// assert_eq!(s, "Hello%20World%21");
+/// ```
+pub fn encode_url(input: &mut String) {
+    let encoded = encode_url_owned(input);
+    *input = encoded;
+} 
 
 /// Decodes a URL-encoded string and returns an owned `String`.
 ///

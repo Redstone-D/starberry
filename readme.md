@@ -244,11 +244,17 @@ async fn redirect() -> HttpResponse {
 
 **All planned updates for 0.4 is already finished** 
 
-- [ ] Standard middleware library (Session) 
+- [x] Standard middleware library (Session) 
 - [ ] Middleware libraries (OAuth, Surreal) 
 - [ ] Static file serving 
 - [ ] Logging 
-- [ ] Seperate Http from core 
+- [x] Merge HttpRequestBody and HttpResponseBody together 
+- [ ] Merge HttpRequestMeta and HttpResponseMeta together 
+- [ ] Optimize Cookie data structure, unify Request Cookie and Response Cookie together 
+- [x] Enable sending simple requests to external server 
+- [x] Enable form and file send() & get_size() out to external server 
+- [x] URL segment parameters 
+- [ ] Grammar sugar for Regex 
 
 ## 📚 Learn More
 

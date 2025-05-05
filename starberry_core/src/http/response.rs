@@ -1,4 +1,5 @@
 use super::http_value::{self, *}; 
+use super::body::HttpBody; 
 use std::collections::HashMap;
 use std::fmt::Write;
 use tokio::net::TcpStream; 
@@ -52,12 +53,20 @@ impl ResponseHeader {
         } 
     } 
 
+    pub fn get_content_length(&self) -> Option<usize> { 
+        self.content_length 
+    } 
+
     pub fn set_content_length(&mut self, length: usize) { 
         self.content_length = Some(length); 
     } 
 
     pub fn clear_content_length(&mut self) { 
         self.content_length = None; 
+    } 
+
+    pub fn get_content_type(&self) -> Option<HttpContentType> { 
+        self.content_type.clone() 
     } 
 
     pub fn set_content_type(&mut self, content_type: HttpContentType) { 
@@ -131,35 +140,31 @@ impl ResponseHeader {
 pub struct HttpResponse { 
     pub start_line: ResponseStartLine, 
     pub header: ResponseHeader, 
-    pub body: Box<dyn AsRef<[u8]> + Send + Sync>, // Change to trait object
+    pub body: HttpBody 
 }  
 
 impl HttpResponse { 
     pub fn new(
         start_line: ResponseStartLine, 
         header: ResponseHeader, 
-        body: impl AsRef<[u8]> + Send + Sync + 'static, 
+        body: HttpBody, 
     ) -> Self { 
         Self { 
             start_line, 
             header, 
-            body: Box::new(body), // Store as Box<dyn>
+            body, 
         } 
     } 
-
-    pub fn set_content_length(mut self) -> Self { 
-        self.header.set_content_length(self.body.as_ref().as_ref().len());  
-        self 
-    }  
 
     pub fn add_cookie(mut self, cookie: CookieResponse) -> Self { 
         self.header.add_cookie(cookie); 
         self 
     } 
 
-    pub async fn send(&self, stream: &mut TcpStream) -> std::io::Result<()> {
+    pub async fn send(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
-        let mut headers = String::with_capacity(256);
+        let mut headers = String::with_capacity(256); 
+        let bin = self.body.into_static(&mut self.header).await; 
     
         write!(
             &mut headers,
@@ -170,8 +175,7 @@ impl HttpResponse {
         ).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     
         writer.write_all(headers.as_bytes()).await?;
-        writer.write_all(self.body.as_ref().as_ref()).await?; 
-        writer.flush().await?; 
+        writer.write_all(bin).await?; 
         
         Ok(()) 
     } 
@@ -195,7 +199,7 @@ impl Default for HttpResponse {
             status_code: StatusCode::OK, 
         }; 
         let header = ResponseHeader::new(); 
-        let body = ""; // Default body is empty string
+        let body = HttpBody::default(); // Default body is empty string
         HttpResponse::new(start_line, header, body) 
     } 
 } 
@@ -207,6 +211,7 @@ pub mod request_templates {
     use akari::Object;
     use akari::TemplateManager;
 
+    use crate::http::body::HttpBody;
     use crate::http::http_value::HttpContentType;
     use super::ResponseStartLine;  
     use super::ResponseHeader; 
@@ -214,24 +219,24 @@ pub mod request_templates {
     use crate::http::http_value::StatusCode; 
     use super::HttpResponse; 
  
-    pub fn text_response(body: impl AsRef<[u8]> + Send + Sync + 'static) -> HttpResponse { 
+    pub fn text_response(body: impl Into<String>) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
         header.set_content_type(HttpContentType::TextPlain()); 
-        HttpResponse::new(start_line, header, body).set_content_length() 
+        HttpResponse::new(start_line, header, HttpBody::Text(body.into())) 
     } 
 
-    pub fn html_response(body: impl AsRef<[u8]> + Send + Sync + 'static) -> HttpResponse { 
+    pub fn html_response(body: impl Into<Vec<u8>>) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 
             status_code: StatusCode::OK, 
         }; 
         let mut header = ResponseHeader::new(); 
         header.set_content_type(HttpContentType::TextHtml()); 
-        HttpResponse::new(start_line, header, body).set_content_length() 
+        HttpResponse::new(start_line, header, HttpBody::Binary(body.into())) 
     } 
 
     pub fn redirect_response(url: &str) -> HttpResponse { 
@@ -241,7 +246,7 @@ pub mod request_templates {
         }; 
         let mut header = ResponseHeader::new(); 
         header.set_location(url); 
-        HttpResponse::new(start_line, header, "").set_content_length() 
+        HttpResponse::new(start_line, header, HttpBody::Empty) 
     } 
 
     pub fn plain_template_response(file: &str) -> HttpResponse { 
@@ -256,16 +261,16 @@ pub mod request_templates {
             Err(_) => return return_status(StatusCode::NOT_FOUND), 
         }; 
         header.set_content_type(HttpContentType::TextHtml()); 
-        HttpResponse::new(start_line, header, body).set_content_length() 
+        HttpResponse::new(start_line, header, HttpBody::Binary(body)) 
     } 
 
-    pub fn normal_response(status_code: StatusCode, body: impl AsRef<[u8]> + Send + Sync + 'static) -> HttpResponse { 
+    pub fn normal_response(status_code: StatusCode, body: impl Into<Vec<u8>>) -> HttpResponse { 
         let start_line = ResponseStartLine { 
             http_version: HttpVersion::Http11, 
             status_code, 
         }; 
         let header = ResponseHeader::new(); 
-        HttpResponse::new(start_line, header, body) 
+        HttpResponse::new(start_line, header, HttpBody::Binary(body.into())) 
     } 
 
     pub fn json_response(body: Object) -> HttpResponse { 
@@ -275,8 +280,7 @@ pub mod request_templates {
         }; 
         let mut header = ResponseHeader::new(); 
         header.set_content_type(HttpContentType::ApplicationJson()); 
-        let body = body.into_json(); 
-        HttpResponse::new(start_line, header, body).set_content_length() 
+        HttpResponse::new(start_line, header, HttpBody::Json(body)) 
     } 
 
     pub fn template_response(file: &str, data: HashMap<String, Object>) -> HttpResponse { 
@@ -294,7 +298,7 @@ pub mod request_templates {
         header.set_content_type(HttpContentType::TextHtml()); 
         // println!("body: {:?}", result);
         let body = result.into_bytes(); 
-        HttpResponse::new(start_line, header, body).set_content_length() 
+        HttpResponse::new(start_line, header, HttpBody::Binary(body)) 
     }
 
     pub fn return_status<'a>(status_code: StatusCode) -> HttpResponse { 

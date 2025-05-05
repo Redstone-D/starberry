@@ -1,6 +1,6 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::future::{ready, Future, Ready};
+use std::future::{ready, Future};
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -13,8 +13,13 @@ use once_cell::sync::Lazy;
 use crate::app::{application::App, urls::Url};
 use crate::app::urls::dangling_url;
 use crate::http::{
-    http_value::{HttpMethod, MultiForm, UrlEncodedForm},
-    request::{HttpMeta, HttpRequestBody},
+    http_value::HttpMethod, 
+    form::{
+        UrlEncodedForm, 
+        MultiForm
+    }, 
+    request::HttpMeta, 
+    body:: HttpBody, 
     response::HttpResponse
 }; 
 
@@ -25,7 +30,7 @@ pub trait SendResponse {
 /// The `RequestContext` struct is used to hold the context of a request. 
 pub struct Rc { 
     pub meta: HttpMeta, 
-    pub body: HttpRequestBody, 
+    pub body: HttpBody, 
     pub reader: BufReader<TcpStream>, 
     pub app: Arc<App>, 
     pub endpoint: Arc<Url>, 
@@ -43,7 +48,7 @@ pub struct Rc {
 impl Rc  { 
     pub fn new(
         meta: HttpMeta,
-        body: HttpRequestBody,
+        body: HttpBody,
         reader: BufReader<TcpStream>,
         app: Arc<App>,
         endpoint: Arc<Url>, 
@@ -71,11 +76,11 @@ impl Rc  {
             Ok(meta) => meta,
             Err(e) => {
                 println!("Error parsing request: {}", e); 
-                return Self::new(HttpMeta::default(), HttpRequestBody::Unparsed, reader, app.clone(), dangling_url()); 
+                return Self::new(HttpMeta::default(), HttpBody::Unparsed, reader, app.clone(), dangling_url()); 
             }
         }; 
 
-        let body = HttpRequestBody::Unparsed;
+        let body = HttpBody::Unparsed;
         let endpoint = app
             .root_url
             .clone()
@@ -113,8 +118,8 @@ impl Rc  {
     } 
 
     pub async fn parse_body(&mut self) {
-        if let HttpRequestBody::Unparsed = self.body {
-            self.body = HttpRequestBody::parse(
+        if let HttpBody::Unparsed = self.body {
+            self.body = HttpBody::parse(
                 &mut self.reader,
                 self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()),
                 &mut self.meta,
@@ -124,7 +129,7 @@ impl Rc  {
 
     pub async fn form(&mut self) -> Option<&UrlEncodedForm> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpRequestBody::Form(ref data) = self.body {
+        if let HttpBody::Form(ref data) = self.body {
             Some(data)
         } else {
             None
@@ -143,7 +148,7 @@ impl Rc  {
     
     pub async fn files(&mut self) -> Option<&MultiForm> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpRequestBody::Files(ref data) = self.body {
+        if let HttpBody::Files(ref data) = self.body {
             Some(data)
         } else {
             None
@@ -162,7 +167,7 @@ impl Rc  {
     
     pub async fn json(&mut self) -> Option<&Object> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpRequestBody::Json(ref data) = self.body {
+        if let HttpBody::Json(ref data) = self.body {
             Some(data)
         } else {
             None
