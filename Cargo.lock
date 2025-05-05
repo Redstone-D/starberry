@@ -956,14 +956,14 @@ dependencies = [
 
 [[package]]
 name = "starberry"
-version = "0.5.0-rc2"
+version = "0.5.0"
 dependencies = [
  "akari",
  "ctor",
  "futures",
  "once_cell",
  "regex",
- "starberry_core 0.5.1",
+ "starberry_core 0.5.2",
  "starberry_lib 0.3.0",
  "starberry_macro",
  "tokio",
@@ -986,7 +986,7 @@ dependencies = [
 
 [[package]]
 name = "starberry_core"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "akari",
  "futures",
