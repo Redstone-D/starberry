@@ -5,3 +5,4 @@ members = [
     "starberry_core", 
     "sbmstd", 
 ] 
+resolver = "3" 

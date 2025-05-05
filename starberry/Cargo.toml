@@ -9,6 +9,7 @@ repository = "https://github.com/Redstone-D/starberry"
 homepage = "https://fds.rs" 
 categories = ["network-programming", "web-programming::http-server" ]
 keywords = ["full-stack", "web-framework", "starberry"] 
+readme = "../readme.md" 
 
 [dependencies] 
 akari = "0.2.2" 
