@@ -964,7 +964,7 @@ dependencies = [
  "once_cell",
  "regex",
  "starberry_core 0.5.2",
- "starberry_lib 0.3.0",
+ "starberry_lib 0.5.0",
  "starberry_macro",
  "tokio",
 ]
@@ -980,7 +980,7 @@ dependencies = [
  "include_dir",
  "once_cell",
  "regex",
- "starberry_lib 0.3.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "starberry_lib 0.3.0",
  "tokio",
 ]
 
@@ -995,7 +995,7 @@ dependencies = [
  "regex",
  "rustls",
  "rustls-platform-verifier",
- "starberry_lib 0.3.0",
+ "starberry_lib 0.5.0",
  "tokio",
  "tokio-rustls",
  "webpki-roots",
@@ -1004,6 +1004,8 @@ dependencies = [
 [[package]]
 name = "starberry_lib"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd060f7709036d6a2cefd44501f7579cbc74e93d61de7d4945c284ccdf5f9ed8"
 dependencies = [
  "percent-encoding",
  "rand",
@@ -1011,9 +1013,7 @@ dependencies = [
 
 [[package]]
 name = "starberry_lib"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd060f7709036d6a2cefd44501f7579cbc74e93d61de7d4945c284ccdf5f9ed8"
+version = "0.5.0"
 dependencies = [
  "percent-encoding",
  "rand",
