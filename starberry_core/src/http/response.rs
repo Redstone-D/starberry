@@ -1,3 +1,4 @@
+use super::cookie::{Cookie, CookieMap};
 use super::http_value::{self, *}; 
 use super::body::HttpBody; 
 use std::collections::HashMap;
@@ -25,7 +26,7 @@ pub struct ResponseHeader{
     content_type: Option<HttpContentType>, 
     content_length: Option<usize>, 
     location: Option<String>, 
-    cookie: Option<Vec<CookieResponse>>, 
+    cookie: Option<CookieMap>, 
     pub header: HashMap<String, String>, 
 } 
 
@@ -85,18 +86,18 @@ impl ResponseHeader {
         self.location = None; 
     } 
 
-    pub fn cookie(mut self, cookie: CookieResponse) -> Self { 
-        self.add_cookie(cookie); 
+    pub fn cookie<T: Into<String>>(mut self, key: T, cookie: Cookie) -> Self { 
+        self.add_cookie(key, cookie); 
         self 
     } 
 
     /// Add a cookie to the response header. 
-    pub fn add_cookie(&mut self, cookie: CookieResponse) { 
+    pub fn add_cookie<T: Into<String>>(&mut self, key: T, cookie: Cookie) { 
         if self.cookie.is_none() { 
-            self.cookie = Some(vec![]); 
+            self.cookie = Some(CookieMap::new()); 
         } 
         if let Some(ref mut cookies) = self.cookie { 
-            cookies.push(cookie); 
+            cookies.set(key, cookie); 
         } 
     } 
 
@@ -105,11 +106,9 @@ impl ResponseHeader {
         self.cookie = None; 
     } 
 
-    pub fn remove_cookie(&mut self, name: &str) -> Option<CookieResponse> { 
+    pub fn remove_cookie<T: AsRef<str>>(&mut self, name: T) -> Option<Cookie> { 
         if let Some(ref mut cookies) = self.cookie { 
-            if let Some(index) = cookies.iter().position(|c| c.name == name) { 
-                return Some(cookies.remove(index)); 
-            } 
+            return cookies.remove(name); 
         } 
         None 
     } 
@@ -126,9 +125,7 @@ impl ResponseHeader {
             result.push_str(&format!("Location: {}\r\n", location)); 
         } 
         if let Some(ref cookies) = self.cookie { 
-            for cookie in cookies { 
-                result.push_str(&format!("Set-Cookie: {}\r\n", cookie.to_string())); 
-            } 
+            result.push_str(&format!("{}\r\n", cookies.response()));  
         } 
         for (key, value) in &self.header { 
             result.push_str(&format!("{}: {}\r\n", key, value)); 
@@ -156,8 +153,8 @@ impl HttpResponse {
         } 
     } 
 
-    pub fn add_cookie(mut self, cookie: CookieResponse) -> Self { 
-        self.header.add_cookie(cookie); 
+    pub fn add_cookie<T: Into<String>>(mut self, key: T, cookie: Cookie) -> Self { 
+        self.header.add_cookie(key, cookie); 
         self 
     } 
 
@@ -176,6 +173,9 @@ impl HttpResponse {
     
         writer.write_all(headers.as_bytes()).await?;
         writer.write_all(bin).await?; 
+
+        // println!("{}, {:?}", headers, bin); 
+        writer.flush().await?; 
         
         Ok(()) 
     } 

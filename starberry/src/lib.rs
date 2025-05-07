@@ -26,6 +26,7 @@ pub use starberry_core::http::request::HttpMeta;
 pub use starberry_core::http::response::HttpResponse;  
 
 pub use starberry_core::http::http_value::*; 
+pub use starberry_core::http::cookie::*; 
 pub use starberry_core::http::body::*; 
 pub use starberry_core::http::form::*; 
 

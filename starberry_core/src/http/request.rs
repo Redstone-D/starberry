@@ -1,5 +1,6 @@
 use crate::app::urls::Url;
-use starberry_lib::decode_url_owned;
+use starberry_lib::decode_url_owned; 
+use super::cookie::{Cookie, CookieMap}; 
 
 use super::http_value::*;
 use akari::Object;
@@ -19,7 +20,7 @@ pub struct HttpMeta {
     pub header: HashMap<String, String>,
     content_type: Option<HttpContentType>,
     content_length: Option<usize>,
-    cookies: Option<HashMap<String, String>>,
+    cookies: Option<CookieMap>,
 } 
 
 /// RequestStartLine is the first line of the HTTP request, which contains the method, path, and HTTP version.
@@ -467,32 +468,34 @@ impl HttpMeta {
     /// It is used to get the value of a header from the RequestHeader object.
     /// # Example
     /// ```rust
-    /// use starberry_core::http::request::RequestHeader;
+    /// use starberry_core::http::request::HttpMeta;
     /// use starberry_core::http::http_value::HttpContentType;
     /// use std::collections::HashMap;
+    /// use starberry_core::http::cookie::CookieMap; 
     /// let headers = vec![
     ///   "Content-Type: text/html".to_string(),
     ///   "Content-Length: 123".to_string(),
     ///   "Cookie: sessionId=abc123; theme=dark; loggedIn=true".to_string(),
     /// ];
-    /// let mut request_header = RequestHeader::parse(headers);
-    /// assert_eq!(request_header.get_cookies(), &HashMap::from([("sessionId".to_string(), "abc123".to_string()), ("theme".to_string(), "dark".to_string()), ("loggedIn".to_string(), "true".to_string())]));
-    pub fn get_cookies(&mut self) -> &HashMap<String, String> {
-        if self.cookies.is_none() {
+    /// let mut request_header = HttpMeta::default(); 
+    /// request_header.header = HttpMeta::parse(headers); 
+    /// assert_eq!(request_header.get_cookies().clone(), CookieMap::from(HashMap::from([("sessionId".to_string(), "abc123".to_string()), ("theme".to_string(), "dark".to_string()), ("loggedIn".to_string(), "true".to_string())])));
+    pub fn get_cookies(&mut self) -> &CookieMap {
+        if self.cookies.is_none() { 
             self.cookies = Some(self.parse_cookies());
         }
         self.cookies.as_ref().unwrap()
     }
 
-    pub fn get_cookie(&mut self, key: &str) -> Option<String> {
+    pub fn get_cookie<T: AsRef<str>>(&mut self, key: T) -> Option<Cookie> {
         if self.cookies.is_none() {
             self.cookies = Some(self.parse_cookies());
         }
         return self.cookies.as_ref().unwrap().get(key).cloned();
     } 
 
-    pub fn get_cookie_or_default(&mut self, key: &str) -> String {
-        self.get_cookie(key).unwrap_or("".to_string())
+    pub fn get_cookie_or_default<T: AsRef<str>>(&mut self, key: T) -> Cookie {
+        self.get_cookie(key).unwrap_or(Cookie::new(""))
     } 
 
     /// It is used to get the value of a header from the RequestHeader object.
@@ -500,7 +503,8 @@ impl HttpMeta {
     /// # Example
     /// ```rust
     /// use starberry_core::http::request::RequestHeader;
-    /// use starberry_core::http::http_value::HttpContentType;
+    /// use starberry_core::http::http_value::HttpContentType; 
+    /// use starberry_core::http::cookie::CookieMap; 
     /// use std::collections::HashMap;
     /// let headers = vec![
     ///    "Content-Type: text/html".to_string(),
@@ -509,24 +513,15 @@ impl HttpMeta {
     /// ];
     /// let mut request_header = RequestHeader::parse(headers);
     /// request_header.parse_cookies();
-    /// assert_eq!(request_header.get_cookies(), HashMap::from([("sessionId".to_string(), "abc123".to_string()), ("theme".to_string(), "dark".to_string()), ("loggedIn".to_string(), "true".to_string())]));
-    pub fn parse_cookies(&mut self) -> HashMap<String, String> {
-        let cookies = match self.header.get("COOKIE") {
-            Some(cookies) => cookies,
-            None => return HashMap::new(),
-        };
-        let mut cookie_map = HashMap::new();
-        for cookie in cookies.split(';') {
-            let parts: Vec<&str> = cookie.split('=').collect();
-            if parts.len() == 2 {
-                cookie_map.insert(parts[0].trim().to_string(), parts[1].trim().to_string());
-            }
-        }
-        self.cookies = Some(cookie_map.clone());
-        cookie_map
+    /// assert_eq!(request_header.get_cookies(), CookieMap::from([("sessionId".to_string(), "abc123".to_string()), ("theme".to_string(), "dark".to_string()), ("loggedIn".to_string(), "true".to_string())]));
+    pub fn parse_cookies(&mut self) -> CookieMap {
+        match self.header.get("COOKIE") {
+            Some(cookies) => CookieMap::parse(cookies),
+            None => return CookieMap::default() 
+        } 
     }
 
-    pub fn set_cookies(&mut self, cookies: HashMap<String, String>) {
+    pub fn set_cookies(&mut self, cookies: CookieMap) { 
         self.cookies = Some(cookies);
     }
 

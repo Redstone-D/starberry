@@ -139,6 +139,9 @@ impl HttpBody {
                 bin 
             }
             _ => {
+                if let None = meta.get_content_length() {
+                    meta.set_content_length(0); 
+                } 
                 &EMPTY 
             } 
         } 

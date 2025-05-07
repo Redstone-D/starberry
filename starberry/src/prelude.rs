@@ -13,7 +13,7 @@ pub use crate::url;
 pub use crate::middleware; 
 pub use crate::reg; 
 pub use crate::HttpMethod::*; 
-pub use crate::CookieResponse as Cookie;  
+pub use crate::{Cookie, CookieMap}; 
 pub use crate::StatusCode; 
 pub use crate::{MultiFormField, MultiFormFieldFile}; 
 pub use crate::AsyncMiddleware; 

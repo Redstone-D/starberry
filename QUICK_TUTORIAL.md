@@ -92,6 +92,8 @@ Then you may visit this page through the url of `/test/123` (Actually you can vi
 
 *Note: Please notice there is no trailing slash. The url with or without trailing slash are different 
 
+While also note that each UrlPattern can only match one part of the path. Which means that you must not use `LitUrl("aaa/bbb")`, instead you should use `LitUrl(aaa), LitUrl("bbb")` 
+
 There is another way of registering url, 
 
 ```rust
@@ -224,6 +226,20 @@ Akari template is a templating language, which wrap its syntax in `-[ ... ]-`. W
 # Chapter 4: HttpRequest and HttpResponse 
 
 # Chapter 5: Deep seek into Http 
+
+HttpRequest and HttpResponse consists of two parts, HttpMeta and HttpBody 
+
+HttpMeta is "Lazy loading", which means that when generating the HttpMeta, it will just fetch all data as unparsed from the Buffered Reader and store it in a `HashMap: <String, String>`. 
+
+Where when user tries to use the associated method, such as `get_content_type()`, starberry will do the following things 
+
+(1): Check whether content_type has been cached 
+(2): If it is being cached, directly return the cached data. **IT WILL NOT CHECK WHETHER THE HASHMAP HAS BEEN MODIFIED**, since the hashmap is designed to be write for only once, when it is initializing 
+(3): If not, get the String data of content type from the hashmap, and convert it into HttpContentType. Cache it and return the data 
+
+The same design is introduced in HttpBody also. The response will not be automatically being parsed. When you call the body getting method such as `Rc::form()` or `Rc::json()`, it first reads the buffer then store the compiled data into cache. 
+
+Since 0.5, the Response and Request shares the same HttpBody and HttpMeta. However in 0.4 these attributes only applies to Request side 
 
 # Chapter 6: Request context, Standard Middleware and Building Application 
 
@@ -362,13 +378,7 @@ After that the APP is built and run
 
 # Chapter 7: Form, file and Akari Json 
 
-# Chapter 8: Cookies & Session
-
-**Note: Session is not implemented in 0.4 version** 
-
-### Reading Cookies from the Request 
-
-
+# Chapter 8: Cookies & Session 
 
 # Chapter 9: Advanced Akari operations & templating 
 

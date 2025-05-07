@@ -12,6 +12,7 @@ use once_cell::sync::Lazy;
 
 use crate::app::{application::App, urls::Url};
 use crate::app::urls::dangling_url;
+use crate::http::cookie::{Cookie, CookieMap};
 use crate::http::{
     http_value::HttpMethod, 
     form::{
@@ -208,15 +209,15 @@ impl Rc  {
         self.meta.method() 
     } 
 
-    pub fn get_cookies(&mut self) -> &HashMap<String, String> { 
+    pub fn get_cookies(&mut self) -> &CookieMap { 
         self.meta.get_cookies() 
     } 
 
-    pub fn get_cookie(&mut self, key: &str) -> Option<String> { 
+    pub fn get_cookie(&mut self, key: &str) -> Option<Cookie> { 
         self.meta.get_cookie(key) 
     } 
 
-    pub fn get_cookie_or_default(&mut self, key: &str) -> String { 
+    pub fn get_cookie_or_default<T: AsRef<str>>(&mut self, key: T) -> Cookie { 
         self.meta.get_cookie_or_default(key) 
     } 
 

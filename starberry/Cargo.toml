@@ -1,6 +1,6 @@
 [package]
 name = "starberry"
-version = "0.5.0" 
+version = "0.5.1-rc1" 
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "Small, sweet, easy framework for full-stack web application" 
@@ -9,7 +9,7 @@ repository = "https://github.com/Redstone-D/starberry"
 homepage = "https://fds.rs" 
 categories = ["network-programming", "web-programming::http-server" ]
 keywords = ["full-stack", "web-framework", "starberry"] 
-readme = "../readme.md" 
+readme = "readme.md" 
 
 [dependencies] 
 akari = "0.2.2" 

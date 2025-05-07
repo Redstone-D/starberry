@@ -1,3 +1,11 @@
+0.5.1: Unify Cookie in Response and Request, deleted the old CookieResponse module 
+
+(Important Bug Fix) 
+
+Able to send Redirect Response. Redirect Response will send nothing in previous 0.5.x version 
+
+Starberry now can be compiled on Windows devices 
+
 0.5.0: Enable argumented url 
 
 Possible for starberry to send out-going request 
