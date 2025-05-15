@@ -97,6 +97,12 @@ impl std::fmt::Display for HttpMethod {
     } 
 } 
 
+impl Default for HttpMethod { 
+    fn default() -> Self { 
+        HttpMethod::GET  
+    } 
+} 
+
 impl PartialEq<&HttpMethod> for HttpMethod { 
     fn eq(&self, other: &&HttpMethod) -> bool { 
         self == *other 
@@ -109,125 +115,578 @@ impl PartialEq<HttpMethod> for &HttpMethod {
     }
 } 
 
-pub enum StatusCode { 
-    OK = 200, 
-    CREATED = 201, 
-    ACCEPTED = 202, 
-    NO_CONTENT = 204, 
-    MOVED_PERMANENTLY = 301, 
-    FOUND = 302, 
-    NOT_MODIFIED = 304, 
-    BAD_REQUEST = 400, 
-    UNAUTHORIZED = 401, 
-    FORBIDDEN = 403, 
-    NOT_FOUND = 404, 
-    METHOD_NOT_ALLOWED = 405, 
-    UNSUPPORTED_MEDIA_TYPE = 415, 
-    INTERNAL_SERVER_ERROR = 500, 
-    NOT_IMPLEMENTED = 501, 
-    BAD_GATEWAY = 502, 
-    SERVICE_UNAVAILABLE = 503,  
-    GATEWAY_TIMEOUT = 504, 
-} 
+/// Represents HTTP status codes.
+///
+/// This enum includes the most common HTTP status codes and provides methods
+/// to check status code categories, convert between numeric and string representations,
+/// and perform other common operations.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum StatusCode {
+    // 1xx - Informational
+    CONTINUE = 100,
+    SWITCHING_PROTOCOLS = 101,
+    PROCESSING = 102,
+    EARLY_HINTS = 103,
 
-impl StatusCode { 
-    pub fn to_string(&self) -> String { 
-        match self { 
-            StatusCode::OK => "200 OK".to_string(), 
-            StatusCode::CREATED => "201 Created".to_string(), 
-            StatusCode::ACCEPTED => "202 Accepted".to_string(), 
-            StatusCode::NO_CONTENT => "204 No Content".to_string(), 
-            StatusCode::MOVED_PERMANENTLY => "301 Moved Permanently".to_string(), 
-            StatusCode::FOUND => "302 Found".to_string(), 
-            StatusCode::NOT_MODIFIED => "304 Not Modified".to_string(), 
-            StatusCode::BAD_REQUEST => "400 Bad Request".to_string(), 
-            StatusCode::UNAUTHORIZED => "401 Unauthorized".to_string(), 
-            StatusCode::FORBIDDEN => "403 Forbidden".to_string(), 
-            StatusCode::NOT_FOUND => "404 Not Found".to_string(), 
-            StatusCode::METHOD_NOT_ALLOWED => "405 Method Not Allowed".to_string(), 
-            StatusCode::UNSUPPORTED_MEDIA_TYPE => "415 Unsupported Media Type".to_string(), 
-            StatusCode::INTERNAL_SERVER_ERROR => "500 Internal Server Error".to_string(), 
-            StatusCode::NOT_IMPLEMENTED => "501 Not Implemented".to_string(), 
-            StatusCode::BAD_GATEWAY => "502 Bad Gateway".to_string(), 
-            StatusCode::SERVICE_UNAVAILABLE => "503 Service Unavailable".to_string(), 
-            StatusCode::GATEWAY_TIMEOUT => "504 Gateway Timeout".to_string(),  
-        } 
-    } 
+    // 2xx - Success
+    OK = 200,
+    CREATED = 201,
+    ACCEPTED = 202,
+    NON_AUTHORITATIVE_INFORMATION = 203,
+    NO_CONTENT = 204,
+    RESET_CONTENT = 205,
+    PARTIAL_CONTENT = 206,
+    MULTI_STATUS = 207,
+    ALREADY_REPORTED = 208,
+    IM_USED = 226,
 
-    pub fn to_u16(&self) -> u16 { 
-        match self { 
-            StatusCode::OK => 200, 
-            StatusCode::CREATED => 201, 
-            StatusCode::ACCEPTED => 202, 
-            StatusCode::NO_CONTENT => 204, 
-            StatusCode::MOVED_PERMANENTLY => 301, 
-            StatusCode::FOUND => 302, 
-            StatusCode::NOT_MODIFIED => 304, 
-            StatusCode::BAD_REQUEST => 400, 
-            StatusCode::UNAUTHORIZED => 401, 
-            StatusCode::FORBIDDEN => 403, 
-            StatusCode::NOT_FOUND => 404, 
-            StatusCode::METHOD_NOT_ALLOWED => 405, 
-            StatusCode::UNSUPPORTED_MEDIA_TYPE => 415, 
-            StatusCode::INTERNAL_SERVER_ERROR => 500, 
-            StatusCode::NOT_IMPLEMENTED => 501, 
-            StatusCode::BAD_GATEWAY => 502, 
-            StatusCode::SERVICE_UNAVAILABLE => 503,  
-            StatusCode::GATEWAY_TIMEOUT => 504,  
-        } 
-    } 
+    // 3xx - Redirection
+    MULTIPLE_CHOICES = 300,
+    MOVED_PERMANENTLY = 301,
+    FOUND = 302,
+    SEE_OTHER = 303,
+    NOT_MODIFIED = 304,
+    USE_PROXY = 305,
+    TEMPORARY_REDIRECT = 307,
+    PERMANENT_REDIRECT = 308,
 
-    pub fn from_u16(code: u16) -> Self { 
-        match code { 
-            200 => StatusCode::OK, 
-            201 => StatusCode::CREATED, 
-            202 => StatusCode::ACCEPTED, 
-            204 => StatusCode::NO_CONTENT, 
-            301 => StatusCode::MOVED_PERMANENTLY, 
-            302 => StatusCode::FOUND, 
-            304 => StatusCode::NOT_MODIFIED, 
-            400 => StatusCode::BAD_REQUEST, 
-            401 => StatusCode::UNAUTHORIZED, 
-            403 => StatusCode::FORBIDDEN, 
-            404 => StatusCode::NOT_FOUND, 
-            405 => StatusCode::METHOD_NOT_ALLOWED, 
-            415 => StatusCode::UNSUPPORTED_MEDIA_TYPE, 
-            500 => StatusCode::INTERNAL_SERVER_ERROR, 
-            501 => StatusCode::NOT_IMPLEMENTED, 
-            502 => StatusCode::BAD_GATEWAY, 
-            503 => StatusCode::SERVICE_UNAVAILABLE,  
-            _ => StatusCode::INTERNAL_SERVER_ERROR, 
-        } 
-    } 
+    // 4xx - Client Error
+    BAD_REQUEST = 400,
+    UNAUTHORIZED = 401,
+    PAYMENT_REQUIRED = 402,
+    FORBIDDEN = 403,
+    NOT_FOUND = 404,
+    METHOD_NOT_ALLOWED = 405,
+    NOT_ACCEPTABLE = 406,
+    PROXY_AUTHENTICATION_REQUIRED = 407,
+    REQUEST_TIMEOUT = 408,
+    CONFLICT = 409,
+    GONE = 410,
+    LENGTH_REQUIRED = 411,
+    PRECONDITION_FAILED = 412,
+    PAYLOAD_TOO_LARGE = 413,
+    URI_TOO_LONG = 414,
+    UNSUPPORTED_MEDIA_TYPE = 415,
+    RANGE_NOT_SATISFIABLE = 416,
+    EXPECTATION_FAILED = 417,
+    IM_A_TEAPOT = 418,
+    MISDIRECTED_REQUEST = 421,
+    UNPROCESSABLE_ENTITY = 422,
+    LOCKED = 423,
+    FAILED_DEPENDENCY = 424,
+    TOO_EARLY = 425,
+    UPGRADE_REQUIRED = 426,
+    PRECONDITION_REQUIRED = 428,
+    TOO_MANY_REQUESTS = 429,
+    REQUEST_HEADER_FIELDS_TOO_LARGE = 431,
+    UNAVAILABLE_FOR_LEGAL_REASONS = 451,
 
-    pub fn from_string(code: &str) -> Self { 
-        match code { 
-            "200 OK" => StatusCode::OK, 
-            "201 Created" => StatusCode::CREATED, 
-            "202 Accepted" => StatusCode::ACCEPTED, 
-            "204 No Content" => StatusCode::NO_CONTENT, 
-            "301 Moved Permanently" => StatusCode::MOVED_PERMANENTLY, 
-            "302 Found" => StatusCode::FOUND, 
-            "304 Not Modified" => StatusCode::NOT_MODIFIED, 
-            "400 Bad Request" => StatusCode::BAD_REQUEST, 
-            "401 Unauthorized" => StatusCode::UNAUTHORIZED, 
-            "403 Forbidden" => StatusCode::FORBIDDEN, 
-            "404 Not Found" => StatusCode::NOT_FOUND, 
-            "405 Method Not Allowed" => StatusCode::METHOD_NOT_ALLOWED, 
-            "415 Unsupported Media Type" => StatusCode::UNSUPPORTED_MEDIA_TYPE, 
-            "500 Internal Server Error" => StatusCode::INTERNAL_SERVER_ERROR, 
-            "501 Not Implemented" => StatusCode::NOT_IMPLEMENTED, 
-            "502 Bad Gateway" => StatusCode::BAD_GATEWAY, 
-            "503 Service Unavailable" => StatusCode::SERVICE_UNAVAILABLE,  
-            _ => StatusCode::INTERNAL_SERVER_ERROR, 
-        } 
-    } 
-} 
+    // 5xx - Server Error
+    INTERNAL_SERVER_ERROR = 500,
+    NOT_IMPLEMENTED = 501,
+    BAD_GATEWAY = 502,
+    SERVICE_UNAVAILABLE = 503,
+    GATEWAY_TIMEOUT = 504,
+    HTTP_VERSION_NOT_SUPPORTED = 505,
+    VARIANT_ALSO_NEGOTIATES = 506,
+    INSUFFICIENT_STORAGE = 507,
+    LOOP_DETECTED = 508,
+    NOT_EXTENDED = 510,
+    NETWORK_AUTHENTICATION_REQUIRED = 511,
 
-impl std::fmt::Display for StatusCode { 
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
-        write!(f, "{}", self.to_string()) 
-    } 
+    // Unknown status code
+    UNKNOWN = 0,
+}
+
+impl StatusCode {
+    /// Returns the numeric value of the status code.
+    ///
+    /// # Returns
+    ///
+    /// The u16 value of this status code.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let code = StatusCode::OK;
+    /// assert_eq!(code.as_u16(), 200);
+    /// ```
+    pub fn as_u16(&self) -> u16 {
+        self.clone() as u16
+    }
+
+    /// Returns a string representation of the status code.
+    ///
+    /// # Returns
+    ///
+    /// A string containing both the numeric code and its reason phrase.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// let code = StatusCode::OK;
+    /// assert_eq!(code.to_string(), "200 OK");
+    /// ```
+    pub fn to_string(&self) -> String {
+        match self {
+            StatusCode::CONTINUE => "100 Continue",
+            StatusCode::SWITCHING_PROTOCOLS => "101 Switching Protocols",
+            StatusCode::PROCESSING => "102 Processing",
+            StatusCode::EARLY_HINTS => "103 Early Hints",
+            
+            StatusCode::OK => "200 OK",
+            StatusCode::CREATED => "201 Created",
+            StatusCode::ACCEPTED => "202 Accepted",
+            StatusCode::NON_AUTHORITATIVE_INFORMATION => "203 Non-Authoritative Information",
+            StatusCode::NO_CONTENT => "204 No Content",
+            StatusCode::RESET_CONTENT => "205 Reset Content",
+            StatusCode::PARTIAL_CONTENT => "206 Partial Content",
+            StatusCode::MULTI_STATUS => "207 Multi-Status",
+            StatusCode::ALREADY_REPORTED => "208 Already Reported",
+            StatusCode::IM_USED => "226 IM Used",
+            
+            StatusCode::MULTIPLE_CHOICES => "300 Multiple Choices",
+            StatusCode::MOVED_PERMANENTLY => "301 Moved Permanently",
+            StatusCode::FOUND => "302 Found",
+            StatusCode::SEE_OTHER => "303 See Other",
+            StatusCode::NOT_MODIFIED => "304 Not Modified",
+            StatusCode::USE_PROXY => "305 Use Proxy",
+            StatusCode::TEMPORARY_REDIRECT => "307 Temporary Redirect",
+            StatusCode::PERMANENT_REDIRECT => "308 Permanent Redirect",
+            
+            StatusCode::BAD_REQUEST => "400 Bad Request",
+            StatusCode::UNAUTHORIZED => "401 Unauthorized",
+            StatusCode::PAYMENT_REQUIRED => "402 Payment Required",
+            StatusCode::FORBIDDEN => "403 Forbidden",
+            StatusCode::NOT_FOUND => "404 Not Found",
+            StatusCode::METHOD_NOT_ALLOWED => "405 Method Not Allowed",
+            StatusCode::NOT_ACCEPTABLE => "406 Not Acceptable",
+            StatusCode::PROXY_AUTHENTICATION_REQUIRED => "407 Proxy Authentication Required",
+            StatusCode::REQUEST_TIMEOUT => "408 Request Timeout",
+            StatusCode::CONFLICT => "409 Conflict",
+            StatusCode::GONE => "410 Gone",
+            StatusCode::LENGTH_REQUIRED => "411 Length Required",
+            StatusCode::PRECONDITION_FAILED => "412 Precondition Failed",
+            StatusCode::PAYLOAD_TOO_LARGE => "413 Payload Too Large",
+            StatusCode::URI_TOO_LONG => "414 URI Too Long",
+            StatusCode::UNSUPPORTED_MEDIA_TYPE => "415 Unsupported Media Type",
+            StatusCode::RANGE_NOT_SATISFIABLE => "416 Range Not Satisfiable",
+            StatusCode::EXPECTATION_FAILED => "417 Expectation Failed",
+            StatusCode::IM_A_TEAPOT => "418 I'm a teapot",
+            StatusCode::MISDIRECTED_REQUEST => "421 Misdirected Request",
+            StatusCode::UNPROCESSABLE_ENTITY => "422 Unprocessable Entity",
+            StatusCode::LOCKED => "423 Locked",
+            StatusCode::FAILED_DEPENDENCY => "424 Failed Dependency",
+            StatusCode::TOO_EARLY => "425 Too Early",
+            StatusCode::UPGRADE_REQUIRED => "426 Upgrade Required",
+            StatusCode::PRECONDITION_REQUIRED => "428 Precondition Required",
+            StatusCode::TOO_MANY_REQUESTS => "429 Too Many Requests",
+            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE => "431 Request Header Fields Too Large",
+            StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS => "451 Unavailable For Legal Reasons",
+            
+            StatusCode::INTERNAL_SERVER_ERROR => "500 Internal Server Error",
+            StatusCode::NOT_IMPLEMENTED => "501 Not Implemented",
+            StatusCode::BAD_GATEWAY => "502 Bad Gateway",
+            StatusCode::SERVICE_UNAVAILABLE => "503 Service Unavailable",
+            StatusCode::GATEWAY_TIMEOUT => "504 Gateway Timeout",
+            StatusCode::HTTP_VERSION_NOT_SUPPORTED => "505 HTTP Version Not Supported",
+            StatusCode::VARIANT_ALSO_NEGOTIATES => "506 Variant Also Negotiates",
+            StatusCode::INSUFFICIENT_STORAGE => "507 Insufficient Storage",
+            StatusCode::LOOP_DETECTED => "508 Loop Detected",
+            StatusCode::NOT_EXTENDED => "510 Not Extended",
+            StatusCode::NETWORK_AUTHENTICATION_REQUIRED => "511 Network Authentication Required",
+            
+            StatusCode::UNKNOWN => "0 Unknown",
+        }.to_string()
+    }
+
+    /// Gets only the reason phrase part of the status code.
+    ///
+    /// # Returns
+    ///
+    /// The reason phrase part of the status code.
+    pub fn reason_phrase(&self) -> &'static str {
+        match self {
+            StatusCode::CONTINUE => "Continue",
+            StatusCode::SWITCHING_PROTOCOLS => "Switching Protocols",
+            StatusCode::PROCESSING => "Processing",
+            StatusCode::EARLY_HINTS => "Early Hints",
+            
+            StatusCode::OK => "OK",
+            StatusCode::CREATED => "Created",
+            StatusCode::ACCEPTED => "Accepted",
+            StatusCode::NON_AUTHORITATIVE_INFORMATION => "Non-Authoritative Information",
+            StatusCode::NO_CONTENT => "No Content",
+            StatusCode::RESET_CONTENT => "Reset Content",
+            StatusCode::PARTIAL_CONTENT => "Partial Content",
+            StatusCode::MULTI_STATUS => "Multi-Status",
+            StatusCode::ALREADY_REPORTED => "Already Reported",
+            StatusCode::IM_USED => "IM Used",
+            
+            StatusCode::MULTIPLE_CHOICES => "Multiple Choices",
+            StatusCode::MOVED_PERMANENTLY => "Moved Permanently",
+            StatusCode::FOUND => "Found",
+            StatusCode::SEE_OTHER => "See Other",
+            StatusCode::NOT_MODIFIED => "Not Modified",
+            StatusCode::USE_PROXY => "Use Proxy",
+            StatusCode::TEMPORARY_REDIRECT => "Temporary Redirect",
+            StatusCode::PERMANENT_REDIRECT => "Permanent Redirect",
+            
+            StatusCode::BAD_REQUEST => "Bad Request",
+            StatusCode::UNAUTHORIZED => "Unauthorized",
+            StatusCode::PAYMENT_REQUIRED => "Payment Required",
+            StatusCode::FORBIDDEN => "Forbidden",
+            StatusCode::NOT_FOUND => "Not Found",
+            StatusCode::METHOD_NOT_ALLOWED => "Method Not Allowed",
+            StatusCode::NOT_ACCEPTABLE => "Not Acceptable",
+            StatusCode::PROXY_AUTHENTICATION_REQUIRED => "Proxy Authentication Required",
+            StatusCode::REQUEST_TIMEOUT => "Request Timeout",
+            StatusCode::CONFLICT => "Conflict",
+            StatusCode::GONE => "Gone",
+            StatusCode::LENGTH_REQUIRED => "Length Required",
+            StatusCode::PRECONDITION_FAILED => "Precondition Failed",
+            StatusCode::PAYLOAD_TOO_LARGE => "Payload Too Large",
+            StatusCode::URI_TOO_LONG => "URI Too Long",
+            StatusCode::UNSUPPORTED_MEDIA_TYPE => "Unsupported Media Type",
+            StatusCode::RANGE_NOT_SATISFIABLE => "Range Not Satisfiable",
+            StatusCode::EXPECTATION_FAILED => "Expectation Failed",
+            StatusCode::IM_A_TEAPOT => "I'm a teapot",
+            StatusCode::MISDIRECTED_REQUEST => "Misdirected Request",
+            StatusCode::UNPROCESSABLE_ENTITY => "Unprocessable Entity",
+            StatusCode::LOCKED => "Locked",
+            StatusCode::FAILED_DEPENDENCY => "Failed Dependency",
+            StatusCode::TOO_EARLY => "Too Early",
+            StatusCode::UPGRADE_REQUIRED => "Upgrade Required",
+            StatusCode::PRECONDITION_REQUIRED => "Precondition Required",
+            StatusCode::TOO_MANY_REQUESTS => "Too Many Requests",
+            StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE => "Request Header Fields Too Large",
+            StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS => "Unavailable For Legal Reasons",
+            
+            StatusCode::INTERNAL_SERVER_ERROR => "Internal Server Error",
+            StatusCode::NOT_IMPLEMENTED => "Not Implemented",
+            StatusCode::BAD_GATEWAY => "Bad Gateway",
+            StatusCode::SERVICE_UNAVAILABLE => "Service Unavailable",
+            StatusCode::GATEWAY_TIMEOUT => "Gateway Timeout",
+            StatusCode::HTTP_VERSION_NOT_SUPPORTED => "HTTP Version Not Supported",
+            StatusCode::VARIANT_ALSO_NEGOTIATES => "Variant Also Negotiates",
+            StatusCode::INSUFFICIENT_STORAGE => "Insufficient Storage",
+            StatusCode::LOOP_DETECTED => "Loop Detected",
+            StatusCode::NOT_EXTENDED => "Not Extended",
+            StatusCode::NETWORK_AUTHENTICATION_REQUIRED => "Network Authentication Required",
+            
+            StatusCode::UNKNOWN => "Unknown",
+        }
+    }
+
+    /// Creates a status code from a u16 value.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - The numeric status code.
+    ///
+    /// # Returns
+    ///
+    /// The corresponding StatusCode enum value, or UNKNOWN for unsupported codes.
+    pub fn from_u16(code: u16) -> Self {
+        match code {
+            100 => StatusCode::CONTINUE,
+            101 => StatusCode::SWITCHING_PROTOCOLS,
+            102 => StatusCode::PROCESSING,
+            103 => StatusCode::EARLY_HINTS,
+            
+            200 => StatusCode::OK,
+            201 => StatusCode::CREATED,
+            202 => StatusCode::ACCEPTED,
+            203 => StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            204 => StatusCode::NO_CONTENT,
+            205 => StatusCode::RESET_CONTENT,
+            206 => StatusCode::PARTIAL_CONTENT,
+            207 => StatusCode::MULTI_STATUS,
+            208 => StatusCode::ALREADY_REPORTED,
+            226 => StatusCode::IM_USED,
+            
+            300 => StatusCode::MULTIPLE_CHOICES,
+            301 => StatusCode::MOVED_PERMANENTLY,
+            302 => StatusCode::FOUND,
+            303 => StatusCode::SEE_OTHER,
+            304 => StatusCode::NOT_MODIFIED,
+            305 => StatusCode::USE_PROXY,
+            307 => StatusCode::TEMPORARY_REDIRECT,
+            308 => StatusCode::PERMANENT_REDIRECT,
+            
+            400 => StatusCode::BAD_REQUEST,
+            401 => StatusCode::UNAUTHORIZED,
+            402 => StatusCode::PAYMENT_REQUIRED,
+            403 => StatusCode::FORBIDDEN,
+            404 => StatusCode::NOT_FOUND,
+            405 => StatusCode::METHOD_NOT_ALLOWED,
+            406 => StatusCode::NOT_ACCEPTABLE,
+            407 => StatusCode::PROXY_AUTHENTICATION_REQUIRED,
+            408 => StatusCode::REQUEST_TIMEOUT,
+            409 => StatusCode::CONFLICT,
+            410 => StatusCode::GONE,
+            411 => StatusCode::LENGTH_REQUIRED,
+            412 => StatusCode::PRECONDITION_FAILED,
+            413 => StatusCode::PAYLOAD_TOO_LARGE,
+            414 => StatusCode::URI_TOO_LONG,
+            415 => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            416 => StatusCode::RANGE_NOT_SATISFIABLE,
+            417 => StatusCode::EXPECTATION_FAILED,
+            418 => StatusCode::IM_A_TEAPOT,
+            421 => StatusCode::MISDIRECTED_REQUEST,
+            422 => StatusCode::UNPROCESSABLE_ENTITY,
+            423 => StatusCode::LOCKED,
+            424 => StatusCode::FAILED_DEPENDENCY,
+            425 => StatusCode::TOO_EARLY,
+            426 => StatusCode::UPGRADE_REQUIRED,
+            428 => StatusCode::PRECONDITION_REQUIRED,
+            429 => StatusCode::TOO_MANY_REQUESTS,
+            431 => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            451 => StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
+            
+            500 => StatusCode::INTERNAL_SERVER_ERROR,
+            501 => StatusCode::NOT_IMPLEMENTED,
+            502 => StatusCode::BAD_GATEWAY,
+            503 => StatusCode::SERVICE_UNAVAILABLE,
+            504 => StatusCode::GATEWAY_TIMEOUT,
+            505 => StatusCode::HTTP_VERSION_NOT_SUPPORTED,
+            506 => StatusCode::VARIANT_ALSO_NEGOTIATES,
+            507 => StatusCode::INSUFFICIENT_STORAGE,
+            508 => StatusCode::LOOP_DETECTED,
+            510 => StatusCode::NOT_EXTENDED,
+            511 => StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
+            
+            _ => StatusCode::UNKNOWN,
+        }
+    }
+
+    /// Creates a status code from a string representation.
+    ///
+    /// # Arguments
+    ///
+    /// * `code` - The string representation of the status code.
+    ///
+    /// # Returns
+    ///
+    /// The corresponding StatusCode enum value, or UNKNOWN if not recognized.
+    pub fn from_string(code: &str) -> Self {
+        // Try parsing just the numeric part first
+        if let Ok(num) = code.split_whitespace().next().unwrap_or("").parse::<u16>() {
+            return StatusCode::from_u16(num);
+        }
+        
+        // If that fails, try matching the full string
+        match code {
+            "100 Continue" => StatusCode::CONTINUE,
+            "101 Switching Protocols" => StatusCode::SWITCHING_PROTOCOLS,
+            "102 Processing" => StatusCode::PROCESSING,
+            "103 Early Hints" => StatusCode::EARLY_HINTS,
+            
+            "200 OK" => StatusCode::OK,
+            "201 Created" => StatusCode::CREATED,
+            "202 Accepted" => StatusCode::ACCEPTED,
+            "203 Non-Authoritative Information" => StatusCode::NON_AUTHORITATIVE_INFORMATION,
+            "204 No Content" => StatusCode::NO_CONTENT,
+            "205 Reset Content" => StatusCode::RESET_CONTENT,
+            "206 Partial Content" => StatusCode::PARTIAL_CONTENT,
+            "207 Multi-Status" => StatusCode::MULTI_STATUS,
+            "208 Already Reported" => StatusCode::ALREADY_REPORTED,
+            "226 IM Used" => StatusCode::IM_USED,
+            
+            "300 Multiple Choices" => StatusCode::MULTIPLE_CHOICES,
+            "301 Moved Permanently" => StatusCode::MOVED_PERMANENTLY,
+            "302 Found" => StatusCode::FOUND,
+            "303 See Other" => StatusCode::SEE_OTHER,
+            "304 Not Modified" => StatusCode::NOT_MODIFIED,
+            "305 Use Proxy" => StatusCode::USE_PROXY,
+            "307 Temporary Redirect" => StatusCode::TEMPORARY_REDIRECT,
+            "308 Permanent Redirect" => StatusCode::PERMANENT_REDIRECT,
+            
+            "400 Bad Request" => StatusCode::BAD_REQUEST,
+            "401 Unauthorized" => StatusCode::UNAUTHORIZED,
+            "402 Payment Required" => StatusCode::PAYMENT_REQUIRED,
+            "403 Forbidden" => StatusCode::FORBIDDEN,
+            "404 Not Found" => StatusCode::NOT_FOUND,
+            "405 Method Not Allowed" => StatusCode::METHOD_NOT_ALLOWED,
+            "406 Not Acceptable" => StatusCode::NOT_ACCEPTABLE,
+            "407 Proxy Authentication Required" => StatusCode::PROXY_AUTHENTICATION_REQUIRED,
+            "408 Request Timeout" => StatusCode::REQUEST_TIMEOUT,
+            "409 Conflict" => StatusCode::CONFLICT,
+            "410 Gone" => StatusCode::GONE,
+            "411 Length Required" => StatusCode::LENGTH_REQUIRED,
+            "412 Precondition Failed" => StatusCode::PRECONDITION_FAILED,
+            "413 Payload Too Large" => StatusCode::PAYLOAD_TOO_LARGE,
+            "414 URI Too Long" => StatusCode::URI_TOO_LONG,
+            "415 Unsupported Media Type" => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            "416 Range Not Satisfiable" => StatusCode::RANGE_NOT_SATISFIABLE,
+            "417 Expectation Failed" => StatusCode::EXPECTATION_FAILED,
+            "418 I'm a teapot" => StatusCode::IM_A_TEAPOT,
+            "421 Misdirected Request" => StatusCode::MISDIRECTED_REQUEST,
+            "422 Unprocessable Entity" => StatusCode::UNPROCESSABLE_ENTITY,
+            "423 Locked" => StatusCode::LOCKED,
+            "424 Failed Dependency" => StatusCode::FAILED_DEPENDENCY,
+            "425 Too Early" => StatusCode::TOO_EARLY,
+            "426 Upgrade Required" => StatusCode::UPGRADE_REQUIRED,
+            "428 Precondition Required" => StatusCode::PRECONDITION_REQUIRED,
+            "429 Too Many Requests" => StatusCode::TOO_MANY_REQUESTS,
+            "431 Request Header Fields Too Large" => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+            "451 Unavailable For Legal Reasons" => StatusCode::UNAVAILABLE_FOR_LEGAL_REASONS,
+            
+            "500 Internal Server Error" => StatusCode::INTERNAL_SERVER_ERROR,
+            "501 Not Implemented" => StatusCode::NOT_IMPLEMENTED,
+            "502 Bad Gateway" => StatusCode::BAD_GATEWAY,
+            "503 Service Unavailable" => StatusCode::SERVICE_UNAVAILABLE,
+            "504 Gateway Timeout" => StatusCode::GATEWAY_TIMEOUT,
+            "505 HTTP Version Not Supported" => StatusCode::HTTP_VERSION_NOT_SUPPORTED,
+            "506 Variant Also Negotiates" => StatusCode::VARIANT_ALSO_NEGOTIATES,
+            "507 Insufficient Storage" => StatusCode::INSUFFICIENT_STORAGE,
+            "508 Loop Detected" => StatusCode::LOOP_DETECTED,
+            "510 Not Extended" => StatusCode::NOT_EXTENDED,
+            "511 Network Authentication Required" => StatusCode::NETWORK_AUTHENTICATION_REQUIRED,
+            
+            _ => StatusCode::UNKNOWN,
+        }
+    }
+
+    /// Checks if the status code is informational (1xx).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is in the 1xx range, `false` otherwise.
+    pub fn is_informational(&self) -> bool {
+        let code = self.as_u16();
+        (100..=199).contains(&code)
+    }
+
+    /// Checks if the status code indicates success (2xx).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is in the 2xx range, `false` otherwise.
+    pub fn is_success(&self) -> bool {
+        let code = self.as_u16();
+        (200..=299).contains(&code)
+    }
+
+    /// Checks if the status code indicates redirection (3xx).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is in the 3xx range, `false` otherwise.
+    pub fn is_redirection(&self) -> bool {
+        let code = self.as_u16();
+        (300..=399).contains(&code)
+    }
+
+    /// Checks if the status code indicates a client error (4xx).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is in the 4xx range, `false` otherwise.
+    pub fn is_client_error(&self) -> bool {
+        let code = self.as_u16();
+        (400..=499).contains(&code)
+    }
+
+    /// Checks if the status code indicates a server error (5xx).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is in the 5xx range, `false` otherwise.
+    pub fn is_server_error(&self) -> bool {
+        let code = self.as_u16();
+        (500..=599).contains(&code)
+    }
+
+    /// Checks if the status code indicates an error (4xx or 5xx).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is in the 4xx or 5xx range, `false` otherwise.
+    pub fn is_error(&self) -> bool {
+        self.is_client_error() || self.is_server_error()
+    }
+
+    /// Checks if the status code indicates that the resource was not found (404).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is 404, `false` otherwise.
+    pub fn is_not_found(&self) -> bool {
+        *self == StatusCode::NOT_FOUND
+    }
+
+    /// Checks if the status code indicates a successful response (200 OK).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is 200, `false` otherwise.
+    pub fn is_ok(&self) -> bool {
+        *self == StatusCode::OK
+    }
+
+    /// Checks if the status code indicates that the content should be omitted (204 No Content).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is 204, `false` otherwise.
+    pub fn is_no_content(&self) -> bool {
+        *self == StatusCode::NO_CONTENT
+    }
+
+    /// Checks if the status code indicates that the requested resource was created (201 Created).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is 201, `false` otherwise.
+    pub fn is_created(&self) -> bool {
+        *self == StatusCode::CREATED
+    }
+    
+    /// Checks if the status code indicates that the client is not authorized (401 Unauthorized).
+    ///
+    /// # Returns
+    ///
+    /// `true` if the status code is 401, `false` otherwise.
+    pub fn is_unauthorized(&self) -> bool {
+        *self == StatusCode::UNAUTHORIZED
+    }
+}
+
+impl std::fmt::Display for StatusCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+impl From<u16> for StatusCode {
+    fn from(code: u16) -> Self {
+        StatusCode::from_u16(code)
+    }
+}
+
+impl From<&str> for StatusCode {
+    fn from(code: &str) -> Self {
+        StatusCode::from_string(code)
+    }
+}
+
+impl From<String> for StatusCode {
+    fn from(code: String) -> Self {
+        StatusCode::from_string(&code)
+    }
+}
+
+impl From<StatusCode> for u16 {
+    fn from(code: StatusCode) -> Self {
+        code.as_u16()
+    }
+}
+
+impl From<StatusCode> for String {
+    fn from(code: StatusCode) -> Self {
+        code.to_string()
+    }
 } 
 
 /// Represents the content type of an HTTP message. 
@@ -411,7 +870,7 @@ pub struct RequestPath{
     path: Vec<String> 
 } 
 
-impl RequestPath{ 
+impl RequestPath{   
     pub fn new(path: Vec<String>) -> Self{ 
         Self { path }  
     } 
@@ -443,5 +902,11 @@ impl RequestPath{
             return "".to_string(); 
         } 
         self.path[part].clone()  
+    }
+} 
+
+impl Default for RequestPath {
+    fn default() -> Self {
+        Self::new(Vec::new())
     }
 } 

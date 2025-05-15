@@ -19,7 +19,7 @@ use crate::http::{
         UrlEncodedForm, 
         MultiForm
     }, 
-    request::HttpMeta, 
+    meta::HttpMeta, 
     body:: HttpBody, 
     response::HttpResponse
 }; 
@@ -85,7 +85,7 @@ impl Rc  {
         let endpoint = app
             .root_url
             .clone()
-            .walk_str(meta.path())
+            .walk_str(&meta.path())
             .await; 
         // let endpoint = dangling_url(); 
 
@@ -189,7 +189,7 @@ impl Rc  {
         self.meta.get_path(part) 
     }
 
-    pub fn path(&self) -> &str { 
+    pub fn path(&self) -> String { 
         self.meta.path() 
     } 
 
@@ -205,7 +205,7 @@ impl Rc  {
     } 
 
     /// Returns the method of the request. 
-    pub fn method(&mut self) -> &HttpMethod { 
+    pub fn method(&mut self) -> HttpMethod { 
         self.meta.method() 
     } 
 

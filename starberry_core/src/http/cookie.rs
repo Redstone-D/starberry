@@ -8,6 +8,7 @@ impl CookieMap {
         Self(HashMap::new()) 
     } 
 
+    /// Parses Cookie header into a Cookie Map 
     pub fn parse<T: Into<String>>(cookies: T) -> Self { 
         let mut cookie_map = CookieMap::new(); 
         let cookies = cookies.into(); 
@@ -20,7 +21,49 @@ impl CookieMap {
             }
         } 
         cookie_map
-    }
+    } 
+
+    /// Parses multiple Set-Cookie headers into a CookieMap.
+    ///
+    /// # Arguments
+    ///
+    /// * `set_cookies` - A collection of Set-Cookie header values
+    ///
+    /// # Returns
+    ///
+    /// A CookieMap containing the parsed cookies.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::cookie::CookieMap;
+    ///
+    /// let set_cookies = vec![
+    ///     "sessionId=abc123; Path=/; Secure",
+    ///     "theme=dark; Path=/settings"
+    /// ];
+    ///
+    /// let cookies = CookieMap::parse_set_cookies(&set_cookies);
+    /// assert_eq!(cookies.get("sessionId").unwrap().value, "abc123");
+    /// assert_eq!(cookies.get("theme").unwrap().value, "dark");
+    /// assert_eq!(cookies.get("theme").unwrap().get_path(), Some("/settings".to_string()));
+    /// ```
+    pub fn parse_set_cookies<'a, I, T>(set_cookies: I) -> Self
+    where
+        I: IntoIterator<Item = T>,
+        T: AsRef<str>,
+    {
+        let mut cookie_map = CookieMap::new();
+        
+        for cookie_str in set_cookies {
+            let (name, cookie) = Cookie::parse_set_cookie(cookie_str.as_ref());
+            if !name.is_empty() {
+                cookie_map.set(name, cookie);
+            }
+        }
+        
+        cookie_map
+    } 
 
     pub fn get<T: AsRef<str>>(&self, key: T) -> Option<&Cookie> { 
         self.0.get(key.as_ref()) 
@@ -41,7 +84,7 @@ impl CookieMap {
     pub fn response(&self) -> String { 
         let mut result = String::new(); 
         for (key, value) in &self.0 { 
-            result.push_str(&format!("Set-Cookie: {}={}; ", key, value.response())); 
+            result.push_str(&format!("Set-Cookie: {}={};", key, value.response())); 
         } 
         result  
     } 
@@ -102,6 +145,89 @@ impl Cookie{
             secure: None, 
             http_only: None, 
         } 
+    } 
+
+    /// Parses a Set-Cookie header value into a cookie name and Cookie object.
+    ///
+    /// # Arguments
+    ///
+    /// * `set_cookie_str` - A string slice containing the Set-Cookie header value
+    ///
+    /// # Returns
+    ///
+    /// A tuple containing the cookie name and a Cookie object with parsed attributes.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::cookie::Cookie;
+    ///
+    /// let set_cookie = "sessionId=abc123; Path=/; Domain=example.com; Secure; HttpOnly";
+    /// let (name, cookie) = Cookie::parse_set_cookie(set_cookie);
+    ///
+    /// assert_eq!(name, "sessionId");
+    /// assert_eq!(cookie.value, "abc123");
+    /// assert_eq!(cookie.get_path(), Some("/".to_string()));
+    /// assert_eq!(cookie.get_domain(), Some("example.com".to_string()));
+    /// assert_eq!(cookie.get_secure(), Some(true));
+    /// assert_eq!(cookie.get_http_only(), Some(true));
+    /// ```
+    pub fn parse_set_cookie(set_cookie_str: &str) -> (String, Self) {
+        // Split into name=value and attributes
+        let mut parts = set_cookie_str.splitn(2, '=');
+        
+        // Get the name
+        let name = parts.next()
+            .map(|s| s.trim().to_string())
+            .unwrap_or_default();
+            
+        // Get value and attributes
+        let value_and_attrs = parts.next()
+            .unwrap_or("")
+            .trim();
+            
+        // Split the rest into value and attributes
+        let attrs_parts: Vec<&str> = value_and_attrs.split(';').collect();
+        
+        // Create cookie with the value (first part)
+        let value = if !attrs_parts.is_empty() { 
+            attrs_parts[0].trim().to_string() 
+        } else { 
+            String::new() 
+        };
+        
+        let mut cookie = Cookie::new(value);
+        
+        // Parse attributes (skip the first part which is the value)
+        for attr in attrs_parts.iter().skip(1) {
+            let attr = attr.trim();
+            
+            if attr.eq_ignore_ascii_case("Secure") {
+                cookie.set_secure(true);
+                continue;
+            }
+            if attr.eq_ignore_ascii_case("HttpOnly") {
+                cookie.set_http_only(true);
+                continue;
+            }
+            
+            // Parse key=value attributes
+            let attr_parts: Vec<&str> = attr.splitn(2, '=').collect();
+            if attr_parts.len() == 2 {
+                let attr_name = attr_parts[0].trim();
+                let attr_value = attr_parts[1].trim();
+                
+                match attr_name.to_lowercase().as_str() {
+                    "path" => cookie.set_path(attr_value),
+                    "domain" => cookie.set_domain(attr_value),
+                    "expires" => cookie.set_expires(attr_value),
+                    "max-age" => cookie.set_max_age(attr_value),
+                    _ => {} // Ignore unknown attributes
+                }
+            }
+        }
+        
+        (name, cookie)
     } 
 
     pub fn get_value(&self) -> &str { 
@@ -208,6 +334,20 @@ impl Cookie{
         self.http_only = None; 
     } 
 
+    /// Returns a string formatted for a Set-Cookie header including all attributes.
+    ///
+    /// # Returns
+    ///
+    /// A string suitable for use in a Set-Cookie header.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::cookie::Cookie;
+    ///
+    /// let cookie = Cookie::new("abc123").path("/").secure(true);
+    /// assert_eq!(cookie.to_string(), "abc123; Path=/; Secure");
+    /// ```
     pub fn to_string(&self) -> String { 
         let mut result = format!("{}", self.value.to_string()); 
         if let Some(ref path) = self.path { 

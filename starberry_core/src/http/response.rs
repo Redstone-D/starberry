@@ -1,6 +1,8 @@
 use super::cookie::{Cookie, CookieMap};
 use super::http_value::{self, *}; 
-use super::body::HttpBody; 
+use super::body::HttpBody;
+use super::meta::HttpMeta;
+use super::start_line::{HttpStartLine, ResponseStartLine}; 
 use std::collections::HashMap;
 use std::fmt::Write;
 use tokio::net::TcpStream; 
@@ -10,165 +12,38 @@ use std::future::{ready, Ready};
 use std::pin::Pin;
 use std::future::Future; 
 
-pub struct ResponseStartLine{ 
-    pub http_version: HttpVersion, 
-    pub status_code: StatusCode,  
-} 
-
-impl std::fmt::Display for ResponseStartLine { 
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
-        write!(f, "{} {}", self.http_version.to_string(), self.status_code.to_string()) 
-    } 
-} 
-
-/// The response header struct, 
-pub struct ResponseHeader{ 
-    content_type: Option<HttpContentType>, 
-    content_length: Option<usize>, 
-    location: Option<String>, 
-    cookie: Option<CookieMap>, 
-    pub header: HashMap<String, String>, 
-} 
-
-impl ResponseHeader { 
-    pub fn new() -> Self { 
-        Self { 
-            content_type: None, 
-            content_length: None, 
-            location: None, 
-            cookie: None, 
-            header: HashMap::new()
-        } 
-    } 
-
-    /// Add a header to the response header. 
-    /// Existed header will be replaced. 
-    pub fn add(&mut self, key: String, value: String) { 
-        match key.as_str() { 
-            "Content-Type" => self.content_type = Some(HttpContentType::from_str(&value)), 
-            "Content-Length" => self.content_length = Some(value.parse::<usize>().unwrap()), 
-            "Location" => self.location = Some(value), 
-            _ => { 
-                self.header.insert(key, value); 
-            },
-        } 
-    } 
-
-    pub fn get_content_length(&self) -> Option<usize> { 
-        self.content_length 
-    } 
-
-    pub fn set_content_length(&mut self, length: usize) { 
-        self.content_length = Some(length); 
-    } 
-
-    pub fn clear_content_length(&mut self) { 
-        self.content_length = None; 
-    } 
-
-    pub fn get_content_type(&self) -> Option<HttpContentType> { 
-        self.content_type.clone() 
-    } 
-
-    pub fn set_content_type(&mut self, content_type: HttpContentType) { 
-        self.content_type = Some(content_type);  
-    } 
-
-    pub fn clear_content_type(&mut self) { 
-        self.content_type = None; 
-    } 
-
-    pub fn set_location(&mut self, location: &str) { 
-        self.location = Some(location.to_string());  
-    } 
-
-    pub fn clear_location(&mut self) { 
-        self.location = None; 
-    } 
-
-    pub fn cookie<T: Into<String>>(mut self, key: T, cookie: Cookie) -> Self { 
-        self.add_cookie(key, cookie); 
-        self 
-    } 
-
-    /// Add a cookie to the response header. 
-    pub fn add_cookie<T: Into<String>>(&mut self, key: T, cookie: Cookie) { 
-        if self.cookie.is_none() { 
-            self.cookie = Some(CookieMap::new()); 
-        } 
-        if let Some(ref mut cookies) = self.cookie { 
-            cookies.set(key, cookie); 
-        } 
-    } 
-
-    /// Clear all cookies in the response header. 
-    pub fn clear_cookie(&mut self) { 
-        self.cookie = None; 
-    } 
-
-    pub fn remove_cookie<T: AsRef<str>>(&mut self, name: T) -> Option<Cookie> { 
-        if let Some(ref mut cookies) = self.cookie { 
-            return cookies.remove(name); 
-        } 
-        None 
-    } 
-
-    pub fn represent(&self) -> String { 
-        let mut result = String::new(); 
-        if let Some(ref content_type) = self.content_type { 
-            result.push_str(&format!("Content-Type: {}\r\n", content_type.to_string())); 
-        }
-        if let Some(length) = self.content_length { 
-            result.push_str(&format!("Content-Length: {}\r\n", length)); 
-        } 
-        if let Some(ref location) = self.location { 
-            result.push_str(&format!("Location: {}\r\n", location)); 
-        } 
-        if let Some(ref cookies) = self.cookie { 
-            result.push_str(&format!("{}\r\n", cookies.response()));  
-        } 
-        for (key, value) in &self.header { 
-            result.push_str(&format!("{}: {}\r\n", key, value)); 
-        } 
-        result 
-    } 
-} 
-
 pub struct HttpResponse { 
-    pub start_line: ResponseStartLine, 
-    pub header: ResponseHeader, 
+    pub meta: HttpMeta, 
     pub body: HttpBody 
 }  
 
 impl HttpResponse { 
     pub fn new(
-        start_line: ResponseStartLine, 
-        header: ResponseHeader, 
+        meta: HttpMeta, 
         body: HttpBody, 
     ) -> Self { 
         Self { 
-            start_line, 
-            header, 
+            meta, 
             body, 
         } 
     } 
 
     pub fn add_cookie<T: Into<String>>(mut self, key: T, cookie: Cookie) -> Self { 
-        self.header.add_cookie(key, cookie); 
+        self.meta.add_cookie(key, cookie); 
         self 
     } 
 
     pub async fn send(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
         let mut headers = String::with_capacity(256); 
-        let bin = self.body.into_static(&mut self.header).await; 
+
+        // Add the values such as content length into header 
+        let bin = self.body.into_static(&mut self.meta).await; 
     
-        write!(
+        write!( 
             &mut headers,
-            "{}\r\n\
-            {}\r\n",
-            self.start_line,
-            self.header.represent()
+            "{}\r\n", 
+            self.meta.represent()
         ).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     
         writer.write_all(headers.as_bytes()).await?;
@@ -194,16 +69,20 @@ impl HttpResponse {
 
 impl Default for HttpResponse { 
     fn default() -> Self { 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code: StatusCode::OK, 
-        }; 
-        let header = ResponseHeader::new(); 
+        let meta = HttpMeta::new(
+            HttpStartLine::Response(ResponseStartLine::default()), 
+            HashMap::new() 
+        ); 
         let body = HttpBody::default(); // Default body is empty string
-        HttpResponse::new(start_line, header, body) 
+        HttpResponse::new(meta, body) 
     } 
 } 
 
+/// Collection of helper functions to easily create common HTTP responses.
+///
+/// This module provides convenient functions to create standardized HTTP responses
+/// such as text, HTML, JSON, redirects, status codes, and template-based responses.
+/// All functions return an `HttpResponse` that can be further customized if needed.
 pub mod request_templates {
     use std::path::Path; 
     use std::collections::HashMap; 
@@ -212,99 +91,251 @@ pub mod request_templates {
     use akari::TemplateManager;
 
     use crate::http::body::HttpBody;
-    use crate::http::http_value::HttpContentType;
-    use super::ResponseStartLine;  
-    use super::ResponseHeader; 
-    use crate::http::http_value::HttpVersion; 
-    use crate::http::http_value::StatusCode; 
+    use crate::http::http_value::{HttpContentType, HttpVersion, StatusCode};
+    use crate::http::meta::HttpMeta; 
+    use crate::http::start_line::HttpStartLine; 
     use super::HttpResponse; 
  
+    /// Creates a plain text HTTP response with status 200 OK.
+    ///
+    /// # Arguments
+    ///
+    /// * `body` - The text content to be sent in the response.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with Content-Type set to text/plain.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// 
+    /// let response = request_templates::text_response("Hello, world!");
+    /// ```
     pub fn text_response(body: impl Into<String>) -> HttpResponse { 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code: StatusCode::OK, 
-        }; 
-        let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::TextPlain()); 
-        HttpResponse::new(start_line, header, HttpBody::Text(body.into())) 
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            StatusCode::OK
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
+        meta.set_content_type(HttpContentType::TextPlain()); 
+        HttpResponse::new(meta, HttpBody::Text(body.into())) 
     } 
 
+    /// Creates an HTML HTTP response with status 200 OK.
+    ///
+    /// # Arguments
+    ///
+    /// * `body` - The HTML content to be sent in the response.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with Content-Type set to text/html.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// 
+    /// let html = "<html><body><h1>Hello, world!</h1></body></html>";
+    /// let response = request_templates::html_response(html);
+    /// ```
     pub fn html_response(body: impl Into<Vec<u8>>) -> HttpResponse { 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code: StatusCode::OK, 
-        }; 
-        let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::TextHtml()); 
-        HttpResponse::new(start_line, header, HttpBody::Binary(body.into())) 
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            StatusCode::OK 
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
+        meta.set_content_type(HttpContentType::TextHtml()); 
+        HttpResponse::new(meta, HttpBody::Binary(body.into())) 
     } 
 
+    /// Creates a redirect response (302 Found).
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The URL to redirect to.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with the Location header set and an empty body.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// 
+    /// let response = request_templates::redirect_response("/login");
+    /// ```
     pub fn redirect_response(url: &str) -> HttpResponse { 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code: StatusCode::FOUND, 
-        }; 
-        let mut header = ResponseHeader::new(); 
-        header.set_location(url); 
-        HttpResponse::new(start_line, header, HttpBody::Empty) 
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            StatusCode::FOUND
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
+        meta.set_location(Some(url.to_string())); 
+        HttpResponse::new(meta, HttpBody::Empty) 
     } 
 
+    /// Creates an HTML response from a template file without any data binding.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - The filename of the template within the templates directory.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with the template content or a 404 error if the file is not found.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// 
+    /// let response = request_templates::plain_template_response("index.html");
+    /// ```
     pub fn plain_template_response(file: &str) -> HttpResponse { 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code: StatusCode::OK, 
-        }; 
-        let mut header = ResponseHeader::new(); 
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            StatusCode::OK
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
         let file_path = Path::new("templates").join(file);
         let body = match std::fs::read(file_path) { 
             Ok(content) => content,
             Err(_) => return return_status(StatusCode::NOT_FOUND), 
         }; 
-        header.set_content_type(HttpContentType::TextHtml()); 
-        HttpResponse::new(start_line, header, HttpBody::Binary(body)) 
+        meta.set_content_type(HttpContentType::TextHtml()); 
+        HttpResponse::new(meta, HttpBody::Binary(body)) 
     } 
 
+    /// Creates an HTTP response with a specified status code and binary body.
+    ///
+    /// # Arguments
+    ///
+    /// * `status_code` - The HTTP status code for the response.
+    /// * `body` - The binary content to be sent in the response.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with the specified status code and body.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::http_value::StatusCode;
+    /// 
+    /// let response = request_templates::normal_response(StatusCode::CREATED, "Resource created");
+    /// ```
     pub fn normal_response(status_code: StatusCode, body: impl Into<Vec<u8>>) -> HttpResponse { 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code, 
-        }; 
-        let header = ResponseHeader::new(); 
-        HttpResponse::new(start_line, header, HttpBody::Binary(body.into())) 
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            status_code
+        ); 
+        let meta = HttpMeta::new(start_line, HashMap::new()); 
+        HttpResponse::new(meta, HttpBody::Binary(body.into())) 
     } 
 
+    /// Creates a JSON HTTP response with status 200 OK.
+    ///
+    /// # Arguments
+    ///
+    /// * `body` - The JSON object to be sent in the response.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with Content-Type set to application/json.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// use akari::Object;
+    /// 
+    /// let mut data = Object::new();
+    /// data.insert("message", "Success");
+    /// data.insert("status", 200);
+    ///
+    /// let response = request_templates::json_response(data);
+    /// ```
     pub fn json_response(body: Object) -> HttpResponse { 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code: StatusCode::OK, 
-        }; 
-        let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::ApplicationJson()); 
-        HttpResponse::new(start_line, header, HttpBody::Json(body)) 
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            StatusCode::OK
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
+        meta.set_content_type(HttpContentType::ApplicationJson()); 
+        HttpResponse::new(meta, HttpBody::Json(body)) 
     } 
 
+    /// Creates an HTML response from a template with data binding.
+    ///
+    /// # Arguments
+    ///
+    /// * `file` - The filename of the template within the templates directory.
+    /// * `data` - A hashmap of values to be bound to the template.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with the rendered template or an error message if rendering fails.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// use akari::Object;
+    /// use std::collections::HashMap;
+    /// 
+    /// let mut data = HashMap::new();
+    /// let mut user = Object::new();
+    /// user.insert("name", "John Doe");
+    /// data.insert("user", user);
+    ///
+    /// let response = request_templates::template_response("user_profile.html", data);
+    /// ```
     pub fn template_response(file: &str, data: HashMap<String, Object>) -> HttpResponse { 
-        // println!("file: {:?}", file); 
         let template_manager = TemplateManager::new("templates");
         let result = match template_manager.render(file, &data){ 
             Ok(content) => content,
             Err(err) => return text_response(err.to_string()),  
         }; 
-        let start_line = ResponseStartLine { 
-            http_version: HttpVersion::Http11, 
-            status_code: StatusCode::OK, 
-        }; 
-        let mut header = ResponseHeader::new(); 
-        header.set_content_type(HttpContentType::TextHtml()); 
-        // println!("body: {:?}", result);
+        
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            StatusCode::OK
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
+        meta.set_content_type(HttpContentType::TextHtml()); 
+        
         let body = result.into_bytes(); 
-        HttpResponse::new(start_line, header, HttpBody::Binary(body)) 
+        HttpResponse::new(meta, HttpBody::Binary(body)) 
     }
 
-    pub fn return_status<'a>(status_code: StatusCode) -> HttpResponse { 
-        normal_response(status_code, "")
+    /// Creates an HTTP response with only a status code and an empty body.
+    ///
+    /// # Arguments
+    ///
+    /// * `status_code` - The HTTP status code for the response.
+    ///
+    /// # Returns
+    ///
+    /// An `HttpResponse` with the specified status code and an empty body.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::http_value::StatusCode;
+    /// 
+    /// // Return a 404 Not Found response
+    /// let response = request_templates::return_status(StatusCode::NOT_FOUND);
+    /// ```
+    pub fn return_status(status_code: StatusCode) -> HttpResponse { 
+        normal_response(status_code, Vec::<u8>::new())
     } 
-}
+} 
 
 // pub mod akari_templates { 
 //     /// This macro is used to create a template response with the given path and key-value pairs. 

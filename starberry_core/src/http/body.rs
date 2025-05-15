@@ -2,8 +2,7 @@ use std::collections::HashMap;
 use std::str::Bytes; 
 use super::http_value::*; 
 use super::form::*; 
-use super::request::HttpMeta;
-use super::response::ResponseHeader; 
+use super::meta::HttpMeta; 
 use starberry_lib::decode_url_owned;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt}; 
 use akari::Object; 
@@ -70,7 +69,7 @@ impl HttpBody {
 
     /// Write a response body to the TcpStream buffer 
     /// This will automatically set the content length and content type for the meta if it is not set 
-    pub async fn into_static(&mut self, meta: &mut ResponseHeader) -> &[u8] { 
+    pub async fn into_static(&mut self, meta: &mut HttpMeta) -> &[u8] { 
         match self { 
             Self::Text(_) => { 
                 self.text_into_binary(); 
