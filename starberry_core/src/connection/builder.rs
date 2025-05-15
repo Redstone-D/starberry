@@ -8,7 +8,7 @@ use rustls::{
     ClientConfig, RootCertStore,
     pki_types::{ServerName, TrustAnchor},
 }; 
-use rustls::crypto::aws_lc_rs::default_provider; 
+use rustls::crypto::ring::default_provider; 
 use webpki_roots::TLS_SERVER_ROOTS;
 
 use crate::connection::error::{ConnectionError, Result}; 
