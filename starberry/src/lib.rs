@@ -22,7 +22,7 @@ pub use starberry_core::context::Rc;
 
 pub use starberry_core::http::response::request_templates; 
 
-pub use starberry_core::http::request::HttpMeta;
+pub use starberry_core::http::meta::HttpMeta;
 pub use starberry_core::http::response::HttpResponse;  
 
 pub use starberry_core::http::http_value::*; 

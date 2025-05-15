@@ -528,7 +528,7 @@ impl Url {
     /// The Rc's response will be written to the appropriate status code.
     pub async fn request_check(self: Arc<Self>, rc: &mut Rc) -> bool {
         if let Some(methods) = self.get_allowed_methods () { 
-            if !methods.contains(rc.method()) { 
+            if !methods.contains(&rc.method()) { 
                 rc.response = return_status(StatusCode::METHOD_NOT_ALLOWED);  
                 return false; 
             } 
