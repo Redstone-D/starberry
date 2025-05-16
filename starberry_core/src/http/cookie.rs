@@ -115,6 +115,15 @@ impl From<HashMap<String, String>> for CookieMap {
     }  
 } 
 
+impl IntoIterator for CookieMap {
+    type Item = (String, Cookie);
+    type IntoIter = std::collections::hash_map::IntoIter<String, Cookie>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+} 
+
 #[derive(Debug, Clone, PartialEq)] 
 pub struct Cookie{ 
     pub value: String, 

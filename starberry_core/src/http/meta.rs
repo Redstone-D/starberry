@@ -829,10 +829,9 @@ impl HttpMeta {
         let length = self
             .header
             .get("content-length")
-            .and_then(|s| s.first().parse::<usize>().ok())
-            .unwrap_or(0);
-        self.set_content_length(length);
-        Some(length)
+            .and_then(|s| s.first().parse::<usize>().ok()); 
+        self.content_length = length;
+        length 
     }
 
     /// Sets the content_length field.
@@ -953,9 +952,13 @@ impl HttpMeta {
         // Try lowercase first, then uppercase for backward compatibility
         let content_type_str = self.header
             .get("content-type") 
-            .map(|value| value.first())
-            .unwrap_or_default(); 
-            
+            .map(|value| value.first()); 
+        
+        if let None = content_type_str { 
+            return None; 
+        }; 
+
+        let content_type_str = content_type_str.unwrap();    
         let content_type = HttpContentType::from_str(&content_type_str);
         self.set_content_type(content_type.clone());
         Some(content_type)

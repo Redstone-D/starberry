@@ -39,10 +39,9 @@ impl HttpResponse {
 
         // Add the values such as content length into header 
         let bin = self.body.into_static(&mut self.meta).await; 
-    
         write!( 
             &mut headers,
-            "{}\r\n", 
+            "{}", 
             self.meta.represent()
         ).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     
