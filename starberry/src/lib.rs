@@ -14,7 +14,7 @@ pub use starberry_core::app::urls::path_pattern_creator::{
 
 pub use starberry_core::app::middleware::AsyncMiddleware; 
 
-pub use starberry_core::Object; 
+pub use starberry_core::Value; 
 pub use starberry_core::TemplateManager; 
 pub use starberry_core::object; 
 

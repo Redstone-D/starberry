@@ -4,7 +4,7 @@ use super::cookie::{Cookie, CookieMap};
 
 use super::http_value::*; 
 use super::start_line::HttpStartLine; 
-use akari::Object;
+use akari::Value;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::{HashMap, HashSet};

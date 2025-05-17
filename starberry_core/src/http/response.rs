@@ -86,7 +86,7 @@ pub mod request_templates {
     use std::path::Path; 
     use std::collections::HashMap; 
 
-    use akari::Object;
+    use akari::Value;
     use akari::TemplateManager;
 
     use crate::http::body::HttpBody;
@@ -259,7 +259,7 @@ pub mod request_templates {
     ///
     /// let response = request_templates::json_response(data);
     /// ```
-    pub fn json_response(body: Object) -> HttpResponse { 
+    pub fn json_response(body: Value) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
             HttpVersion::Http11, 
             StatusCode::OK
@@ -294,7 +294,7 @@ pub mod request_templates {
     ///
     /// let response = request_templates::template_response("user_profile.html", data);
     /// ```
-    pub fn template_response(file: &str, data: HashMap<String, Object>) -> HttpResponse { 
+    pub fn template_response(file: &str, data: HashMap<String, Value>) -> HttpResponse { 
         let template_manager = TemplateManager::new("templates");
         let result = match template_manager.render(file, &data){ 
             Ok(content) => content,

@@ -1,6 +1,6 @@
 [package]
 name = "sbmstd"
-version = "0.4.1"
+version = "0.5.0"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "Standard Middleware Library for Starberry" 
@@ -10,8 +10,8 @@ categories = ["network-programming", "web-programming::http-server"]
 keywords = ["starberry"]   
 
 [dependencies]
-starberry_macro = { path = "../sm", version="0.4"} 
-starberry_core = "0.4" 
+starberry_macro = { path = "../sm", version="0.5"} 
+starberry_core = { path = "../starberry_core", version="0.5"} 
 dashmap = "6.1.0" 
 tokio = { version = "1.28", features = ["full"] }  
 lazy_static = "1.5.0" 

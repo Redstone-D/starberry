@@ -10,6 +10,6 @@ pub async fn PrintLog(){
     print!("Path: "); 
     print!("{}, ", req.path()); 
     print!("Status Code: "); 
-    println!("{}, ", req.response.start_line.status_code); 
+    println!("{}, ", req.response.meta.start_line.status_code()); 
     req.boxed_future() // Abropting the middleware chain 
 } 

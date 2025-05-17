@@ -7,7 +7,7 @@ use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::io::BufReader;
 
-use akari::Object;
+use akari::Value;
 use once_cell::sync::Lazy;
 
 use crate::app::{application::App, urls::Url};
@@ -166,7 +166,7 @@ impl Rc  {
         }
     }
     
-    pub async fn json(&mut self) -> Option<&Object> {
+    pub async fn json(&mut self) -> Option<&Value> {
         self.parse_body().await; // Await the Future<Output = ()>
         if let HttpBody::Json(ref data) = self.body {
             Some(data)
@@ -175,11 +175,11 @@ impl Rc  {
         }
     }
     
-    pub async fn json_or_default(&mut self) -> &Object {
+    pub async fn json_or_default(&mut self) -> &Value {
         match self.json().await {
             Some(json) => json,
             None => {
-                static EMPTY: Lazy<Object> = Lazy::new(|| Object::new(""));
+                static EMPTY: Lazy<Value> = Lazy::new(|| Value::new(""));
                 &EMPTY
             }
         }

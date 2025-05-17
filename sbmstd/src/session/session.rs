@@ -1,5 +1,5 @@
 use dashmap::DashMap;
-use starberry_core::http::http_value::CookieResponse;
+use starberry_core::http::cookie::Cookie;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use std::collections::HashMap;
@@ -108,6 +108,7 @@ pub fn get_mut<'a>(id: u64) -> Result<SessionRW<'a>, &'static str> {
 pub fn Session(){ 
     let ttl = req.app.config::<u64>("session_ttl").unwrap_or(&DEFAULT_TTL).clone(); 
     let mut session_id: u64 = req.get_cookie_or_default("session_id")
+        .get_value()
         .parse()
         .unwrap_or_else(|_| {
             new_session(HashMap::new(), ttl) 
@@ -120,7 +121,8 @@ pub fn Session(){
     req.set_param(session); 
     let mut req = next(req).await; // Continue middleware chain 
     req.response = req.response.add_cookie(
-        CookieResponse::new("session_id", session_id.to_string()) 
+        "session_id", 
+        Cookie::new(session_id.to_string()) 
             .path("/") 
     ); // Set cookie with session ID 
     req.boxed_future() 

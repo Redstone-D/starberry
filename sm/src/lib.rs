@@ -419,11 +419,11 @@ pub fn middleware(_attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-/// A macro to create an Object from a literal or expression.
+/// A macro to create an Value from a literal or expression.
 /// It can handle dictionaries, lists, booleans, strings, and numeric values. 
 #[proc_macro]
 pub fn object(input: TokenStream) -> TokenStream {
-    let expr = parse_macro_input!(input as ObjectExpr);
+    let expr = parse_macro_input!(input as ValueExpr);
     let expanded = generate_code(&expr);
     TokenStream::from(expanded)
 }
@@ -431,7 +431,7 @@ pub fn object(input: TokenStream) -> TokenStream {
 /// A macro that returns a JSON response containing the provided object
 #[proc_macro]
 pub fn akari_json(input: TokenStream) -> TokenStream {
-    let expr = parse_macro_input!(input as ObjectExpr);
+    let expr = parse_macro_input!(input as ValueExpr);
     let object_code = generate_code(&expr);
     
     let expanded = quote! {
@@ -546,7 +546,7 @@ fn convert_expr_to_pathpattern(expr: &Expr) -> proc_macro2::TokenStream {
 /// ```no_run
 /// use starberry_macro::akari_render; 
 /// use starberry_core::http::response::request_templates::template_response; 
-/// use starberry_core::Object;
+/// use starberry_core::Value;
 /// use starberry_core::object;
 /// // Simple template with no context
 /// akari_render!("template.html"); 
@@ -569,18 +569,18 @@ pub fn akari_render(input: TokenStream) -> TokenStream {
 }
 
 // Define our custom syntax structures
-enum ObjectExpr {
+enum ValueExpr {
     Dict(Dict),
     List(List),
     Other(syn::Expr),
 }
 
 struct Dict {
-    entries: Vec<(String, ObjectExpr)>,
+    entries: Vec<(String, ValueExpr)>,
 }
 
 struct List {
-    items: Vec<ObjectExpr>,
+    items: Vec<ValueExpr>,
 }
 
 // Custom parsing for dictionary
@@ -593,7 +593,7 @@ impl Parse for Dict {
         while !content.is_empty() {
             let key: Ident = content.parse()?;
             content.parse::<Token![:]>()?;
-            let value: ObjectExpr = content.parse()?;
+            let value: ValueExpr = content.parse()?;
             
             entries.push((key.to_string(), value));
             
@@ -620,7 +620,7 @@ impl Parse for List {
         let mut items = Vec::new();
         
         while !content.is_empty() {
-            let item: ObjectExpr = content.parse()?;
+            let item: ValueExpr = content.parse()?;
             items.push(item);
             
             if content.is_empty() {
@@ -639,26 +639,26 @@ impl Parse for List {
 }
 
 // Implement parsing for our custom syntax
-impl Parse for ObjectExpr {
+impl Parse for ValueExpr {
     fn parse(input: ParseStream) -> SynResult<Self> {
         if input.peek(syn::token::Brace) {
             let dict = Dict::parse(input)?;
-            Ok(ObjectExpr::Dict(dict))
+            Ok(ValueExpr::Dict(dict))
         } else if input.peek(syn::token::Bracket) {
             let list = List::parse(input)?;
-            Ok(ObjectExpr::List(list))
+            Ok(ValueExpr::List(list))
         } else {
             // Any other expression
             let expr: syn::Expr = input.parse()?;
-            Ok(ObjectExpr::Other(expr))
+            Ok(ValueExpr::Other(expr))
         }
     }
 }
 
-// Generate code for each type of ObjectExpr
-fn generate_code(expr: &ObjectExpr) -> TokenStream2 {
+// Generate code for each type of ValueExpr
+fn generate_code(expr: &ValueExpr) -> TokenStream2 {
     match expr {
-        ObjectExpr::Dict(dict) => {
+        ValueExpr::Dict(dict) => {
             let entries = dict.entries.iter().map(|(key, value)| {
                 let value_code = generate_code(value);
                 quote! {
@@ -669,10 +669,10 @@ fn generate_code(expr: &ObjectExpr) -> TokenStream2 {
             quote! {{
                 let mut map = ::std::collections::HashMap::new();
                 #(#entries)*
-                Object::Dictionary(map)
+                Value::Dict(map)
             }}
         },
-        ObjectExpr::List(list) => {
+        ValueExpr::List(list) => {
             let items = list.items.iter().map(|item| {
                 let item_code = generate_code(item);
                 quote! {
@@ -683,28 +683,28 @@ fn generate_code(expr: &ObjectExpr) -> TokenStream2 {
             quote! {{
                 let mut vec = Vec::new();
                 #(#items)*
-                Object::List(vec)
+                Value::List(vec)
             }}
         },
-        ObjectExpr::Other(expr) => {
+        ValueExpr::Other(expr) => {
             match expr {
                 syn::Expr::Lit(lit_expr) => {
                     match &lit_expr.lit {
                         syn::Lit::Bool(b) => {
                             let value = b.value;
-                            quote! { Object::new(#value) }
+                            quote! { Value::new(#value) }
                         },
                         syn::Lit::Str(s) => {
                             let value = &s.value();
-                            quote! { Object::new(#value) }
+                            quote! { Value::new(#value) }
                         },
                         syn::Lit::Int(_) | syn::Lit::Float(_) => {
-                            quote! { Object::new(#expr) }
+                            quote! { Value::new(#expr) }
                         },
-                        _ => quote! { Object::new(#expr) }
+                        _ => quote! { Value::new(#expr) }
                     }
                 },
-                _ => quote! { Object::new(#expr) }
+                _ => quote! { Value::new(#expr) }
             }
         },
     }
@@ -713,7 +713,7 @@ fn generate_code(expr: &ObjectExpr) -> TokenStream2 {
 // RenderArgs structure to parse akari_render arguments
 struct RenderArgs {
     template_path: LitStr,
-    context: Vec<(Ident, ObjectExpr)>,
+    context: Vec<(Ident, ValueExpr)>,
 }
 
 impl Parse for RenderArgs {
@@ -731,7 +731,7 @@ impl Parse for RenderArgs {
             while !input.is_empty() {
                 let key: Ident = input.parse()?;
                 input.parse::<Token![=]>()?;
-                let value: ObjectExpr = input.parse()?;
+                let value: ValueExpr = input.parse()?;
                 
                 context.push((key, value));
                 

@@ -5,7 +5,7 @@ use super::form::*;
 use super::meta::HttpMeta; 
 use starberry_lib::decode_url_owned;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt}; 
-use akari::Object; 
+use akari::Value; 
 
 static EMPTY: Vec<u8> = Vec::new();
 
@@ -15,7 +15,7 @@ pub enum HttpBody {
     Binary(Vec<u8>),
     Form(UrlEncodedForm),
     Files(MultiForm),
-    Json(Object),
+    Json(Value),
     Empty,
     Unparsed,
 } 
@@ -148,9 +148,9 @@ impl HttpBody {
 
     pub fn parse_json(body: Vec<u8>) -> Self {
         return Self::Json(
-            Object::from_json(std::str::from_utf8(&body).unwrap_or("")).unwrap_or(Object::new("")),
+            Value::from_json(std::str::from_utf8(&body).unwrap_or("")).unwrap_or(Value::new("")),
         );
-    } 
+    }   
 
     /// Change Self::Json into Self::Binary 
     pub fn json_into_binary(&mut self) {
