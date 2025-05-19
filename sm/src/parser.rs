@@ -78,4 +78,14 @@ impl SqlDialect for AnsiSqlDialect {
             Err("only SELECT and ALTER TABLE statements are supported in sql! macro")
         }
     }
+}
+
+/// MySQL dialect: currently delegates to ANSI; placeholder for MySQL-specific parsing
+pub struct MySqlDialect;
+
+impl SqlDialect for MySqlDialect {
+    fn parse_tokens(&self, tokens: &[String]) -> Result<(), &'static str> {
+        // TODO: implement MySQL-specific parsing (e.g., backticks)
+        AnsiSqlDialect.parse_tokens(tokens)
+    }
 } 

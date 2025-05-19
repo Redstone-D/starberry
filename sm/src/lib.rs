@@ -7,7 +7,7 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 mod parser;
 mod keywords;
 use keywords::Keyword;
-use parser::{tokenize_sql, SqlDialect, AnsiSqlDialect, to_keyword};
+use parser::{tokenize_sql, SqlDialect, AnsiSqlDialect, MySqlDialect, to_keyword};
 
 // #[proc_macro_attribute]
 // pub fn log_func_info(_: TokenStream, input: TokenStream) -> TokenStream {
@@ -782,15 +782,30 @@ fn generate_render_code(args: RenderArgs) -> TokenStream2 {
     }}
 } 
 
-/// Custom parsing for the `sql!` macro
+/// Custom parsing for the `sql!` macro, supporting an optional dialect type
 struct SqlMacroInput {
+    dialect: Option<syn::Path>,
     sql: LitStr,
     args: Punctuated<Expr, Token![,]>,
 }
 
 impl Parse for SqlMacroInput {
     fn parse(input: ParseStream) -> SynResult<Self> {
+        // Optional dialect: if first token is not a string literal, parse a type path
+        let dialect = if !input.peek(LitStr) {
+            // Parse a Rust type, expecting a path to a unit struct implementing SqlDialect
+            let typ: syn::Type = input.parse()?;
+            let path = if let syn::Type::Path(tp) = typ { tp.path } else {
+                return Err(input.error("expected a dialect type before the SQL literal"));
+            };
+            input.parse::<Token![,]>()?;
+            Some(path)
+        } else {
+            None
+        };
+        // Now parse the SQL literal
         let sql: LitStr = input.parse()?;
+        // Parse optional bind expressions
         let mut args = Punctuated::new();
         if input.peek(Token![,]) {
             input.parse::<Token![,]>()?;
@@ -804,7 +819,7 @@ impl Parse for SqlMacroInput {
                 }
             }
         }
-        Ok(SqlMacroInput { sql, args })
+        Ok(SqlMacroInput { dialect, sql, args })
     }
 }
 
@@ -821,12 +836,27 @@ fn validate_table_schema(table: &str) -> Result<(), &'static str> {
 /// Function-like procedural macro for SQL query parsing and basic code generation.
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
-    let SqlMacroInput { sql, args } = parse_macro_input!(input as SqlMacroInput);
+    let SqlMacroInput { dialect, sql, args } = parse_macro_input!(input as SqlMacroInput);
     let sql_text = sql.value();
     // Compile-time lexing & parsing via SqlDialect
     let tokens = tokenize_sql(&sql_text);
-    let dialect = AnsiSqlDialect;
-    if let Err(err) = dialect.parse_tokens(&tokens) {
+    // Choose and instantiate the desired dialect
+    let mut dialect_obj: Box<dyn SqlDialect> = match &dialect {
+        Some(path) => {
+            let name = path.segments.last().unwrap().ident.to_string();
+            match name.as_str() {
+                "MySqlDialect" => Box::new(MySqlDialect),
+                "AnsiSqlDialect" => Box::new(AnsiSqlDialect),
+                other => {
+                    return syn::Error::new_spanned(path, format!("unsupported SQL dialect: {}", other))
+                        .to_compile_error()
+                        .into();
+                }
+            }
+        }
+        None => Box::new(AnsiSqlDialect),
+    };
+    if let Err(err) = dialect_obj.parse_tokens(&tokens) {
         return syn::Error::new_spanned(sql, err)
             .to_compile_error()
             .into();
