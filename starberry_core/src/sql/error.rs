@@ -1,5 +1,6 @@
 use std::error::Error as StdError;
 use std::fmt;
+use crate::connection::error::ConnectionError;
 
 /// Represents errors that can occur during database operations.
 #[derive(Debug, Clone)]
@@ -44,5 +45,25 @@ impl From<&str> for DbError {
 impl From<String> for DbError {
     fn from(error: String) -> Self {
         DbError::OtherError(error)
+    }
+}
+
+impl From<ConnectionError> for DbError {
+    fn from(err: ConnectionError) -> Self {
+        match err {
+            ConnectionError::ConnectionTimeout =>
+                DbError::TimeoutError(err.to_string()),
+            ConnectionError::ProtocolError(msg) |
+            ConnectionError::TlsError(msg) =>
+                DbError::ProtocolError(msg),
+            ConnectionError::IoError(_) |
+            ConnectionError::ConnectionRefused |
+            ConnectionError::AuthenticationFailed |
+            ConnectionError::HostResolutionFailed(_) |
+            ConnectionError::ConnectionClosed =>
+                DbError::ConnectionError(err.to_string()),
+            ConnectionError::PoolExhausted =>
+                DbError::OtherError(err.to_string()),
+        }
     }
 }

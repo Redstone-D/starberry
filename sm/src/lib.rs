@@ -5,7 +5,9 @@ use syn::{
 }; 
 use proc_macro2::{Span, TokenStream as TokenStream2}; 
 mod parser;
-use parser::{tokenize_sql, SqlDialect, AnsiSqlDialect};
+mod keywords;
+use keywords::Keyword;
+use parser::{tokenize_sql, SqlDialect, AnsiSqlDialect, to_keyword};
 
 // #[proc_macro_attribute]
 // pub fn log_func_info(_: TokenStream, input: TokenStream) -> TokenStream {
@@ -806,6 +808,16 @@ impl Parse for SqlMacroInput {
     }
 }
 
+/// Stub for compile-time schema validation: replace with real schema loading logic.
+fn validate_table_schema(table: &str) -> Result<(), &'static str> {
+    // TODO: load schema definitions from a cache or database
+    if table.is_empty() {
+        Err("empty table name")
+    } else {
+        Ok(())
+    }
+}
+
 /// Function-like procedural macro for SQL query parsing and basic code generation.
 #[proc_macro]
 pub fn sql(input: TokenStream) -> TokenStream {
@@ -819,13 +831,28 @@ pub fn sql(input: TokenStream) -> TokenStream {
             .to_compile_error()
             .into();
     }
-
-    let expanded = quote! {
-        {
-            let __sql = #sql;
-            ::starberry_core::sql::SqlQuery::new(__sql)
-                #(.bind(#args))*
+    // Extract the primary table name for schema validation
+    let table_name = match to_keyword(&tokens[0]) {
+        Keyword::SELECT => {
+            let from_pos = tokens.iter().position(|t| to_keyword(t) == Keyword::FROM).unwrap_or(0);
+            tokens.get(from_pos + 1).map(|s| s.as_str()).unwrap_or("")
         }
+        Keyword::ALTER => tokens.get(2).map(|s| s.as_str()).unwrap_or(""),
+        _ => "",
+    };
+    if let Err(err) = validate_table_schema(table_name) {
+        return syn::Error::new_spanned(sql, err)
+            .to_compile_error()
+            .into();
+    }
+
+    // Build query chain with binds
+    let mut __query = quote! { ::starberry_core::sql::SqlQuery::new(#sql) };
+    for __arg in args.iter() {
+        __query = quote! { #__query.bind(#__arg) };
+    }
+    let expanded = quote! {
+        #__query
     };
     TokenStream::from(expanded)
 }
@@ -833,6 +860,39 @@ pub fn sql(input: TokenStream) -> TokenStream {
 /// Derive macro for generating `FromRow` implementations
 #[proc_macro_derive(FromRow)]
 pub fn derive_from_row(input: TokenStream) -> TokenStream {
-    // TODO: parse struct and generate an impl that maps fields from a row
-    unimplemented!()
+    let input_ast = parse_macro_input!(input as syn::DeriveInput);
+    let name = &input_ast.ident;
+    // Only structs with named fields are supported
+    let fields = if let syn::Data::Struct(syn::DataStruct { fields: syn::Fields::Named(ref f), .. }) = input_ast.data {
+        &f.named
+    } else {
+        return syn::Error::new_spanned(name, "FromRow derive only supports structs with named fields")
+            .to_compile_error()
+            .into();
+    };
+    // Generate code for each field
+    let assignments = fields.iter().map(|field| {
+        let ident = field.ident.as_ref().unwrap();
+        let name_str = ident.to_string();
+        let ty = &field.ty;
+        quote! {
+            #ident: {
+                let value = row.get(#name_str)
+                    .ok_or_else(|| ::starberry_core::sql::DbError::QueryError(format!("missing column {}", #name_str)))?;
+                value.parse::<#ty>()
+                    .map_err(|e| ::starberry_core::sql::DbError::QueryError(format!("failed to parse {}: {}", #name_str, e)))?
+            }
+        }
+    });
+    // Build the impl block
+    let expanded = quote! {
+        impl ::starberry_core::sql::FromRow for #name {
+            fn from_row(row: &::std::collections::HashMap<String, String>) -> Result<Self, ::starberry_core::sql::DbError> {
+                Ok(Self {
+                    #(#assignments),*
+                })
+            }
+        }
+    };
+    TokenStream::from(expanded)
 } 

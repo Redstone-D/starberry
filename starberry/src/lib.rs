@@ -39,6 +39,6 @@ pub use sm::url;
 pub use sm::middleware; 
 pub use sm::reg; 
 pub use sm::sql;
-pub use sm::derive_from_row;
+pub use sm::FromRow;
 
 pub mod prelude; 
