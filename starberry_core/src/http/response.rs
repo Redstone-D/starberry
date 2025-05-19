@@ -6,7 +6,7 @@ use super::start_line::{HttpStartLine, ResponseStartLine};
 use std::collections::HashMap;
 use std::fmt::Write;
 use tokio::net::TcpStream; 
-use tokio::io::{AsyncWriteExt, BufWriter}; 
+use tokio::io::{AsyncWrite, AsyncWriteExt, BufWriter}; 
 
 use std::future::{ready, Ready};
 use std::pin::Pin;
@@ -33,7 +33,7 @@ impl HttpResponse {
         self 
     } 
 
-    pub async fn send(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
+    pub async fn send<W: AsyncWrite +  Unpin>(&mut self, stream: &mut BufWriter<W>) -> std::io::Result<()> {
         let mut writer = BufWriter::new(stream);
         let mut headers = String::with_capacity(256); 
 

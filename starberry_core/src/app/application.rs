@@ -14,6 +14,7 @@ use std::future::Future;
 
 use crate::app::middleware::LoggingMiddleware; 
 use crate::app::urls;
+use crate::connection::Connection;
 use crate::context::Rc;
 use crate::http::meta::ParseConfig;
 
@@ -321,7 +322,7 @@ impl App {
     pub fn handle_connection(self: Arc<Self>, stream: TcpStream) {
         let app = Arc::clone(&self);
         let job = async move {
-            let rc = Rc::handle(app.clone(), stream).await;
+            let rc = Rc::handle(app.clone(), Connection::Tcp(stream)).await;
             rc.run().await; 
         };
         tokio::spawn(job);

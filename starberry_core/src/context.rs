@@ -5,14 +5,15 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use tokio::net::TcpStream;
-use tokio::io::BufReader;
+use tokio::io::{BufReader, BufWriter, ReadHalf, WriteHalf};
 
 use akari::Value;
 use once_cell::sync::Lazy;
 
-use crate::app::{application::App, urls::Url};
-use crate::app::urls::dangling_url;
+use crate::app::{application::App, urls::Url}; 
+use crate::connection::Connection;
 use crate::http::cookie::{Cookie, CookieMap};
+use crate::http::request::HttpRequest;
 use crate::http::{
     http_value::HttpMethod, 
     form::{
@@ -30,9 +31,9 @@ pub trait SendResponse {
 
 /// The `RequestContext` struct is used to hold the context of a request. 
 pub struct Rc { 
-    pub meta: HttpMeta, 
-    pub body: HttpBody, 
-    pub reader: BufReader<TcpStream>, 
+    pub request: HttpRequest, 
+    pub reader: BufReader<ReadHalf<Connection>>, 
+    pub writer: BufWriter<WriteHalf<Connection>>, 
     pub app: Arc<App>, 
     pub endpoint: Arc<Url>, 
     pub response: HttpResponse, 
@@ -48,16 +49,16 @@ pub struct Rc {
 
 impl Rc  { 
     pub fn new(
-        meta: HttpMeta,
-        body: HttpBody,
-        reader: BufReader<TcpStream>,
+        request: HttpRequest, 
+        reader: BufReader<ReadHalf<Connection>>, 
+        writer: BufWriter<WriteHalf<Connection>>, 
         app: Arc<App>,
         endpoint: Arc<Url>, 
     ) -> Self {
         Self {
-            meta,
-            body,
-            reader,
+            request, 
+            reader, 
+            writer, 
             app,
             endpoint, 
             response: HttpResponse::default(), 
@@ -66,36 +67,31 @@ impl Rc  {
         }
     } 
 
-    pub async fn handle(app: Arc<App>, stream: TcpStream) -> Self {
-        // Create one BufReader up-front, pass this throughout.
-        let mut reader = BufReader::new(stream); 
-        let meta = match HttpMeta::from_request_stream(
+    pub async fn handle(app: Arc<App>, stream: Connection) -> Self {
+        // Create one BufReader up-front, pass this throughout. 
+        let (read_stream, write_stream) = stream.split(); 
+        let mut reader = BufReader::new(read_stream); 
+        let writer = BufWriter::new(write_stream); 
+        let request = HttpRequest::parse_lazy(
             &mut reader, 
             &app.connection_config, 
             app.get_mode() == crate::app::application::RunMode::Build, 
-        ).await {
-            Ok(meta) => meta,
-            Err(e) => {
-                println!("Error parsing request: {}", e); 
-                return Self::new(HttpMeta::default(), HttpBody::Unparsed, reader, app.clone(), dangling_url()); 
-            }
-        }; 
+        ).await; 
 
-        let body = HttpBody::Unparsed;
         let endpoint = app
             .root_url
             .clone()
-            .walk_str(&meta.path())
+            .walk_str(&request.meta.path())
             .await; 
         // let endpoint = dangling_url(); 
 
-        Rc::new(meta, body, reader, app.clone(), endpoint.clone())
+        Rc::new(request, reader, writer, app.clone(), endpoint.clone())
     } 
 
     pub async fn run(mut self) { 
         let endpoint = self.endpoint.clone(); 
         if !endpoint.clone().request_check(&mut self).await { 
-            let _ = self.response.send(self.reader.get_mut()).await; 
+            let _ = self.response.send(&mut self.writer).await; 
             return; 
         }
         let parsed = endpoint.run(self); 
@@ -103,11 +99,11 @@ impl Rc  {
     } 
 
     pub async fn send_response(mut self) { 
-        let _ = self.response.send(self.reader.get_mut()).await;
+        let _ = self.response.send(&mut self.writer).await;
     } 
 
     pub fn meta(&self) -> &HttpMeta { 
-        &self.meta 
+        &self.request.meta 
     } 
 
     pub fn app(&self) -> Arc<App> { 
@@ -119,18 +115,15 @@ impl Rc  {
     } 
 
     pub async fn parse_body(&mut self) {
-        if let HttpBody::Unparsed = self.body {
-            self.body = HttpBody::parse(
-                &mut self.reader,
-                self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()),
-                &mut self.meta,
-            ).await;
-        }
+        self.request.parse_body(
+            &mut self.reader,
+            self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()), 
+        ); 
     } 
 
     pub async fn form(&mut self) -> Option<&UrlEncodedForm> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpBody::Form(ref data) = self.body {
+        if let HttpBody::Form(ref data) = self.request.body {
             Some(data)
         } else {
             None
@@ -149,7 +142,7 @@ impl Rc  {
     
     pub async fn files(&mut self) -> Option<&MultiForm> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpBody::Files(ref data) = self.body {
+        if let HttpBody::Files(ref data) = self.request.body {
             Some(data)
         } else {
             None
@@ -168,7 +161,7 @@ impl Rc  {
     
     pub async fn json(&mut self) -> Option<&Value> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpBody::Json(ref data) = self.body {
+        if let HttpBody::Json(ref data) = self.request.body {
             Some(data)
         } else {
             None
@@ -186,11 +179,11 @@ impl Rc  {
     } 
     
     pub fn get_path(&mut self, part: usize) -> String { 
-        self.meta.get_path(part) 
+        self.request.meta.get_path(part) 
     }
 
     pub fn path(&self) -> String { 
-        self.meta.path() 
+        self.request.meta.path() 
     } 
 
     pub fn get_arg_index<S: AsRef<str>>(&self, arg: S) -> Option<usize> { 
@@ -199,26 +192,26 @@ impl Rc  {
 
     pub fn get_arg<S: AsRef<str>>(&mut self, arg: S) -> Option<String> { 
         match self.get_arg_index(arg.as_ref()) { 
-            Some(index) => Some(self.meta.get_path(index)),
+            Some(index) => Some(self.request.meta.get_path(index)),
             None => None, 
         }
     } 
 
     /// Returns the method of the request. 
     pub fn method(&mut self) -> HttpMethod { 
-        self.meta.method() 
+        self.request.meta.method() 
     } 
 
     pub fn get_cookies(&mut self) -> &CookieMap { 
-        self.meta.get_cookies() 
+        self.request.meta.get_cookies() 
     } 
 
     pub fn get_cookie(&mut self, key: &str) -> Option<Cookie> { 
-        self.meta.get_cookie(key) 
+        self.request.meta.get_cookie(key) 
     } 
 
     pub fn get_cookie_or_default<T: AsRef<str>>(&mut self, key: T) -> Cookie { 
-        self.meta.get_cookie_or_default(key) 
+        self.request.meta.get_cookie_or_default(key) 
     } 
 
     // 
@@ -440,3 +433,11 @@ impl Rc  {
         Box::pin(self.future())
     }  
 } 
+
+pub struct OutRequest { 
+    pub request: HttpRequest, 
+    pub response: HttpResponse, 
+    pub reader: BufReader<ReadHalf<Connection>>, 
+    pub writer: BufWriter<WriteHalf<Connection>>, 
+} 
+
