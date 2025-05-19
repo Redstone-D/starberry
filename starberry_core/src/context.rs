@@ -1,5 +1,6 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
+use std::default;
 use std::future::{ready, Future};
 use std::pin::Pin;
 use std::sync::Arc;
@@ -13,6 +14,7 @@ use once_cell::sync::Lazy;
 use crate::app::{application::App, urls::Url}; 
 use crate::connection::Connection;
 use crate::http::cookie::{Cookie, CookieMap};
+use crate::http::meta::ParseConfig;
 use crate::http::request::HttpRequest;
 use crate::http::{
     http_value::HttpMethod, 
@@ -118,7 +120,7 @@ impl Rc  {
         self.request.parse_body(
             &mut self.reader,
             self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()), 
-        ); 
+        ).await; 
     } 
 
     pub async fn form(&mut self) -> Option<&UrlEncodedForm> {
@@ -441,3 +443,59 @@ pub struct OutRequest {
     pub writer: BufWriter<WriteHalf<Connection>>, 
 } 
 
+impl OutRequest { 
+    pub fn new(request: HttpRequest, connection: Connection) -> Self { 
+        let (reader, writer) = connection.split(); 
+        Self { 
+            request, 
+            response: HttpResponse::default(), 
+            reader: BufReader::new(reader), 
+            writer: BufWriter::new(writer) 
+        } 
+    } 
+
+    pub async fn send(&mut self) { 
+        let _ = self.request.send(&mut self.writer); 
+        self.response = HttpResponse::parse_lazy(&mut self.reader, &ParseConfig::default(), false).await; 
+    }
+}
+
+#[cfg(test)] 
+mod test {
+    use std::collections::HashMap;
+
+    use rustls::pki_types::ServerName;
+
+    use crate::{connection::{ConnectionBuilder, Protocol}, context::OutRequest, http::{http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, start_line::HttpStartLine}};
+ 
+    #[tokio::test] 
+    async fn request_a_page() { 
+
+        let builder = ConnectionBuilder::new("pmine.org", 443)
+            .protocol(Protocol::HTTP)
+            .tls(true); 
+
+        let connection = builder.connect().await.unwrap(); 
+
+        // 6. Create a request context 
+        let meta = HttpMeta::new(
+            HttpStartLine::new_request(
+                HttpVersion::Http11,
+                HttpMethod::GET,
+                String::from("/num/random/1/5"),
+            ),
+            HashMap::new(),
+        ); 
+
+        let body = crate::http::body::HttpBody::Unparsed; 
+
+        let request = crate::http::request::HttpRequest::new(meta, body); 
+
+        // 7. send the request 
+        let mut request = OutRequest::new(request, connection); 
+
+        request.send().await; 
+
+        println!("{:?}, {:?}", request.response.meta, request.response.body); 
+    }
+}
