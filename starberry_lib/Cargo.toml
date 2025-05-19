@@ -1,0 +1,14 @@
+[package]
+name = "starberry_lib"
+version = "0.5.0" 
+edition = "2024"
+authors = ["Redstone <redstone@fds.moe>"] 
+description = "Small, sweet, easy framework for full-stack web application" 
+license = "MIT" 
+repository = "https://github.com/Redstone-D/starberry" 
+categories = ["network-programming", "web-programming::http-server"] 
+keywords = ["starberry"]  
+
+[dependencies] 
+rand = "0.9" 
+percent-encoding = "2.2" 

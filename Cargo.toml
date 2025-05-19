@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "starberry", 
+    "sm", 
+    "starberry_core", 
+    "sbmstd", 
+] 
+resolver = "3" 
