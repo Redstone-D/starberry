@@ -5,6 +5,7 @@ pub mod row;
 pub mod encode;
 pub mod builder;
 pub mod pool;
+pub mod test;
 
 pub use connection::*;
 pub use query::*;

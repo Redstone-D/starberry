@@ -2,7 +2,7 @@ use std::time::Duration;
 use crate::connection::{Protocol, ConnectionBuilder, Connection as GenericConnection};
 use super::error::DbError;
 use md5;
-use starberry_lib::random_string;
+use starberry_lib::random_alphanumeric_string;
 use base64::{engine::general_purpose, Engine as _};
 use ring::{digest, hmac, pbkdf2};
 use std::num::NonZeroU32;
@@ -239,7 +239,7 @@ impl DbConnectionBuilder {
                                     return Err(DbError::ProtocolError("SCRAM-SHA-256 not supported by server".to_string()));
                                 }
                                 // Client-first-message
-                                let client_nonce = random_string(24);
+                                let client_nonce = random_alphanumeric_string(24);
                                 scram_client_nonce = Some(client_nonce.clone());
                                 let client_first_bare = format!("n={},r={}", user, client_nonce);
                                 scram_client_first_bare = Some(client_first_bare.clone());
