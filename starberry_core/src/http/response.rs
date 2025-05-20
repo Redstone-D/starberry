@@ -30,7 +30,7 @@ impl HttpResponse {
     } 
 
     pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, print_raw: bool) -> Self {
-        match net::parse_lazy(stream, config, print_raw).await { 
+        match net::parse_lazy(stream, config, false, print_raw).await { 
             Ok((meta, body)) => Self::new(meta, body), 
             Err(_) => Self::default() 
         }

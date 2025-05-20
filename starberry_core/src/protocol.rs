@@ -1,3 +1,3 @@
-pub trait Protocol { 
-
+pub trait TcpRequest { 
+    fn 
 } 

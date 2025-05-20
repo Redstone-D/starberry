@@ -5,13 +5,13 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 use super::meta::{HttpMeta, ParseConfig}; 
 use super::body::HttpBody; 
 
-pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, print_raw: bool) -> std::io::Result<(HttpMeta, HttpBody)> {
+pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, is_request: bool, print_raw: bool) -> std::io::Result<(HttpMeta, HttpBody)> {
     // Create one BufReader up-front, pass this throughout.
-    let mut reader = BufReader::new(stream); 
-    let meta = HttpMeta::from_request_stream(
-        &mut reader, 
+    let meta = HttpMeta::from_stream(
+        stream, 
         config, 
         print_raw, 
+        is_request 
     ).await.map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?; 
 
     let body = HttpBody::Unparsed; 
@@ -45,7 +45,7 @@ pub async fn send<W: AsyncWrite +  Unpin>(meta: &mut HttpMeta, body: &mut HttpBo
     writer.write_all(headers.as_bytes()).await?;
     writer.write_all(bin).await?; 
 
-    // println!("{}, {:?}", headers, bin); 
+    println!("{:?}, {:?}", headers, bin); 
     writer.flush().await?; 
     
     Ok(()) 
