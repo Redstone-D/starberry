@@ -12,6 +12,12 @@ impl Encode for i32 {
     }
 }
 
+impl Encode for i64 {
+    fn encode(&self) -> Result<String, DbError> {
+        Ok(self.to_string())
+    }
+}
+
 impl Encode for &str {
     fn encode(&self) -> Result<String, DbError> {
         // Escape single quotes and wrap in single quotes
