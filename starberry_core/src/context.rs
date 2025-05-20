@@ -304,7 +304,8 @@ impl Rc  {
     /// # Examples
     ///
     /// ```rust
-    /// // Modify a list of items
+    /// // Modify a list of items 
+    /// req.set_local("cart_items", vec!["item1", "item2"]); 
     /// if let Some(items) = req.local_mut::<Vec<String>>("cart_items") {
     ///     items.push("new_item".to_string());
     /// }
