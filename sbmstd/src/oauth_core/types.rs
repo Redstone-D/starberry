@@ -88,4 +88,15 @@ pub enum OAuthError {
     Unauthorized,
     /// Generic server-side error.
     ServerError,
+}
+
+/// Context data for authenticated OAuth requests.
+#[derive(Debug, Clone)]
+pub struct OAuthContext {
+    /// The client identifier or subject of the token.
+    pub client_id: String,
+    /// Granted scopes associated with the token.
+    pub scopes: Vec<String>,
+    /// The underlying token information.
+    pub token: Token,
 } 

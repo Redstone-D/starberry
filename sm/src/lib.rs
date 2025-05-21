@@ -926,3 +926,91 @@ pub fn derive_from_row(input: TokenStream) -> TokenStream {
     };
     TokenStream::from(expanded)
 } 
+
+// OAuth route protection attribute arguments
+struct OAuthArgs {
+    scopes: Vec<String>,
+    clients: Vec<String>,
+}
+
+impl Parse for OAuthArgs {
+    fn parse(input: ParseStream) -> SynResult<Self> {
+        let mut scopes = Vec::new();
+        let mut clients = Vec::new();
+        while !input.is_empty() {
+            let name: Ident = input.parse()?;
+            input.parse::<Token![=]>()?;
+            let lit: LitStr = input.parse()?;
+            match name.to_string().as_str() {
+                "scopes" => scopes = lit.value().split(',').map(|s| s.trim().to_string()).collect(),
+                "clients" => clients = lit.value().split(',').map(|s| s.trim().to_string()).collect(),
+                other => return Err(input.error(format!("unknown argument `{}` for oauth", other))),
+            }
+            if input.peek(Token![,]) {
+                input.parse::<Token![,]>()?;
+            }
+        }
+        Ok(OAuthArgs { scopes, clients })
+    }
+}
+
+#[proc_macro_attribute]
+pub fn oauth(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let args = parse_macro_input!(attr as OAuthArgs);
+    let mut func = parse_macro_input!(item as ItemFn);
+    let orig_name = func.sig.ident.clone();
+    let inner_name = Ident::new(&format!("{}_inner", orig_name), orig_name.span());
+    func.sig.ident = inner_name.clone();
+
+    // Determine the context parameter name (default to `ctx`)
+    let ctx_param = if let Some(FnArg::Typed(pat_type)) = func.sig.inputs.first() {
+        if let Pat::Ident(pat_ident) = &*pat_type.pat {
+            pat_ident.ident.clone()
+        } else {
+            Ident::new("ctx", orig_name.span())
+        }
+    } else {
+        Ident::new("ctx", orig_name.span())
+    };
+
+    // Prepare client and scope vectors
+    let scopes_vec = args.scopes.iter().map(|s| quote!{ #s.to_string() });
+    let clients_vec = args.clients.iter().map(|c| quote!{ #c.to_string() });
+
+    // Generate the wrapper function
+    let wrapper = quote!{
+        pub async fn #orig_name(mut #ctx_param: Rc) -> Rc {
+            // Extract OAuthContext
+            let oauth = match #ctx_param.param::<OAuthContext>().cloned() {
+                Some(o) => o,
+                None => {
+                    #ctx_param.response = ::starberry_core::http::response::request_templates::return_status(::starberry_core::http::http_value::StatusCode::UNAUTHORIZED);
+                    return #ctx_param;
+                }
+            };
+            // Client check
+            let allowed = vec![#(#clients_vec),*];
+            if !allowed.contains(&oauth.client_id) {
+                #ctx_param.response = ::starberry_core::http::response::request_templates::return_status(::starberry_core::http::http_value::StatusCode::FORBIDDEN);
+                return #ctx_param;
+            }
+            // Scope check
+            let required = vec![#(#scopes_vec),*];
+            for scope in required {
+                if !oauth.scopes.contains(&scope) {
+                    #ctx_param.response = ::starberry_core::http::response::request_templates::return_status(::starberry_core::http::http_value::StatusCode::FORBIDDEN);
+                    return #ctx_param;
+                }
+            }
+            // Call the original handler
+            #inner_name(#ctx_param).await
+        }
+    };
+
+    // Emit the renamed original and the wrapper
+    let expanded = quote!{
+        #func
+        #wrapper
+    };
+    expanded.into()
+} 

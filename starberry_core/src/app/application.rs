@@ -86,7 +86,10 @@ impl AppBuilder {
     }
 
     pub fn default_middlewares() -> Vec<Arc<dyn AsyncMiddleware>> { 
-        vec![]
+        vec![
+            // Enforce HTTPS on all incoming requests
+            Arc::new(middleware::HttpsEnforcement::return_self()),
+        ]
     }
 
     pub fn root_url(mut self, root_url: Arc<Url>) -> Self { 
