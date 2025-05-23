@@ -45,14 +45,14 @@ pub enum Grant {
 }
 
 /// Core JWT algorithm options.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum JWTAlgorithm {
     HS256,
     RS256,
 }
 
 /// Supported access token models.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub enum TokenModel {
     /// Opaque bearer tokens.
     BearerOpaque,
@@ -61,7 +61,7 @@ pub enum TokenModel {
 }
 
 /// OAuth2 token representation.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Token {
     /// The model of the access token.
     pub model: TokenModel,
@@ -76,7 +76,7 @@ pub struct Token {
 }
 
 /// Core OAuth2 error kinds.
-#[derive(Debug)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub enum OAuthError {
     /// The client authentication failed.
     InvalidClient,
@@ -91,7 +91,7 @@ pub enum OAuthError {
 }
 
 /// Context data for authenticated OAuth requests.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct OAuthContext {
     /// The client identifier or subject of the token.
     pub client_id: String,

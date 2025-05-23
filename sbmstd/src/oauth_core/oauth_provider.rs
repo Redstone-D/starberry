@@ -33,4 +33,85 @@ pub trait Authorizer: Send + Sync + 'static {
     fn check_consent(&self, client_id: &str, user_id: &str, scopes: &[String]) -> Pin<Box<dyn Future<Output = Result<bool, OAuthError>> + Send + 'static>>;
 }
 
+/// Trait to abstract storage operations for access/refresh tokens, PKCE verifiers, and CSRF states.
+pub trait TokenStorage: Send + Sync + 'static {
+    /// Store an access token string with its associated Token data and expiry.
+    fn store_access_token(
+        &self,
+        token: &str,
+        data: Token,
+        expires_in: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+
+    /// Retrieve an access token if it exists.
+    fn get_access_token(
+        &self,
+        token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Token>, OAuthError>> + Send + 'static>>;
+
+    /// Delete an access token.
+    fn delete_access_token(
+        &self,
+        token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+
+    /// Store a refresh token mapping to an access token.
+    fn store_refresh_token(
+        &self,
+        refresh_token: &str,
+        access_token: &str,
+        expires_in: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+
+    /// Retrieve the access token associated with a refresh token.
+    fn get_refresh_token(
+        &self,
+        refresh_token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, OAuthError>> + Send + 'static>>;
+
+    /// Delete a refresh token.
+    fn delete_refresh_token(
+        &self,
+        refresh_token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+
+    /// Store a PKCE code verifier keyed by its code challenge.
+    fn store_pkce_verifier(
+        &self,
+        code_challenge: &str,
+        code_verifier: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+
+    /// Retrieve a PKCE code verifier for a given code challenge.
+    fn get_pkce_verifier(
+        &self,
+        code_challenge: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, OAuthError>> + Send + 'static>>;
+
+    /// Delete a PKCE code verifier.
+    fn delete_pkce_verifier(
+        &self,
+        code_challenge: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+
+    /// Store a CSRF state value with expiry.
+    fn store_csrf_state(
+        &self,
+        state: &str,
+        expires_in: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+
+    /// Check if a CSRF state exists.
+    fn get_csrf_state(
+        &self,
+        state: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<bool, OAuthError>> + Send + 'static>>;
+
+    /// Delete a CSRF state.
+    fn delete_csrf_state(
+        &self,
+        state: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>>;
+}
+
 // TODO: Implement OAuth2 core functionality. 

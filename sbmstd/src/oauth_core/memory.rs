@@ -4,7 +4,7 @@ use std::{sync::Arc, pin::Pin, future::Future};
 use dashmap::DashMap;
 use uuid::Uuid;
 use super::types::{Client, Grant, Token, TokenModel, OAuthError};
-use super::oauth_provider::{ClientStore, TokenManager, Authorizer};
+use super::oauth_provider::{ClientStore, TokenManager, Authorizer, TokenStorage};
 
 #[derive(Clone)]
 pub struct InMemoryClientStore {
@@ -119,6 +119,177 @@ impl Authorizer for InMemoryAuthorizer {
             } else {
                 Ok(false)
             }
+        })
+    }
+}
+
+/// In-memory storage backend for OAuth tokens, PKCE verifiers, and CSRF states.
+#[derive(Clone)]
+pub struct InMemoryTokenStorage {
+    access_tokens: Arc<DashMap<String, Token>>,
+    refresh_tokens: Arc<DashMap<String, String>>,
+    pkce_store: Arc<DashMap<String, String>>,
+    csrf_store: Arc<DashMap<String, ()>>,
+}
+
+impl InMemoryTokenStorage {
+    /// Creates a new in-memory token storage.
+    pub fn new() -> Self {
+        Self {
+            access_tokens: Arc::new(DashMap::new()),
+            refresh_tokens: Arc::new(DashMap::new()),
+            pkce_store: Arc::new(DashMap::new()),
+            csrf_store: Arc::new(DashMap::new()),
+        }
+    }
+}
+
+impl TokenStorage for InMemoryTokenStorage {
+    fn store_access_token(
+        &self,
+        token: &str,
+        data: Token,
+        _expires_in: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.access_tokens.clone();
+        let key = token.to_string();
+        Box::pin(async move {
+            map.insert(key, data);
+            Ok(())
+        })
+    }
+
+    fn get_access_token(
+        &self,
+        token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<Token>, OAuthError>> + Send + 'static>> {
+        let map = self.access_tokens.clone();
+        let key = token.to_string();
+        Box::pin(async move {
+            Ok(map.get(&key).map(|e| e.value().clone()))
+        })
+    }
+
+    fn delete_access_token(
+        &self,
+        token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.access_tokens.clone();
+        let key = token.to_string();
+        Box::pin(async move {
+            map.remove(&key);
+            Ok(())
+        })
+    }
+
+    fn store_refresh_token(
+        &self,
+        refresh_token: &str,
+        access_token: &str,
+        _expires_in: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.refresh_tokens.clone();
+        let rkey = refresh_token.to_string();
+        let akey = access_token.to_string();
+        Box::pin(async move {
+            map.insert(rkey, akey);
+            Ok(())
+        })
+    }
+
+    fn get_refresh_token(
+        &self,
+        refresh_token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, OAuthError>> + Send + 'static>> {
+        let map = self.refresh_tokens.clone();
+        let key = refresh_token.to_string();
+        Box::pin(async move {
+            Ok(map.get(&key).map(|e| e.value().clone()))
+        })
+    }
+
+    fn delete_refresh_token(
+        &self,
+        refresh_token: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.refresh_tokens.clone();
+        let key = refresh_token.to_string();
+        Box::pin(async move {
+            map.remove(&key);
+            Ok(())
+        })
+    }
+
+    fn store_pkce_verifier(
+        &self,
+        code_challenge: &str,
+        code_verifier: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.pkce_store.clone();
+        let c_chal = code_challenge.to_string();
+        let c_ver = code_verifier.to_string();
+        Box::pin(async move {
+            map.insert(c_chal, c_ver);
+            Ok(())
+        })
+    }
+
+    fn get_pkce_verifier(
+        &self,
+        code_challenge: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, OAuthError>> + Send + 'static>> {
+        let map = self.pkce_store.clone();
+        let key = code_challenge.to_string();
+        Box::pin(async move {
+            Ok(map.get(&key).map(|e| e.value().clone()))
+        })
+    }
+
+    fn delete_pkce_verifier(
+        &self,
+        code_challenge: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.pkce_store.clone();
+        let key = code_challenge.to_string();
+        Box::pin(async move {
+            map.remove(&key);
+            Ok(())
+        })
+    }
+
+    fn store_csrf_state(
+        &self,
+        state: &str,
+        _expires_in: u64,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.csrf_store.clone();
+        let key = state.to_string();
+        Box::pin(async move {
+            map.insert(key, ());
+            Ok(())
+        })
+    }
+
+    fn get_csrf_state(
+        &self,
+        state: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<bool, OAuthError>> + Send + 'static>> {
+        let map = self.csrf_store.clone();
+        let key = state.to_string();
+        Box::pin(async move {
+            Ok(map.contains_key(&key))
+        })
+    }
+
+    fn delete_csrf_state(
+        &self,
+        state: &str,
+    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+        let map = self.csrf_store.clone();
+        let key = state.to_string();
+        Box::pin(async move {
+            map.remove(&key);
+            Ok(())
         })
     }
 } 
