@@ -22,7 +22,6 @@ pub struct HttpMeta {
     content_type: Option<HttpContentType>,
     content_length: Option<usize>,
     cookies: Option<CookieMap>, 
-    host: Option<String>, 
     location: Option<String>, 
 } 
 
@@ -543,7 +542,6 @@ impl HttpMeta {
             content_type: None,
             content_length: None,
             cookies: None, 
-            host: None, 
             location: None, 
         }
     } 
@@ -818,7 +816,7 @@ impl HttpMeta {
     /// use starberry_core::http::meta::HttpMeta;
     /// use starberry_core::http::meta::HeaderValue;
     /// use std::collections::HashMap;
-    /// 
+    ///
     /// let mut headers = HashMap::new();
     /// headers.insert("content-length".to_string(), HeaderValue::new("123"));
     /// let mut meta = HttpMeta::new(Default::default(), headers);
@@ -1339,150 +1337,6 @@ impl HttpMeta {
         self.header.remove("set-cookie"); 
     } 
 
-    /// Gets the host from the HTTP meta data.
-    ///
-    /// Returns the cached host if available, otherwise parses
-    /// the host header from the headers map.
-    ///
-    /// # Returns
-    ///
-    /// * `Option<String>` - The host, or None if not available.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use starberry_core::http::meta::HttpMeta;
-    /// use starberry_core::http::meta::HeaderValue;
-    /// use std::collections::HashMap;
-    ///
-    /// let mut headers = HashMap::new();
-    /// headers.insert("host".to_string(), HeaderValue::new("example.com"));
-    /// let mut meta = HttpMeta::new(Default::default(), headers);
-    ///
-    /// assert_eq!(meta.get_host(), Some("example.com".to_string()));
-    /// ``` 
-    pub fn get_host(&mut self) -> Option<String> {
-        if let Some(ref host) = self.host {
-            return Some(host.clone());
-        }
-        self.parse_host()
-    } 
-
-    /// Parses the Host header from the headers map and stores it in the host field.
-    ///
-    /// # Returns
-    ///
-    /// * `Option<String>` - The host value, or None if not present.
-    ///
-    /// # Examples
-    ///
-    /// ```rust
-    /// use starberry_core::http::meta::HttpMeta;
-    /// use starberry_core::http::meta::HeaderValue;
-    /// use std::collections::HashMap;
-    /// 
-    /// let mut headers = HashMap::new();
-    /// headers.insert("host".to_string(), HeaderValue::new("example.com"));
-    /// let mut meta = HttpMeta::new(Default::default(), headers);
-    ///
-    /// let host = meta.parse_host();
-    /// assert_eq!(host, Some("example.com".to_string()));
-    /// ``` 
-    pub fn parse_host(&mut self) -> Option<String> {
-        let host = self.header
-            .get("host") 
-            .map(|value| value.first());
-        
-        self.set_host(host.clone());
-        host
-    } 
-
-    /// Sets the host field. 
-    /// 
-    /// # Arguments
-    /// 
-    /// * `host` - The host to set.
-    /// 
-    /// # Examples
-    /// 
-    /// ```rust
-    /// use starberry_core::http::meta::HttpMeta; 
-    /// 
-    /// let mut meta = HttpMeta::default();
-    /// meta.set_host(Some("example.com".to_string()));
-    /// 
-    /// assert_eq!(meta.get_host(), Some("example.com".to_string())); 
-    /// ```
-    pub fn set_host(&mut self, host: Option<String>) {
-        self.host = host;
-    } 
-
-    /// Clears the cached host field without modifying the header map. 
-    /// 
-    /// This method invalidates the cached host value, which will cause
-    /// subsequent calls to `get_host()` to re-parse the value from the 
-    /// headers map. 
-    /// 
-    /// Note that it will **NOT** clear the value in the headers map.,
-    /// To remove both the cached field and the header, use `delete_host()`.
-    /// 
-    /// # Examples
-    /// 
-    /// ```rust 
-    /// use starberry_core::http::meta::HttpMeta;
-    /// use starberry_core::http::meta::HeaderValue;
-    /// use std::collections::HashMap;
-    /// 
-    /// let mut headers = HashMap::new();
-    /// headers.insert("host".to_string(), HeaderValue::new("example.com"));
-    /// let mut meta = HttpMeta::new(Default::default(), headers);
-    /// 
-    /// // Parse the value into the cache
-    /// let host = meta.get_host();
-    /// assert_eq!(host, Some("example.com".to_string()));
-    /// 
-    /// // Clear the cache only
-    /// meta.clear_host();
-    /// 
-    /// // The header is still intact and will be re-parsed
-    /// assert_eq!(meta.get_host(), Some("example.com".to_string()));
-    /// ``` 
-    pub fn clear_host(&mut self) {
-        self.host = None;
-    } 
-
-    /// Deletes the Host header completely, clearing both the cached field 
-    /// and removing it from the header map.
-    /// 
-    /// This method removes the host header from the headers map and
-    /// clears the cached host value. Subsequent calls to `get_host()`
-    /// will return None unless a new host is set.
-    /// 
-    /// # Examples
-    /// 
-    /// ```rust
-    /// use starberry_core::http::meta::HttpMeta;
-    /// use starberry_core::http::meta::HeaderValue;
-    /// use std::collections::HashMap;
-    /// 
-    /// let mut headers = HashMap::new();
-    /// headers.insert("host".to_string(), HeaderValue::new("example.com"));
-    /// let mut meta = HttpMeta::new(Default::default(), headers);
-    /// 
-    /// // Delete both the cache and header
-    /// meta.delete_host();
-    /// 
-    /// // The header is gone
-    /// assert!(meta.get_header("host").is_none());
-    /// 
-    /// // And get_host will now return None
-    /// assert_eq!(meta.get_host(), None);
-    /// ``` 
-    pub fn delete_host(&mut self) {
-        self.host = None;
-        self.header.remove("host");
-    } 
-
     /// Gets the location header from the HTTP meta data.
     ///
     /// Returns the cached location if available, otherwise parses
@@ -1682,12 +1536,6 @@ impl HttpMeta {
             result.push_str(&format!("content-length: {}\r\n", content_length));
             handled_headers.insert("content-length".to_string());
         }
-
-        // Add host if present 
-        if let Some(ref host) = self.host {
-            result.push_str(&format!("host: {}\r\n", host));
-            handled_headers.insert("host".to_string());
-        } 
         
         // Add location if present
         if let Some(ref location) = self.location {
@@ -1751,7 +1599,6 @@ impl Default for HttpMeta {
             content_type: None,
             content_length: None,
             cookies: None, 
-            host: None, 
             location: None, 
         }
     } 

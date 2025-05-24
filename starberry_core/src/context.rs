@@ -1,118 +1,142 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
-use std::default;
 use std::future::{ready, Future};
 use std::pin::Pin;
 use std::sync::Arc;
+
 use tokio::net::TcpStream;
-use tokio::io::{BufReader, BufWriter, ReadHalf, WriteHalf};
+use tokio::io::BufReader;
+
 use akari::Value;
 use once_cell::sync::Lazy;
+
 use crate::app::{application::App, urls::Url};
-use crate::connection::Connection;
+use crate::app::urls::dangling_url;
 use crate::http::cookie::{Cookie, CookieMap};
-use crate::http::meta::ParseConfig;
-use crate::http::request::HttpRequest;
 use crate::http::{
-    http_value::HttpMethod,
+    http_value::HttpMethod, 
     form::{
-        UrlEncodedForm,
+        UrlEncodedForm, 
         MultiForm
-    },
-    meta::HttpMeta,
-    body:: HttpBody,
+    }, 
+    meta::HttpMeta, 
+    body:: HttpBody, 
     response::HttpResponse
-};
-pub trait SendResponse {
-    fn send(&self, stream: &mut TcpStream);
-}
-/// The `RequestContext` struct is used to hold the context of a request.
-pub struct Rc {
-    pub request: HttpRequest,
-    pub reader: BufReader<ReadHalf<Connection>>,
-    pub writer: BufWriter<WriteHalf<Connection>>,
-    pub app: Arc<App>,
-    pub endpoint: Arc<Url>,
-    pub response: HttpResponse,
+}; 
+
+pub trait SendResponse { 
+    fn send(&self, stream: &mut TcpStream); 
+} 
+
+/// The `RequestContext` struct is used to hold the context of a request. 
+pub struct Rc { 
+    pub meta: HttpMeta, 
+    pub body: HttpBody, 
+    pub reader: BufReader<TcpStream>, 
+    pub app: Arc<App>, 
+    pub endpoint: Arc<Url>, 
+    pub response: HttpResponse, 
+
     /// Type-based extension storage, typically used by middleware
     /// Each type can have exactly one value
     params: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    
     /// String-based extension storage, typically used by application code
     /// Multiple values of the same type can be stored with different keys
     locals: HashMap<String, Box<dyn Any + Send + Sync>>,
-}
-impl Rc  {
+} 
+
+impl Rc  { 
     pub fn new(
-        request: HttpRequest,
-        reader: BufReader<ReadHalf<Connection>>,
-        writer: BufWriter<WriteHalf<Connection>>,
+        meta: HttpMeta,
+        body: HttpBody,
+        reader: BufReader<TcpStream>,
         app: Arc<App>,
-        endpoint: Arc<Url>,
+        endpoint: Arc<Url>, 
     ) -> Self {
         Self {
-            request,
+            meta,
+            body,
             reader,
-            writer,
             app,
-            endpoint,
-            response: HttpResponse::default(),
+            endpoint, 
+            response: HttpResponse::default(), 
             params: HashMap::new(),
-            locals: HashMap::new(),
+            locals: HashMap::new(), 
         }
-    }
-    pub async fn handle(app: Arc<App>, stream: Connection) -> Self {
+    } 
+
+    pub async fn handle(app: Arc<App>, stream: TcpStream) -> Self {
         // Create one BufReader up-front, pass this throughout.
-        let (read_stream, write_stream) = stream.split();
-        let mut reader = BufReader::new(read_stream);
-        let writer = BufWriter::new(write_stream);
-        let request = HttpRequest::parse_lazy(
-            &mut reader,
-            &app.connection_config,
-            app.get_mode() == crate::app::application::RunMode::Build,
-        ).await;
+        let mut reader = BufReader::new(stream); 
+        let meta = match HttpMeta::from_request_stream(
+            &mut reader, 
+            &app.connection_config, 
+            app.get_mode() == crate::app::application::RunMode::Build, 
+        ).await {
+            Ok(meta) => meta,
+            Err(e) => {
+                println!("Error parsing request: {}", e); 
+                return Self::new(HttpMeta::default(), HttpBody::Unparsed, reader, app.clone(), dangling_url()); 
+            }
+        }; 
+
+        let body = HttpBody::Unparsed;
         let endpoint = app
             .root_url
             .clone()
-            .walk_str(&request.meta.path())
-            .await;
-        // let endpoint = dangling_url();
-        Rc::new(request, reader, writer, app.clone(), endpoint.clone())
-    }
-    pub async fn run(mut self) {
-        let endpoint = self.endpoint.clone();
-        if !endpoint.clone().request_check(&mut self).await {
-            let _ = self.response.send(&mut self.writer).await;
-            return;
+            .walk_str(&meta.path())
+            .await; 
+        // let endpoint = dangling_url(); 
+
+        Rc::new(meta, body, reader, app.clone(), endpoint.clone())
+    } 
+
+    pub async fn run(mut self) { 
+        let endpoint = self.endpoint.clone(); 
+        if !endpoint.clone().request_check(&mut self).await { 
+            let _ = self.response.send(self.reader.get_mut()).await; 
+            return; 
         }
-        let parsed = endpoint.run(self);
-        parsed.await.send_response().await;
-    }
-    pub async fn send_response(mut self) {
-        let _ = self.response.send(&mut self.writer).await;
-    }
-    pub fn meta(&self) -> &HttpMeta {
-        &self.request.meta
-    }
-    pub fn app(&self) -> Arc<App> {
-        self.app.clone()
-    }
-    pub fn endpoint(&self) -> Arc<Url> {
-        self.endpoint.clone()
-    }
+        let parsed = endpoint.run(self); 
+        parsed.await.send_response().await; 
+    } 
+
+    pub async fn send_response(mut self) { 
+        let _ = self.response.send(self.reader.get_mut()).await;
+    } 
+
+    pub fn meta(&self) -> &HttpMeta { 
+        &self.meta 
+    } 
+
+    pub fn app(&self) -> Arc<App> { 
+        self.app.clone() 
+    } 
+
+    pub fn endpoint(&self) -> Arc<Url> { 
+        self.endpoint.clone() 
+    } 
+
     pub async fn parse_body(&mut self) {
-        self.request.parse_body(
-            &mut self.reader,
-            self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()),
-        ).await;
-    }
+        if let HttpBody::Unparsed = self.body {
+            self.body = HttpBody::parse(
+                &mut self.reader,
+                self.endpoint.get_max_body_size().unwrap_or(self.app.get_max_body_size()),
+                &mut self.meta,
+            ).await;
+        }
+    } 
+
     pub async fn form(&mut self) -> Option<&UrlEncodedForm> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpBody::Form(ref data) = self.request.body {
+        if let HttpBody::Form(ref data) = self.body {
             Some(data)
         } else {
             None
         }
     }
+    
     pub async fn form_or_default(&mut self) -> &UrlEncodedForm {
         match self.form().await {
             Some(form) => form,
@@ -122,14 +146,16 @@ impl Rc  {
             }
         }
     }
+    
     pub async fn files(&mut self) -> Option<&MultiForm> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpBody::Files(ref data) = self.request.body {
+        if let HttpBody::Files(ref data) = self.body {
             Some(data)
         } else {
             None
         }
     }
+    
     pub async fn files_or_default(&mut self) -> &MultiForm {
         match self.files().await {
             Some(files) => files,
@@ -139,14 +165,16 @@ impl Rc  {
             }
         }
     }
+    
     pub async fn json(&mut self) -> Option<&Value> {
         self.parse_body().await; // Await the Future<Output = ()>
-        if let HttpBody::Json(ref data) = self.request.body {
+        if let HttpBody::Json(ref data) = self.body {
             Some(data)
         } else {
             None
         }
     }
+    
     pub async fn json_or_default(&mut self) -> &Value {
         match self.json().await {
             Some(json) => json,
@@ -155,55 +183,66 @@ impl Rc  {
                 &EMPTY
             }
         }
+    } 
+    
+    pub fn get_path(&mut self, part: usize) -> String { 
+        self.meta.get_path(part) 
     }
-    pub fn get_path(&mut self, part: usize) -> String {
-        self.request.meta.get_path(part)
-    }
-    pub fn path(&self) -> String {
-        self.request.meta.path()
-    }
-    pub fn get_arg_index<S: AsRef<str>>(&self, arg: S) -> Option<usize> {
-        self.endpoint.get_segment_index(arg.as_ref())
-    }
-    pub fn get_arg<S: AsRef<str>>(&mut self, arg: S) -> Option<String> {
-        match self.get_arg_index(arg.as_ref()) {
-            Some(index) => Some(self.request.meta.get_path(index)),
-            None => None,
+
+    pub fn path(&self) -> String { 
+        self.meta.path() 
+    } 
+
+    pub fn get_arg_index<S: AsRef<str>>(&self, arg: S) -> Option<usize> { 
+        self.endpoint.get_segment_index(arg.as_ref()) 
+    } 
+
+    pub fn get_arg<S: AsRef<str>>(&mut self, arg: S) -> Option<String> { 
+        match self.get_arg_index(arg.as_ref()) { 
+            Some(index) => Some(self.meta.get_path(index)),
+            None => None, 
         }
-    }
-    /// Returns the method of the request.
-    pub fn method(&mut self) -> HttpMethod {
-        self.request.meta.method()
-    }
-    pub fn get_cookies(&mut self) -> &CookieMap {
-        self.request.meta.get_cookies()
-    }
-    pub fn get_cookie(&mut self, key: &str) -> Option<Cookie> {
-        self.request.meta.get_cookie(key)
-    }
-    pub fn get_cookie_or_default<T: AsRef<str>>(&mut self, key: T) -> Cookie {
-        self.request.meta.get_cookie_or_default(key)
-    }
-    //
+    } 
+
+    /// Returns the method of the request. 
+    pub fn method(&mut self) -> HttpMethod { 
+        self.meta.method() 
+    } 
+
+    pub fn get_cookies(&mut self) -> &CookieMap { 
+        self.meta.get_cookies() 
+    } 
+
+    pub fn get_cookie(&mut self, key: &str) -> Option<Cookie> { 
+        self.meta.get_cookie(key) 
+    } 
+
+    pub fn get_cookie_or_default<T: AsRef<str>>(&mut self, key: T) -> Cookie { 
+        self.meta.get_cookie_or_default(key) 
+    } 
+
+    // 
     // Type-based params methods (for middleware)
     //
+    
     /// Stores a value in the type-based params storage.
     /// Any previous value of the same type will be replaced.
-    ///
+    /// 
     /// # Examples
     ///
     /// ```rust
     /// let mut req = HttpRequest::default();
-    ///
+    /// 
     /// // Store authentication information
     /// req.set_param(User { id: 123, name: "Alice".to_string() });
-    ///
+    /// 
     /// // Store timing information
     /// req.set_param(RequestTimer::start());
     /// ```
     pub fn set_param<T: 'static + Send + Sync>(&mut self, value: T) {
         self.params.insert(TypeId::of::<T>(), Box::new(value));
     }
+    
     /// Retrieves a reference to a value from the type-based params storage.
     /// Returns `None` if no value of this type has been stored.
     ///
@@ -223,6 +262,7 @@ impl Rc  {
             .get(&TypeId::of::<T>())
             .and_then(|boxed| boxed.downcast_ref::<T>())
     }
+    
     /// Retrieves a mutable reference to a value from the type-based params storage.
     /// Returns `None` if no value of this type has been stored.
     ///
@@ -239,6 +279,7 @@ impl Rc  {
             .get_mut(&TypeId::of::<T>())
             .and_then(|boxed| boxed.downcast_mut::<T>())
     }
+    
     /// Removes a value from the type-based params storage and returns it.
     /// Returns `None` if no value of this type has been stored.
     ///
@@ -257,9 +298,11 @@ impl Rc  {
             .and_then(|boxed| boxed.downcast::<T>().ok())
             .map(|boxed| *boxed)
     }
+    
     //
     // String-based locals methods (for application code)
     //
+    
     /// Stores a value in the string-based locals storage with the given key.
     /// Any previous value with the same key will be replaced.
     ///
@@ -276,6 +319,7 @@ impl Rc  {
     pub fn set_local<T: 'static + Send + Sync>(&mut self, key: impl Into<String>, value: T) {
         self.locals.insert(key.into(), Box::new(value));
     }
+    
     /// Retrieves a reference to a value from the string-based locals storage by key.
     /// Returns `None` if no value with this key exists or if the type doesn't match.
     ///
@@ -298,14 +342,14 @@ impl Rc  {
             .get(key)
             .and_then(|boxed| boxed.downcast_ref::<T>())
     }
+    
     /// Retrieves a mutable reference to a value from the string-based locals storage by key.
     /// Returns `None` if no value with this key exists or if the type doesn't match.
     ///
     /// # Examples
     ///
     /// ```rust
-    /// // Modify a list of items 
-    /// req.set_local("cart_items", vec!["item1", "item2"]); 
+    /// // Modify a list of items
     /// if let Some(items) = req.local_mut::<Vec<String>>("cart_items") {
     ///     items.push("new_item".to_string());
     /// }
@@ -315,6 +359,7 @@ impl Rc  {
             .get_mut(key)
             .and_then(|boxed| boxed.downcast_mut::<T>())
     }
+    
     /// Removes a value from the string-based locals storage and returns it.
     /// Returns `None` if no value with this key exists or if the type doesn't match.
     ///
@@ -333,6 +378,7 @@ impl Rc  {
             .and_then(|boxed| boxed.downcast::<T>().ok())
             .map(|boxed| *boxed)
     }
+    
     /// Returns all keys currently stored in the locals map
     ///
     /// # Examples
@@ -346,9 +392,11 @@ impl Rc  {
     pub fn local_keys(&self) -> Vec<&str> {
         self.locals.keys().map(|s| s.as_str()).collect()
     }
+    
     //
     // Utility bridging methods
     //
+    
     /// Exports a param value to the locals storage with the given key.
     /// The value must implement Clone. Does nothing if the param doesn't exist.
     ///
@@ -364,6 +412,7 @@ impl Rc  {
             self.set_local(key, cloned);
         }
     }
+    
     /// Imports a local value into the params storage.
     /// The value must implement Clone. Does nothing if the local doesn't exist.
     ///
@@ -378,76 +427,16 @@ impl Rc  {
             let cloned = value.clone();
             self.set_param(cloned);
         }
-    }
+    } 
+
     /// Converts this response into a Future that resolves to itself.
     /// Useful for middleware functions that need to return a Future<Output = HttpResponse>.
     pub fn future(self) -> impl Future<Output = Rc> + Send {
         ready(self)
     }
+
     /// Creates a boxed future from this response (useful for trait objects).
     pub fn boxed_future(self) -> Pin<Box<dyn Future<Output = Rc> + Send>> {
         Box::pin(self.future())
     }  
-}
-pub struct OutRequest {
-    pub request: HttpRequest,
-    pub response: HttpResponse,
-    pub reader: BufReader<ReadHalf<Connection>>,
-    pub writer: BufWriter<WriteHalf<Connection>>,
-}
-impl OutRequest {
-    pub fn new(mut request: HttpRequest, connection: Connection, host: impl Into<String>) -> Self {
-        let (reader, writer) = connection.split(); 
-        if request.meta.get_host().is_none() {
-            request.meta.set_host(Some(host.into()));
-        } 
-        Self {
-            request,
-            response: HttpResponse::default(),
-            reader: BufReader::new(reader),
-            writer: BufWriter::new(writer)
-        }
-    }
-    pub async fn send(&mut self) {
-        self.request.send(&mut self.writer).await;
-        self.response = HttpResponse::parse_lazy(&mut self.reader, &ParseConfig::default(), false).await;
-    }
-}
-#[cfg(test)]
-mod test {
-    use std::collections::HashMap;
-    use rustls::pki_types::ServerName;
-    use crate::{connection::{ConnectionBuilder, Protocol}, context::OutRequest, http::{http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, start_line::HttpStartLine}};
-    #[tokio::test]
-    async fn request_a_page() {
-        let builder = ConnectionBuilder::new("example.com", 443)
-            .protocol(Protocol::HTTP)
-            .tls(true);
-        println!("0");
-        let connection = builder.connect().await.unwrap();
-        println!("1");
-        // 6. Create a request context
-        let mut meta = HttpMeta::new(
-            HttpStartLine::new_request(
-                HttpVersion::Http11,
-                HttpMethod::GET,
-                String::from("/"),
-            ),
-            HashMap::new(),
-        );
-        println!("3");
-        let body = crate::http::body::HttpBody::Unparsed;
-        let request = crate::http::request::HttpRequest::new(meta, body);
-        println!("4");
-        // 7. send the request
-        let mut request = OutRequest::new(request, connection, "example.com");
-        println!("5");
-        request.send().await;
-        println!("6");
-        request.response.parse_body(
-            &mut request.reader,
-            1024 * 1024,
-        ).await;
-        println!("{:?}, {:?}", request.response.meta, request.response.body);
-    }
-}  
+} 

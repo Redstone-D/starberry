@@ -38,5 +38,7 @@ pub use starberry_macro as sm;
 pub use sm::url; 
 pub use sm::middleware; 
 pub use sm::reg; 
+pub use sm::sql;
+pub use sm::FromRow;
 
 pub mod prelude; 

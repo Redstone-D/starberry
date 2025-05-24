@@ -14,7 +14,6 @@ use std::future::Future;
 
 use crate::app::middleware::LoggingMiddleware; 
 use crate::app::urls;
-use crate::connection::Connection;
 use crate::context::Rc;
 use crate::http::meta::ParseConfig;
 
@@ -87,7 +86,10 @@ impl AppBuilder {
     }
 
     pub fn default_middlewares() -> Vec<Arc<dyn AsyncMiddleware>> { 
-        vec![]
+        vec![
+            // Enforce HTTPS on all incoming requests
+            Arc::new(middleware::HttpsEnforcement::return_self()),
+        ]
     }
 
     pub fn root_url(mut self, root_url: Arc<Url>) -> Self { 
@@ -322,7 +324,7 @@ impl App {
     pub fn handle_connection(self: Arc<Self>, stream: TcpStream) {
         let app = Arc::clone(&self);
         let job = async move {
-            let rc = Rc::handle(app.clone(), Connection::Tcp(stream)).await;
+            let rc = Rc::handle(app.clone(), stream).await;
             rc.run().await; 
         };
         tokio::spawn(job);

@@ -230,7 +230,6 @@ async fn redirect() -> HttpResponse {
 
 ### 0.5.1 
 - Reform Cookie and CookieMap, deleted the CookieResponse struct 
-- Merge Request's Meta & Body and Response's into one unified struct 
 - **Important Bug Fix** 
     - Able to send Redirect Response. Redirect Response will send nothing in previous 0.5.x version 
     - Starberry now can be compiled on Windows devices 
@@ -258,7 +257,7 @@ async fn redirect() -> HttpResponse {
 - [x] Enable form and file send() & get_size() out to external server 
 - [x] URL segment parameters 
 
-- [x] Merge HttpRequestMeta and HttpResponseMeta together 
+- [ ] Merge HttpRequestMeta and HttpResponseMeta together 
 - [x] Optimize Cookie data structure, unify Request Cookie and Response Cookie together 
 - [ ] Grammar sugar for Regex 
 

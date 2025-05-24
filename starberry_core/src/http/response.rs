@@ -1,13 +1,12 @@
 use super::cookie::{Cookie, CookieMap};
 use super::http_value::{self, *}; 
 use super::body::HttpBody;
-use super::meta::{HttpMeta, ParseConfig};
-use super::net;
+use super::meta::HttpMeta;
 use super::start_line::{HttpStartLine, ResponseStartLine}; 
 use std::collections::HashMap;
 use std::fmt::Write;
 use tokio::net::TcpStream; 
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter}; 
+use tokio::io::{AsyncWriteExt, BufWriter}; 
 
 use std::future::{ready, Ready};
 use std::pin::Pin;
@@ -29,35 +28,32 @@ impl HttpResponse {
         } 
     } 
 
-    pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, print_raw: bool) -> Self {
-        match net::parse_lazy(stream, config, false, print_raw).await { 
-            Ok((meta, body)) => Self::new(meta, body), 
-            Err(_) => Self::default() 
-        }
-    }  
-
-    pub async fn parse_body<R: AsyncRead + Unpin>(&mut self, reader: &mut BufReader<R>, max_size: usize) {
-        // if let HttpBody::Unparsed = self.body {
-        //     self.body = HttpBody::parse(
-        //         reader,
-        //         max_size,
-        //         &mut self.meta,
-        //     ).await;
-        // }; 
-        let _ = net::parse_body(&mut self.meta, &mut self.body, reader, max_size).await; 
-    }  
-
     pub fn add_cookie<T: Into<String>>(mut self, key: T, cookie: Cookie) -> Self { 
         self.meta.add_cookie(key, cookie); 
         self 
     } 
 
-    /// Send the response 
-    /// When this method is changed, please also check Request::send() 
-    pub async fn send<W: AsyncWrite + Unpin>(&mut self, writer: &mut BufWriter<W>) -> std::io::Result<()> { 
-        net::send(&mut self.meta, &mut self.body, writer).await 
-    } 
+    pub async fn send(&mut self, stream: &mut TcpStream) -> std::io::Result<()> {
+        let mut writer = BufWriter::new(stream);
+        let mut headers = String::with_capacity(256); 
+
+        // Add the values such as content length into header 
+        let bin = self.body.into_static(&mut self.meta).await; 
+        write!( 
+            &mut headers,
+            "{}", 
+            self.meta.represent()
+        ).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
     
+        writer.write_all(headers.as_bytes()).await?;
+        writer.write_all(bin).await?; 
+
+        // println!("{}, {:?}", headers, bin); 
+        writer.flush().await?; 
+        
+        Ok(()) 
+    } 
+
     // /// Converts this response into a Future that resolves to itself.
     // /// Useful for middleware functions that need to return a Future<Output = HttpResponse>.
     // pub fn future(self) -> impl Future<Output = HttpResponse> + Send {
