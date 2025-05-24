@@ -5,6 +5,8 @@ use dashmap::DashMap;
 use uuid::Uuid;
 use super::types::{Client, Grant, Token, TokenModel, OAuthError};
 use super::oauth_provider::{ClientStore, TokenManager, Authorizer, TokenStorage};
+use tokio::sync::RwLock;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone)]
 pub struct InMemoryClientStore {
@@ -126,20 +128,20 @@ impl Authorizer for InMemoryAuthorizer {
 /// In-memory storage backend for OAuth tokens, PKCE verifiers, and CSRF states.
 #[derive(Clone)]
 pub struct InMemoryTokenStorage {
-    access_tokens: Arc<DashMap<String, Token>>,
-    refresh_tokens: Arc<DashMap<String, String>>,
-    pkce_store: Arc<DashMap<String, String>>,
-    csrf_store: Arc<DashMap<String, ()>>,
+    access_tokens: Arc<RwLock<HashMap<String, Token>>>,
+    refresh_tokens: Arc<RwLock<HashMap<String, String>>>,
+    pkce_store: Arc<RwLock<HashMap<String, String>>>,
+    csrf_store: Arc<RwLock<HashSet<String>>>,
 }
 
 impl InMemoryTokenStorage {
     /// Creates a new in-memory token storage.
     pub fn new() -> Self {
         Self {
-            access_tokens: Arc::new(DashMap::new()),
-            refresh_tokens: Arc::new(DashMap::new()),
-            pkce_store: Arc::new(DashMap::new()),
-            csrf_store: Arc::new(DashMap::new()),
+            access_tokens: Arc::new(RwLock::new(HashMap::new())),
+            refresh_tokens: Arc::new(RwLock::new(HashMap::new())),
+            pkce_store: Arc::new(RwLock::new(HashMap::new())),
+            csrf_store: Arc::new(RwLock::new(HashSet::new())),
         }
     }
 }
@@ -154,7 +156,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.access_tokens.clone();
         let key = token.to_string();
         Box::pin(async move {
-            map.insert(key, data);
+            let mut guard = map.write().await;
+            guard.insert(key, data);
             Ok(())
         })
     }
@@ -166,7 +169,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.access_tokens.clone();
         let key = token.to_string();
         Box::pin(async move {
-            Ok(map.get(&key).map(|e| e.value().clone()))
+            let guard = map.read().await;
+            Ok(guard.get(&key).cloned())
         })
     }
 
@@ -177,7 +181,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.access_tokens.clone();
         let key = token.to_string();
         Box::pin(async move {
-            map.remove(&key);
+            let mut guard = map.write().await;
+            guard.remove(&key);
             Ok(())
         })
     }
@@ -192,7 +197,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let rkey = refresh_token.to_string();
         let akey = access_token.to_string();
         Box::pin(async move {
-            map.insert(rkey, akey);
+            let mut guard = map.write().await;
+            guard.insert(rkey, akey);
             Ok(())
         })
     }
@@ -204,7 +210,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.refresh_tokens.clone();
         let key = refresh_token.to_string();
         Box::pin(async move {
-            Ok(map.get(&key).map(|e| e.value().clone()))
+            let guard = map.read().await;
+            Ok(guard.get(&key).cloned())
         })
     }
 
@@ -215,7 +222,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.refresh_tokens.clone();
         let key = refresh_token.to_string();
         Box::pin(async move {
-            map.remove(&key);
+            let mut guard = map.write().await;
+            guard.remove(&key);
             Ok(())
         })
     }
@@ -229,7 +237,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let c_chal = code_challenge.to_string();
         let c_ver = code_verifier.to_string();
         Box::pin(async move {
-            map.insert(c_chal, c_ver);
+            let mut guard = map.write().await;
+            guard.insert(c_chal, c_ver);
             Ok(())
         })
     }
@@ -241,7 +250,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.pkce_store.clone();
         let key = code_challenge.to_string();
         Box::pin(async move {
-            Ok(map.get(&key).map(|e| e.value().clone()))
+            let guard = map.read().await;
+            Ok(guard.get(&key).cloned())
         })
     }
 
@@ -252,7 +262,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.pkce_store.clone();
         let key = code_challenge.to_string();
         Box::pin(async move {
-            map.remove(&key);
+            let mut guard = map.write().await;
+            guard.remove(&key);
             Ok(())
         })
     }
@@ -265,7 +276,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.csrf_store.clone();
         let key = state.to_string();
         Box::pin(async move {
-            map.insert(key, ());
+            let mut guard = map.write().await;
+            guard.insert(key);
             Ok(())
         })
     }
@@ -277,7 +289,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.csrf_store.clone();
         let key = state.to_string();
         Box::pin(async move {
-            Ok(map.contains_key(&key))
+            let guard = map.read().await;
+            Ok(guard.contains(&key))
         })
     }
 
@@ -288,7 +301,8 @@ impl TokenStorage for InMemoryTokenStorage {
         let map = self.csrf_store.clone();
         let key = state.to_string();
         Box::pin(async move {
-            map.remove(&key);
+            let mut guard = map.write().await;
+            guard.remove(&key);
             Ok(())
         })
     }
