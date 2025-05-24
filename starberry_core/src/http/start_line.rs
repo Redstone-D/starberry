@@ -38,9 +38,9 @@ impl RequestStartLine {
     pub fn represent(&self) -> String {
         format!(
             "{} {} {}",
-            self.http_version.to_string(),
             self.method.to_string(),
-            self.path
+            self.path, 
+            self.http_version.to_string(),
         )
     }
 
@@ -123,7 +123,7 @@ impl RequestStartLine {
 
 impl std::fmt::Display for RequestStartLine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}", self.http_version, self.method, self.path)
+        write!(f, "{} {} {}", self.method, self.path, self.http_version)
     }
 } 
 
