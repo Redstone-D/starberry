@@ -8,8 +8,8 @@ use crate::connection::error::{ConnectionError, Result};
 use crate::connection::connection::Connection; 
 
 /// Connection pool for managing connections 
-pub struct PooledConnection {
-    pub connection: Connection,
+struct PooledConnection {
+    connection: Connection,
     last_used: Instant,
 } 
 

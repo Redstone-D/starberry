@@ -28,14 +28,18 @@ impl HttpBody {
     ) -> Self {
         let parsed;
         let content_length = header.get_content_length().unwrap_or(0).min(max_size);
-
+println!("Content‐Length header says: {}", content_length);
         if content_length == 0 {
             parsed = Self::Empty;
         } else {
+
             let mut body_buffer = vec![0; content_length];
-            let _ = buf_reader.read_exact(&mut body_buffer).await; 
-            
-            // println!("Body buffer: {:?}", body_buffer); 
+            buf_reader
+                .read_exact(&mut body_buffer)
+                .await
+                .expect("failed to read exactly content_length bytes");
+            println!("Read {} bytes", body_buffer.len());
+            println!("Body buffer: {:?}", body_buffer); 
 
             parsed = match header
                 .get_content_type()
@@ -150,7 +154,7 @@ impl HttpBody {
         return Self::Json(
             Value::from_json(std::str::from_utf8(&body).unwrap_or("")).unwrap_or(Value::new("")),
         );
-    } 
+    }   
 
     /// Change Self::Json into Self::Binary 
     pub fn json_into_binary(&mut self) {
@@ -163,7 +167,8 @@ impl HttpBody {
         } 
     } 
 
-    pub fn parse_text(body: Vec<u8>) -> Self {
+    pub fn parse_text(body: Vec<u8>) -> Self { 
+        println!("Text body: {:?}", body); 
         return Self::Text(String::from_utf8_lossy(&body).to_string());
     } 
 

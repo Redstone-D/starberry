@@ -1,4 +1,6 @@
-0.5.1: Unify Cookie in Response and Request, deleted the old CookieResponse module 
+0.5.1: Merge Request's Meta & Body and Response's into one unified struct  
+
+Unify Cookie in Response and Request, deleted the old CookieResponse module 
 
 (Important Bug Fix) 
 
