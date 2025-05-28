@@ -18,7 +18,7 @@ pub use starberry_core::Value;
 pub use starberry_core::TemplateManager; 
 pub use starberry_core::object; 
 
-pub use starberry_core::context::Rc;  
+pub use starberry_core::context::{Rx, Tx};  
 
 pub use starberry_core::http::response::request_templates; 
 

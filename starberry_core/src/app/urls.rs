@@ -1,45 +1,25 @@
-use crate::http::response::request_templates::return_status;
+use crate::extensions::ParamValue;
 
 use super::super::http::response::*; 
 use super::super::http::http_value::*; 
-use super::super::context::Rc; 
+use super::super::context::Rx; 
+use super::super::extensions::ParamsClone; 
 use std::future::Future;
 use std::pin::Pin;
 use std::slice::Iter; 
-use std::sync::Arc;
-use std::sync::OnceLock;
+use std::sync::Arc; 
 use std::sync::RwLock; 
 use regex::Regex; 
-pub static ROOT_URL: OnceLock<Url> = OnceLock::new();  
+// pub static ROOT_URL: OnceLock<Url> = OnceLock::new();  
 use super::super::app::middleware::*; 
 
-pub trait AsyncUrlHandler: Send + Sync + 'static {
-    fn handle(
-        &self, 
-        rc: Rc
-    ) -> Pin<Box<dyn Future<Output = Rc> + Send + 'static>>;
-}
-
-impl<F, Fut> AsyncUrlHandler for F
-where
-    F: Fn(Rc) -> Fut + Send + Sync + 'static,
-    Fut: Future<Output = Rc> + Send + 'static,
-{
-    fn handle(
-        &self, 
-        rc: Rc
-    ) -> Pin<Box<dyn Future<Output = Rc> + Send + 'static>> {
-        Box::pin(self(rc))
-    }
-}
-
-pub struct Url {
+pub struct Url<R: Rx> {
     pub path: PathPattern,
-    pub children: RwLock<Children>, 
-    pub ancestor: Ancestor, 
-    pub method: RwLock<Option<Arc<dyn AsyncUrlHandler>>>, 
-    pub middlewares: RwLock<MiddleWares>,  
-    pub params: RwLock<Params>, 
+    pub children: RwLock<Children<R>>, 
+    pub ancestor: Ancestor<R>, 
+    pub method: RwLock<Option<Arc<dyn AsyncFinalHandler<R>>>>, 
+    pub middlewares: RwLock<Vec<Arc<dyn AsyncMiddleware<R>>>>,  
+    pub params: RwLock<ParamsClone>, 
 } 
 
 #[derive(Clone, Debug)] 
@@ -154,17 +134,17 @@ impl std::fmt::Display for PathPattern {
     }
 } 
 
-pub enum Children {
+pub enum Children<R: Rx> {
     Nil,
-    Some(Vec<Arc<Url>>),
+    Some(Vec<Arc<Url<R>>>),
 } 
 
-pub enum Ancestor {
+pub enum Ancestor<R: Rx> {
     Nil,
-    Some(Arc<Url>), 
+    Some(Arc<Url<R>>), 
 } 
 
-impl std::fmt::Display for Url {
+impl<R: Rx> std::fmt::Display for Url<R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result { 
         // create a string having all output msg of childrens 
         let mut children_str = String::new(); 
@@ -186,177 +166,9 @@ impl std::fmt::Display for Url {
     }
 } 
 
-#[derive(Clone, Debug)] 
-pub struct Params { 
-    pub max_body_size: Option<usize>, 
-    pub allowed_methods: Option<Vec<HttpMethod>>, 
-    pub allowed_content_type: Option<Vec<HttpContentType>>, 
-} 
-
-impl Params { 
-    pub fn new() -> Self { 
-        Self { 
-            max_body_size: None, 
-            allowed_methods: None, 
-            allowed_content_type: None, 
-        } 
-    } 
-
-    pub fn set_max_body_size(&mut self, size: usize) { 
-        self.max_body_size = Some(size); 
-    } 
-
-    pub fn reset_max_body_size(&mut self) { 
-        self.max_body_size = None; 
-    } 
-
-    pub fn set_allowed_methods(&mut self, methods: Vec<HttpMethod>) { 
-        self.allowed_methods = Some(methods); 
-    } 
-
-    pub fn add_allowed_methods(&mut self, method: HttpMethod) { 
-        if let Some(ref mut methods) = self.allowed_methods { 
-            methods.push(method); 
-        } else { 
-            self.allowed_methods = Some(vec![method]); 
-        } 
-    } 
-
-    pub fn remove_allowed_method(&mut self, method: HttpMethod) { 
-        if let Some(ref mut methods) = self.allowed_methods { 
-            methods.retain(|m| *m != method); 
-        } 
-    } 
-
-    pub fn reset_allowed_methods(&mut self) { 
-        self.allowed_methods = None; 
-    } 
-
-    pub fn set_allowed_content_type(&mut self, content_types: Vec<HttpContentType>) { 
-        self.allowed_content_type = Some(content_types); 
-    } 
-
-    pub fn add_allowed_content_type(&mut self, content_type: HttpContentType) { 
-        if let Some(ref mut content_types) = self.allowed_content_type { 
-            content_types.push(content_type); 
-        } else { 
-            self.allowed_content_type = Some(vec![content_type]); 
-        } 
-    } 
-
-    pub fn remove_allowed_content_type(&mut self, content_type: HttpContentType) { 
-        if let Some(ref mut content_types) = self.allowed_content_type { 
-            content_types.retain(|ct| *ct != content_type); 
-        } 
-    } 
-
-    pub fn reset_allowed_content_type(&mut self) { 
-        self.allowed_content_type = None; 
-    } 
-
-    pub fn combine(&self, mut c: Params) -> Self { 
-        if None == c.max_body_size { 
-            c.max_body_size = self.max_body_size.clone(); 
-        } 
-        if None == c.allowed_methods { 
-            c.allowed_methods = self.allowed_methods.clone(); 
-        } 
-        if None == c.allowed_content_type { 
-            c.allowed_content_type = self.allowed_content_type.clone(); 
-        } 
-        c 
-    }
-} 
-
-impl Default for Params { 
-    fn default() -> Self { 
-        Self::new() 
-    } 
-} 
-
-#[derive(Clone)]
-pub enum MiddleWares { 
-    Nil, 
-    MiddleWare(Arc<Vec<Arc<dyn AsyncMiddleware>>>), 
-} 
-
-impl MiddleWares{ 
-    pub fn new() -> Self { 
-        Self::Nil 
-    } 
-
-    pub fn add_middleware(&mut self, middleware: Arc<dyn AsyncMiddleware>) { 
-        match self { 
-            MiddleWares::Nil => { 
-                *self = MiddleWares::MiddleWare(Arc::new(vec![middleware])); 
-            } 
-            MiddleWares::MiddleWare(middlewares) => { 
-                let middlewares = Arc::make_mut(middlewares); 
-                middlewares.push(middleware); 
-            } 
-        } 
-    } 
-
-    /// Remove a specific middleware based on pointer equality.
-    /// Returns true if the middleware was found and removed.
-    pub fn remove_middleware(&mut self, target: &Arc<dyn AsyncMiddleware>) -> bool {
-        match self {
-            MiddleWares::Nil => false,
-            MiddleWares::MiddleWare(middlewares) => {
-                // Get a mutable reference to the inner vector.
-                let middlewares = Arc::make_mut(middlewares);
-                if let Some(pos) = middlewares.iter().position(|m| Arc::ptr_eq(m, target)) {
-                    middlewares.remove(pos);
-                    // If there are no more middlewares, set self to Nil.
-                    if middlewares.is_empty() {
-                        *self = MiddleWares::Nil;
-                    }
-                    return true;
-                }
-                false
-            }
-        }
-    }
-
-    pub fn get_middlewares(&self) -> Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>> { 
-        match self { 
-            MiddleWares::Nil => None, 
-            MiddleWares::MiddleWare(middlewares) => Some(middlewares.clone()), 
-        } 
-    }  
-
-    pub fn parse( 
-        middlewares: &Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>> 
-    ) -> MiddleWares { 
-        match middlewares { 
-            Some(middlewares) => MiddleWares::MiddleWare(middlewares.clone()), 
-            None => MiddleWares::Nil, 
-        } 
-    } 
-} 
-
-impl IntoIterator for MiddleWares {
-    type Item = Arc<dyn AsyncMiddleware>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        match self {
-            MiddleWares::Nil => Vec::new().into_iter(),
-            MiddleWares::MiddleWare(vec_arc) => {
-                // Try to unwrap the Arc, if possible.
-                // If unwrapping fails (because other clones exist), we clone the inner vector.
-                match Arc::try_unwrap(vec_arc) {
-                    Ok(vec) => vec.into_iter(),
-                    Err(arc) => (*arc).clone().into_iter(),
-                }
-            }
-        }
-    }
-} 
-
-impl Url { 
-    pub async fn run(&self, mut rc: Rc) -> Rc { 
-        let handler_opt = { 
+impl<R: Rx + 'static> Url<R> { 
+    pub async fn run(&self, mut rx: R) -> R { 
+        let final_handler = { 
             let guard = self.method.read().unwrap();
             guard.clone()
         }; 
@@ -366,33 +178,13 @@ impl Url {
             guard.clone() 
         }; 
         // Runs the function inside it 
-        if let Some(method) = handler_opt { 
-            // Whether middleware found, by using lf let middleware 
-            if let MiddleWares::MiddleWare(_) = middlewares {  
-                let base = Arc::new(move |rc: Rc| {
-                    method.handle(rc)
-                }) as Arc<dyn Fn(Rc) -> Pin<Box<dyn Future<Output = Rc> + Send>> + Send + Sync>;
-                
-                println!("Start middleware chain building"); 
-                // Fold the middleware chain (iterate in reverse order so the first added middleware runs first)
-                let chain = middlewares.clone().into_iter().rev().fold(base, |next, mw| {
-                    let next_clone = next.clone();
-                    Arc::new(move |rc: Rc| {
-                        // Clone next_clone for each call so the closure doesn't consume it.
-                        let next_fn = next_clone.clone();
-                        mw.handle(rc, Box::new(move |r| next_fn(r)))
-                    }) as Arc<dyn Fn(Rc) -> Pin<Box<dyn Future<Output = Rc> + Send>> + Send + Sync>
-                }); 
-                // Now call the complete chain with the request.
-                return chain(rc).await 
-            } else { 
-                return method.handle(rc).await; 
-            }
+        if let Some(method) = final_handler { 
+            run_chain(middlewares, method, rx).await 
             // return method.handle(request).await; 
-        } 
-        rc.response = request_templates::return_status(StatusCode::NOT_FOUND); 
-        // rc.response = request_templates::text_response("Dangling URL"); 
-        rc 
+        } else { 
+            rx.bad_request(); 
+            rx 
+        }  
     } 
 
     /// Walk the URL tree based on the path segments.
@@ -472,7 +264,7 @@ impl Url {
         })
     } 
 
-    pub async fn walk_str(self: Arc<Self>, path: &str) -> Arc<Url> { 
+    pub async fn walk_str(self: Arc<Self>, path: &str) -> Arc<Url<R>> { 
         let mut path = path.split('/').collect::<Vec<&str>>(); 
         path.remove(0); 
         // println!("Walking: {:?}", path); 
@@ -521,35 +313,27 @@ impl Url {
                 ancestor._step_get_segment_index(match_path, index);
             }
         }
+    } 
+
+    /// Retrieves a cloned value of type `T` from the URL's parameter storage.
+    /// Returns `Some(T)` if the parameter exists and matches the type, `None` otherwise. 
+    pub fn get_params<T: ParamValue + Clone + 'static>(&self) -> Option<T> {
+        let params = self.params.read().unwrap(); 
+        params.get::<T>().cloned()
     }
 
-    /// Check whether the request's meta matches the URL's parameters.
-    /// Return false if the request's method is not allowed, or if the content type is not allowed.
-    /// The Rc's response will be written to the appropriate status code.
-    pub async fn request_check(self: Arc<Self>, rc: &mut Rc) -> bool {
-        if let Some(methods) = self.get_allowed_methods () { 
-            if !methods.contains(&rc.method()) { 
-                rc.response = return_status(StatusCode::METHOD_NOT_ALLOWED);  
-                return false; 
-            } 
-        } 
-        if let Some(content_types) = self.get_allowed_content_type() { 
-            if let Some(uploaded_content_type) = rc.request.meta.get_content_type() { 
-                if !content_types.contains(&uploaded_content_type) { 
-                    rc.response = return_status(StatusCode::UNSUPPORTED_MEDIA_TYPE); 
-                    return false; 
-                } 
-            } 
-        } 
-        true 
-    }
+    /// Stores a value in the URL's parameter storage, overwriting any existing value
+    /// of the same type. This only affects the current URL node, not its ancestors.
+    pub fn set_params<T: ParamValue + 'static>(&self, value: T) {
+        self.params.write().unwrap().set(value);
+    } 
 
     /// Runs the handler (if any) attached to this URL.
     /// If no handler exists, returns `NOT_FOUND`.
     pub fn run_child(
         self: Arc<Self>,
-        mut rc: Rc,
-    ) -> Pin<Box<dyn Future<Output = Rc> + Send>> {
+        mut rc: R,
+    ) -> Pin<Box<dyn Future<Output = R> + Send>> {
         Box::pin(async move {
             let handler_opt = {
                 let guard = self.method.read().unwrap();
@@ -558,7 +342,7 @@ impl Url {
             if let Some(handler) = handler_opt {
                 return handler.handle(rc).await; 
             } else { 
-                rc.response = request_templates::return_status(StatusCode::NOT_FOUND); 
+                rc.bad_request();
                 return rc; 
             }
         }) 
@@ -604,10 +388,10 @@ impl Url {
     pub fn childbirth(
         self: &Arc<Self>, 
         child: PathPattern, 
-        function: Option<Arc<dyn AsyncUrlHandler>>, 
-        middleware: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>>, 
-        params: Params, 
-    ) -> Result<Arc<Url>, String> { 
+        function: Option<Arc<dyn AsyncFinalHandler<R>>>, 
+        middleware: Vec<Arc<dyn AsyncMiddleware<R>>>, 
+        params: ParamsClone, 
+    ) -> Result<Arc<Url<R>>, String> { 
         println!("Creating child URL: {:?}", child); 
         
         // First, do a quick check if the child already exists: 
@@ -621,8 +405,8 @@ impl Url {
             children: RwLock::new(Children::Nil),
             ancestor: Ancestor::Some(Arc::clone(&self)),
             method: RwLock::new(function), 
-            middlewares: RwLock::new(MiddleWares::parse(&middleware)), 
-            params: RwLock::new(self.combine_params_for(params)),  
+            middlewares: RwLock::new(middleware), 
+            params: RwLock::new(self.combine_params_for(&params)),  
         });
 
         // Now lock for writing and insert the new child
@@ -639,7 +423,7 @@ impl Url {
         Ok(new_child)
     }
 
-    pub fn get_children(self: Arc<Self>, child: PathPattern) -> Result<Arc<Url>, String> {
+    pub fn get_children(self: Arc<Self>, child: PathPattern) -> Result<Arc<Url<R>>, String> {
         // Acquire a read lock
         let guard = self.children.read().unwrap();
         match &*guard {
@@ -662,8 +446,8 @@ impl Url {
             children: RwLock::new(Children::Nil), 
             ancestor: Ancestor::Nil, 
             method: RwLock::new(None), 
-            middlewares: RwLock::new(MiddleWares::Nil), 
-            params: RwLock::new(Params::new()), 
+            middlewares: RwLock::new(vec!()), 
+            params: RwLock::new(ParamsClone::new()), 
         }); 
         new_url 
     } 
@@ -696,7 +480,7 @@ impl Url {
             }
         } 
         // println!("Child not found, creating new one: {:?}", child); 
-        self.childbirth(child, None, None, Params::default()) 
+        self.childbirth(child, None, vec![], ParamsClone::default()) 
     } 
 
     pub fn child_exists(self: Arc<Self>, child: &PathPattern) -> bool {
@@ -714,10 +498,10 @@ impl Url {
     pub fn literal_url(
         self: Arc<Self>, 
         path: &str, 
-        function: Option<Arc<dyn AsyncUrlHandler>>, 
-        middleware: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>>, 
-        params: Params, 
-    ) -> Result<Arc<Url>, String> { 
+        function: Option<Arc<dyn AsyncFinalHandler<R>>>, 
+        middleware: Vec<Arc<dyn AsyncMiddleware<R>>>, 
+        params: ParamsClone, 
+    ) -> Result<Arc<Url<R>>, String> { 
         println!("Changing url into path pattern: {}", path); 
         // Remove the first slash if exist 
         let path = if path.starts_with('/') { 
@@ -741,9 +525,9 @@ impl Url {
     pub fn register(
         self: Arc<Self>, 
         path: Vec<PathPattern>, 
-        function: Option<Arc<dyn AsyncUrlHandler>>, 
-        middleware: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>>, 
-        params: Params, 
+        function: Option<Arc<dyn AsyncFinalHandler<R>>>, 
+        middleware: Vec<Arc<dyn AsyncMiddleware<R>>>, 
+        params: ParamsClone, 
     ) -> Result<Arc<Self>, String> { 
         println!("Registering URL: {:?}", path); 
         if path.len() == 1 { 
@@ -770,101 +554,32 @@ impl Url {
         }
     } 
 
-    pub fn set_method(&self, handler: Arc<dyn AsyncUrlHandler>) {
+    pub fn set_method(&self, handler: Arc<dyn AsyncFinalHandler<R>>) {
         let mut guard = self.method.write().unwrap();
         *guard = Some(handler); 
     } 
 
-    pub fn set_middlewares(&self, middlewares: Option<Arc<Vec<Arc<dyn AsyncMiddleware>>>>) {
+    pub fn set_middlewares(&self, middlewares: Vec<Arc<dyn AsyncMiddleware<R>>>) {
         let mut guard = self.middlewares.write().unwrap(); 
-        match middlewares { 
-            Some(middlewares) => { 
-                *guard = MiddleWares::MiddleWare(middlewares); 
-            } 
-            None => { 
-                *guard = MiddleWares::Nil; 
-            } 
-        } 
+        *guard = middlewares; 
     } 
 
-    pub fn combine_params_for(&self, params: Params) -> Params { 
+    pub fn combine_params_for(&self, params: &ParamsClone) -> ParamsClone { 
         let guard = self.params.read().unwrap(); 
-        return guard.combine(params); 
+        let mut original = (*guard).clone(); 
+        original.combine(params); 
+        return original 
     } 
 
-    pub fn get_max_body_size(&self) -> Option<usize> { 
-        let guard = self.params.read().unwrap(); 
-        return guard.max_body_size; 
-    } 
-
-    pub fn set_max_body_size(&self, size: usize) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.max_body_size = Some(size); 
-    } 
-
-    pub fn reset_max_body_size(&self) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.max_body_size = None; 
-    } 
-
-    pub fn get_allowed_methods(&self) -> Option<Vec<HttpMethod>> { 
-        let guard = self.params.read().unwrap(); 
-        return guard.allowed_methods.clone(); 
-    }  
-
-    pub fn set_allowed_methods(&self, methods: Vec<HttpMethod>) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.set_allowed_methods(methods);
-    } 
-
-    pub fn remove_allowed_method(&self, method: HttpMethod) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.remove_allowed_method(method); 
-    } 
-
-    pub fn add_allowed_method(&self, method: HttpMethod) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.add_allowed_methods(method); 
-    } 
-
-    pub fn reset_allowed_methods(&self) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.allowed_methods = None; 
-    } 
-
-    pub fn get_allowed_content_type(&self) -> Option<Vec<HttpContentType>> { 
-        let guard = self.params.read().unwrap(); 
-        return guard.allowed_content_type.clone(); 
-    } 
-
-    pub fn set_allowed_content_type(&self, content_types: Vec<HttpContentType>) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.set_allowed_content_type(content_types); 
-    } 
-
-    pub fn remove_allowed_content_type(&self, content_type: HttpContentType) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.remove_allowed_content_type(content_type); 
-    } 
-
-    pub fn add_allowed_content_type(&self, content_type: HttpContentType) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.add_allowed_content_type(content_type); 
-    } 
-
-    pub fn reset_allowed_content_type(&self) { 
-        let mut guard = self.params.write().unwrap(); 
-        guard.allowed_content_type = None; 
-    } 
 } 
 
-pub fn dangling_url() -> Arc<Url> { 
+pub fn dangling_url<R: Rx>() -> Arc<Url<R>> { 
     Arc::new(Url { 
         path: PathPattern::Any, 
         children: RwLock::new(Children::Nil), 
         ancestor: Ancestor::Nil, 
         method: RwLock::new(None), 
-        middlewares: RwLock::new(MiddleWares::Nil), 
-        params: RwLock::new(Params::default()), 
+        middlewares: RwLock::new(vec!()), 
+        params: RwLock::new(ParamsClone::default()), 
     }) 
 } 

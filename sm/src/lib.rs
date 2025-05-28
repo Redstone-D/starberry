@@ -351,73 +351,93 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
 } 
 
 #[proc_macro_attribute]
-pub fn middleware(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    use syn::parse_macro_input;
-    use syn::{ItemFn, FnArg, Pat}; 
+pub fn middleware(attr: TokenStream, item: TokenStream) -> TokenStream {
+    // Parse the async fn we're given
     let input_fn = parse_macro_input!(item as ItemFn);
-    let fn_name = input_fn.sig.ident;
-    let fn_block = input_fn.block; // capture the function body
+    let fn_name = input_fn.sig.ident.clone();
+
+    // Enforce async functions only:
+    if input_fn.sig.asyncness.is_none() {
+        return syn::Error::new_spanned(
+            fn_name, 
+            "#[middleware] can only be used on async fn"
+        )
+        .to_compile_error()
+        .into();
+    } 
+
+    // parse the type parameter R from the attribute (or default to HttpReqCtx)
+    let ty_tokens = if attr.is_empty() {
+        quote! { HttpReqCtx }
+    } else {
+        let ty: Type = syn::parse(attr).expect("Expected a single type in #[middleware<…>]");
+        quote! { #ty }
+    };
+
+    // Extract first argument's name and type
+    let mut param_ident = syn::Ident::new("req", fn_name.span());
+    let mut param_is_mut = false; 
     
-    // Extract parameter name if it exists, otherwise use "req" as default
-    // Also track if the parameter is already mutable
-    let (param_name, is_mut) = if !input_fn.sig.inputs.is_empty() {
-        if let FnArg::Typed(pat_type) = &input_fn.sig.inputs[0] {
-            if let Pat::Ident(pat_ident) = &*pat_type.pat {
-                // Check if the parameter is already marked as mutable
-                let is_mutable = pat_ident.mutability.is_some();
-                (pat_ident.ident.clone(), is_mutable)
-            } else {
-                (syn::Ident::new("req", fn_name.span()), false)
-            }
-        } else {
-            (syn::Ident::new("req", fn_name.span()), false)
+    if let Some(first_arg) = input_fn.sig.inputs.first() {
+        if let FnArg::Typed(pat_type) = first_arg {
+            // pattern = identifier?
+            if let Pat::Ident(ref pat_ident) = *pat_type.pat {
+                param_ident = pat_ident.ident.clone();
+                param_is_mut = pat_ident.mutability.is_some();
+            } 
         }
-    } else {
-        (syn::Ident::new("req", fn_name.span()), false)
-    }; 
+    }
 
-    // Determine how to declare the parameter in the async block
-    let param_decl = if is_mut {
-        // Parameter is already mutable, use as is
-        quote! { let #param_name = context; }
+    // How we bind the incoming context into a mutable (or not) local
+    let param_binding = if param_is_mut {
+        quote! { let #param_ident = context; }
     } else {
-        // Parameter needs to be made mutable
-        quote! { let mut #param_name = context; }
-    }; 
+        quote! { let mut #param_ident = context; }
+    };
 
+    // The original function body (a Block)
+    let fn_body = &input_fn.block;
+
+    // Generate:
+    //  pub struct Foo;
+    //  impl AsyncMiddleware<ParamType> for Foo { ... }
     let expanded = quote! {
-        // Define the generated middleware struct.
+        // drop the original free function; we only emit the struct+impl
         pub struct #fn_name;
 
-        impl AsyncMiddleware for #fn_name {
+        impl AsyncMiddleware<#ty_tokens> for #fn_name {
             fn as_any(&self) -> &dyn std::any::Any {
                 self
             }
 
+            fn return_self() -> Self
+            where
+                Self: Sized,
+            {
+                #fn_name
+            }
+
             fn handle<'a>(
-                &self,
-                context: Rc,
+                &'a self,
+                context: #ty_tokens,
                 next: Box<
-                    dyn Fn(Rc) -> std::pin::Pin<Box<dyn std::future::Future<Output = Rc> + Send + 'static>>
+                    dyn Fn(#ty_tokens) -> std::pin::Pin<Box<dyn std::future::Future<Output = #ty_tokens> + Send>>
                         + Send
                         + Sync
                         + 'static,
                 >,
-            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Rc> + Send + 'static>> {
+            ) -> std::pin::Pin<Box<dyn std::future::Future<Output = #ty_tokens> + Send + 'static>> {
                 Box::pin(async move {
-                    #param_decl
-                    (#fn_block).await
-                }) 
-            }
-
-            fn return_self() -> Self where Self: Sized {
-                #fn_name
+                    #param_binding
+                    // original user code:
+                    #fn_body
+                })
             }
         }
     };
 
     TokenStream::from(expanded)
-}
+} 
 
 /// A macro to create an Value from a literal or expression.
 /// It can handle dictionaries, lists, booleans, strings, and numeric values. 

@@ -1,17 +1,11 @@
-use crate::app::urls::Url;
-use starberry_lib::decode_url_owned; 
 use super::cookie::{Cookie, CookieMap}; 
+use crate::app::config::ParseConfig;  
 
 use super::http_value::*; 
 use super::start_line::HttpStartLine; 
-use akari::Value;
-use once_cell::sync::Lazy;
-use regex::Regex;
 use std::collections::{HashMap, HashSet};
-use std::error::Error;
-use std::hash::Hash;
-use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncReadExt, BufReader}; 
-use tokio::net::TcpStream;
+use std::error::Error; 
+use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader}; 
 use std::str; 
 
 /// RequestHeader is a struct that represents the headers of an HTTP request. 
@@ -24,70 +18,6 @@ pub struct HttpMeta {
     cookies: Option<CookieMap>, 
     host: Option<String>, 
     location: Option<String>, 
-} 
-
-pub struct ParseConfig {
-    pub max_header_size: usize,
-    pub max_line_length: usize,
-    pub max_headers: usize,
-    pub max_body_size: usize, 
-} 
-
-impl ParseConfig {
-    pub fn new ( 
-        max_header_size: usize,
-        max_line_length: usize,
-        max_headers: usize,
-        max_body_size: usize,
-    ) -> Self {
-        Self {
-            max_header_size,
-            max_body_size,
-            max_line_length,
-            max_headers,
-        }
-    }
-
-    pub fn set_max_header_size(&mut self, size: usize) {
-        self.max_header_size = size;
-    }
-
-    pub fn set_max_body_size(&mut self, size: usize) {
-        self.max_body_size = size; 
-    }
-
-    pub fn set_max_line_length(&mut self, size: usize) {
-        self.max_line_length = size;
-    }
-
-    pub fn set_max_headers(&mut self, size: usize) {
-        self.max_headers = size;
-    }
-
-    pub fn get_max_header_size(&self) -> usize {
-        self.max_header_size
-    }
-
-    pub fn get_max_body_size(&self) -> usize {
-        self.max_body_size
-    }
-
-    pub fn get_max_line_length(&self) -> usize {
-        self.max_line_length
-    }
-
-    pub fn get_max_headers(&self) -> usize {
-        self.max_headers
-    }
-
-    pub fn default() -> Self {
-        Self {
-            max_header_size: 8192,
-            max_body_size: 1028 * 1028,
-            max_line_length: 8192,
-            max_headers: 100,
-        }
-    }
 } 
 
 /// Represents a value for an HTTP header, which can be either a single string or multiple values.
@@ -658,7 +588,7 @@ impl HttpMeta {
     }
     
     // Helper function to parse headers with special handling for specific header types
-    fn parse_headers(header_lines: Vec<String>, is_response: bool) -> HashMap<String, HeaderValue> {
+    fn parse_headers(header_lines: Vec<String>, _is_response: bool) -> HashMap<String, HeaderValue> {
         let mut headers: HashMap<String, HeaderValue> = HashMap::new();
         
         // // List of headers that should not be combined (kept as separate values)

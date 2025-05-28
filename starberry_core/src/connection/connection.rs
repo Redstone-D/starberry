@@ -8,7 +8,7 @@
 
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tokio::io::{self, AsyncRead, AsyncWrite, ReadBuf, ReadHalf, WriteHalf}; 
+use tokio::io::{self, AsyncRead, AsyncWrite, AsyncWriteExt, ReadBuf, ReadHalf, WriteHalf}; 
 use tokio::net::TcpStream;
 use tokio_rustls::client::TlsStream;
 
@@ -88,7 +88,26 @@ impl Connection {
             Connection::Tcp(stream) => stream,
             Connection::Tls(stream) => stream,
         }
-    }
+    } 
+
+    /// Gracefully shuts down the connection by closing the write half.
+    ///
+    /// This sends a FIN packet (TCP) or TLS close_notify alert to notify the peer
+    /// that no more data will be sent. Reads can still be performed after shutdown.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let mut conn = Connection::new_tcp(stream);
+    /// conn.shutdown().await?;
+    /// ```
+    pub async fn shutdown(&mut self) -> std::io::Result<()> {
+        // Use pattern matching to call the appropriate shutdown method
+        match self {
+            Connection::Tcp(stream) => stream.shutdown().await,
+            Connection::Tls(stream) => stream.shutdown().await,
+        }
+    } 
 }
 
 impl AsyncRead for Connection {

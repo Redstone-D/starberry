@@ -1,8 +1,8 @@
-use crate::connection::Connection;
+use crate::app::config::ParseConfig; 
 
 use super::{http_value::*, net}; 
 use super::body::HttpBody;
-use super::meta::{HttpMeta, ParseConfig};
+use super::meta::HttpMeta;
 use super::start_line::{HttpStartLine}; 
 use std::collections::HashMap;  
 use tokio::io::{AsyncRead, AsyncWrite, BufReader, BufWriter}; 

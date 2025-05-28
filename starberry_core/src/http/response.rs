@@ -1,17 +1,12 @@
-use super::cookie::{Cookie, CookieMap};
-use super::http_value::{self, *}; 
+use crate::app::config::ParseConfig;
+
+use super::cookie::Cookie; 
 use super::body::HttpBody;
-use super::meta::{HttpMeta, ParseConfig};
+use super::meta::HttpMeta;
 use super::net;
 use super::start_line::{HttpStartLine, ResponseStartLine}; 
 use std::collections::HashMap;
-use std::fmt::Write;
-use tokio::net::TcpStream; 
-use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter}; 
-
-use std::future::{ready, Ready};
-use std::pin::Pin;
-use std::future::Future; 
+use tokio::io::{AsyncRead, AsyncWrite, BufReader, BufWriter}; 
 
 pub struct HttpResponse { 
     pub meta: HttpMeta, 

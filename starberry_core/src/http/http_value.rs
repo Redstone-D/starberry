@@ -1,9 +1,7 @@
 #![allow(non_snake_case)] 
 #![allow(non_camel_case_types)] 
 
-use std::{collections::HashMap, hash::Hash, path::Display};
-
-use once_cell::sync::Lazy;
+use std::{collections::HashMap, hash::Hash}; 
 
 #[derive(Debug, Clone)]  
 pub enum HttpVersion { 
@@ -825,6 +823,16 @@ impl std::fmt::Display for HttpContentType {
         write!(f, "{}", self.to_string())
     }
 } 
+
+impl Default for HttpContentType { 
+    fn default() -> Self {
+        Self::Other { 
+            type_name: "Unknown".to_string(), 
+            subtype: "Unknown".to_string(), 
+            parameters: None, 
+        }
+    }
+}
 
 pub struct HeaderConstructor{ 
     pub headers: Vec<HeaderAttribute>

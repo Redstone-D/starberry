@@ -4,7 +4,7 @@ pub use crate::object;
 pub use crate::{App, RunMode}; 
 pub use crate::{LitUrl, RegUrl, PatUrl, AnyUrl, ArgUrl, AnyPath, TrailingSlash}; 
 pub use crate::urls::*; 
-pub use crate::Rc; 
+pub use crate::{Rx, Tx}; 
 pub use crate::{HttpMeta, HttpResponse}; 
 pub use crate::request_templates::*; 
 pub use crate::sm::akari_render; 
@@ -24,5 +24,5 @@ pub use std::time::Duration;
 pub use tokio; 
 
 pub type SApp = Lazy<Arc<App>>; 
-pub type SUrl = Lazy<Arc<Url>>; 
+pub type SUrl<R> = Lazy<Arc<Url<R>>>; 
 pub type SPattern = Lazy<PathPattern>; 

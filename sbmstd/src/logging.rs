@@ -1,8 +1,8 @@
 pub use starberry_macro::middleware; 
-pub use starberry_core::context::Rc; 
+pub use starberry_core::http::context::HttpReqCtx; 
 pub use starberry_core::app::middleware::AsyncMiddleware; 
 
-#[middleware] 
+#[middleware(HttpReqCtx)] 
 pub async fn PrintLog(){ 
     req = next(req).await;  
     print!("[Request Received] Method: "); 
@@ -11,5 +11,5 @@ pub async fn PrintLog(){
     print!("{}, ", req.path()); 
     print!("Status Code: "); 
     println!("{}, ", req.response.meta.start_line.status_code()); 
-    req.boxed_future() // Abropting the middleware chain 
+    req // Abropting the middleware chain 
 } 

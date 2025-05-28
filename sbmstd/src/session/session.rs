@@ -8,7 +8,8 @@ use tokio::time;
 
 use starberry_macro::middleware; 
 use starberry_core::app::middleware::AsyncMiddleware; 
-use starberry_core::context::Rc;  
+use starberry_core::http::context::HttpReqCtx;  
+use starberry_core::context::Rx; 
 
 #[derive(Debug, Clone)]
 pub struct SessionCont {
@@ -104,8 +105,8 @@ pub fn get_mut<'a>(id: u64) -> Result<SessionRW<'a>, &'static str> {
     }
 } 
 
-#[middleware] 
-pub fn Session(){ 
+#[middleware(HttpReqCtx)] 
+pub async fn Session(){ 
     let ttl = req.app.config::<u64>("session_ttl").unwrap_or(&DEFAULT_TTL).clone(); 
     let mut session_id: u64 = req.get_cookie_or_default("session_id")
         .get_value()
@@ -118,14 +119,14 @@ pub fn Session(){
         get_mut(session_id).unwrap() 
     }); 
     session.touch(ttl); // Refresh session expiration 
-    req.set_param(session); 
+    req.params.set(session); 
     let mut req = next(req).await; // Continue middleware chain 
     req.response = req.response.add_cookie(
         "session_id", 
         Cookie::new(session_id.to_string()) 
             .path("/") 
     ); // Set cookie with session ID 
-    req.boxed_future() 
+    req 
 } 
  
 

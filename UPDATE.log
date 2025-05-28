@@ -1,3 +1,7 @@
+0.6.0: Enable multiple protocol 
+
+Extensions has been seperated to extension mod which performs better 
+
 0.5.1: Merge Request's Meta & Body and Response's into one unified struct  
 
 Unify Cookie in Response and Request, deleted the old CookieResponse module 

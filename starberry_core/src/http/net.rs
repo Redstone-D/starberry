@@ -2,8 +2,9 @@ use std::fmt::Write;
 
 use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 
-use super::meta::{HttpMeta, ParseConfig}; 
+use super::meta::HttpMeta; 
 use super::body::HttpBody; 
+use crate::app::config::ParseConfig; 
 
 pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, is_request: bool, print_raw: bool) -> std::io::Result<(HttpMeta, HttpBody)> {
     // Create one BufReader up-front, pass this throughout.
@@ -30,8 +31,7 @@ pub async fn parse_body<R: AsyncRead + Unpin>(meta: &mut HttpMeta, body: &mut Ht
     Ok(())
 } 
 
-pub async fn send<W: AsyncWrite +  Unpin>(meta: &mut HttpMeta, body: &mut HttpBody, stream: &mut BufWriter<W>) -> std::io::Result<()> {
-    let mut writer = BufWriter::new(stream);
+pub async fn send<W: AsyncWrite +  Unpin>(meta: &mut HttpMeta, body: &mut HttpBody, writer: &mut BufWriter<W>) -> std::io::Result<()> {
     let mut headers = String::with_capacity(256); 
 
     // Add the values such as content length into header 
