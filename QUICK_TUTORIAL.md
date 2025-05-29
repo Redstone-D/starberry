@@ -5,21 +5,32 @@
 ### Multi Protocol and new App Mechanism 
 
 ```mermaid
-flowchart TB
-  RX1[Get Connection from TcpListener] --> RX2{Multiple Protocol Mode?}
-  RX2 -- Yes --> RX3[Test each protocol with Rx::test()]
-  RX3 --> RX4[Select first protocol returning true]
-  RX4 --> RX5[Use that protocol type]
-  RX5 --> RX7[Process request: read/write as needed]
+flowchart TD
+    RX1[Get Connection from TcpListener]
+    RX2{Multiple Protocol Mode?}
+    RX3["Test each protocol with Rx::test()"]
+    RX4[Select first protocol returning true]
+    RX5[Use that protocol type]
+    RX6[Use the single protocol directly]
+    RX7[Process request: read/write as needed]
+    TX1[Build Tx and Connection]
+    TX2["Tx::send(): send Response, get Request"]
+    TX3{Is connection needed?}
+    TX4[Close connection]
+    TX5[Keep connection open]
 
-  RX2 -- No --> RX6[Use the single protocol directly]
-  RX6 --> RX7[Process request: read/write as needed]
-
-  RX7 -..-> TX1[Build Tx and Connection]
-  TX1 --> TX2[Tx::send(): send Response, get Request]
-  TX2 --> TX3{Is connection needed?}
-  TX3 -- No --> TX4[Close connection]
-  TX3 -- Yes --> TX5[Keep connection open]
+    RX1 --> RX2
+    RX2 -- Yes --> RX3
+    RX3 --> RX4
+    RX4 --> RX5
+    RX5 --> RX7
+    RX2 -- No --> RX6
+    RX6 --> RX7
+    RX7 --////--> TX1
+    TX1 --> TX2
+    TX2 --> TX3
+    TX3 -- No --> TX4
+    TX3 -- Yes --> TX5
 ``` 
 
 ### Request context, Rx, Tx 
