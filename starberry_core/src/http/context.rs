@@ -264,27 +264,11 @@ mod test {
         let builder = ConnectionBuilder::new("example.com", 443)
             .protocol(Protocol::HTTP)
             .tls(true);
-        println!("0");
         let connection = builder.connect().await.unwrap();
-        println!("1");
-        // 6. Create a request context
-        let meta = HttpMeta::new(
-            HttpStartLine::new_request(
-                HttpVersion::Http11,
-                HttpMethod::GET,
-                String::from("/"),
-            ),
-            HashMap::new(),
-        );
-        println!("3");
-        let body = crate::http::body::HttpBody::Unparsed;
-        let request = crate::http::request::HttpRequest::new(meta, body);
-        println!("4");
-        // 7. send the request
+        // 6. Create a request context 
+        let request = crate::http::request::request_templates::get_request(); 
         let mut request = HttpResCtx::new(request, connection, "example.com");
-        println!("5");
         request.send().await;
-        println!("6");
         request.response.parse_body(
             &mut request.reader,
             1024 * 1024,

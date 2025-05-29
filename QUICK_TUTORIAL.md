@@ -33,7 +33,15 @@ flowchart TD
     TX3 -- Yes --> TX5
 ``` 
 
-### Request context, Rx, Tx 
+As the diagram shown above, Rx (Receive) and Tx (Transmit) are the 2 most important traits introduced in Starberry 0.6. All of the protocols are wrapped with them. 
+
+This means that you will be able to define your own protocol in App, and very soon you will be able to use socket and ftp in starberry. Currently Http and Sql has been implemented 
+
+### Sending outbound Http Request 
+
+### Argumented URLs 
+
+### Sql support 
 
 ### Unify Http Request and Http Response 
 

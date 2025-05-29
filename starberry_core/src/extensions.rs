@@ -231,7 +231,7 @@ impl Locals {
     /// let mut req = Locals::default();  
     /// 
     /// // Set the token 
-    /// req.set("session_token", "some_token".into_string()); 
+    /// req.set("session_token", "some_token".to_string()); 
     /// 
     /// // Take ownership of a value
     /// if let Some(token) = req.take::<String>("session_token") {

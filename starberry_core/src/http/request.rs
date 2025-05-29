@@ -66,3 +66,25 @@ impl Default for HttpRequest {
         HttpRequest::new(meta, body)
     } 
 } 
+
+/// Collection of helper functions to easily create common HTTP requests. 
+pub mod request_templates {
+    use std::collections::HashMap;
+
+    use crate::http::{body::HttpBody, http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, start_line::HttpStartLine};
+
+    use super::HttpRequest;
+ 
+    pub fn get_request() -> HttpRequest { 
+        let meta = HttpMeta::new(
+            HttpStartLine::new_request(
+                HttpVersion::Http11,
+                HttpMethod::GET,
+                String::from("/"),
+            ),
+            HashMap::new(),
+        );
+        let body = HttpBody::Unparsed;
+        HttpRequest::new(meta, body) 
+    }
+} 
