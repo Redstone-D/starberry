@@ -41,5 +41,8 @@ pub trait Rx: Sized + Send + Sync {
 
 #[async_trait]  
 pub trait Tx: Send + Sync { 
-    async fn process(&mut self); 
+    type Request; 
+    type Response; 
+    type Error; 
+    async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error>; 
 } 

@@ -4,7 +4,8 @@ members = [
     "sm", 
     "starberry_core", 
     "sbmstd", 
-
+    "oauth_core", 
+    "starberry_sql", 
     "example", 
 ] 
 resolver = "3" 

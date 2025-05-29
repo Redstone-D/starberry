@@ -19,5 +19,5 @@ futures = "0.3"
 once_cell = "1.17.2" 
 starberry_macro = { path = "../sm", version="0.6"} 
 starberry_core = { path = "../starberry_core", version="0.6" } 
-starberry_lib = { path = "../starberry_lib", version="0.5" } 
+starberry_lib = { path = "../starberry_lib", version="0.6.0" } 
 ctor = "0.4.0" 

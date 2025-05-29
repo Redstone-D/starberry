@@ -245,8 +245,13 @@ impl HttpResCtx {
 
 #[async_trait]  
 impl Tx for HttpResCtx { 
-    async fn process(&mut self) {
-        self.send().await 
+    type Request = HttpRequest; 
+    type Response = HttpResponse; 
+    type Error = (); 
+    async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error> {
+        self.request = request; 
+        self.send().await; 
+        Ok(&mut self.response)
     }
 }
 
