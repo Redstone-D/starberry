@@ -1,5 +1,5 @@
 [package]
-name = "oauth_core"
+name = "starberry_oauth"
 version = "0.6.0"
 edition = "2024"
 
