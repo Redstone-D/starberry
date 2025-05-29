@@ -194,7 +194,7 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
                 // Update the function signature to use &mut Rc instead of Rc
                 if let syn::FnArg::Typed(ref mut pat_type) = func.sig.inputs[0] {
                     // Create &mut Rc type
-                    let rc_path = syn::parse_str::<syn::Path>("Rc").unwrap();
+                    let rc_path = syn::parse_str::<syn::Path>("HttpReqCtx").unwrap();
                     let rc_type = syn::TypePath { 
                         qself: None,
                         path: rc_path
@@ -213,7 +213,7 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
                 
                 // Create wrapper function
                 (quote! {
-                    async fn #wrapper_func_ident(mut rc: Rc) -> Rc {
+                    async fn #wrapper_func_ident(mut rc: HttpReqCtx) -> HttpReqCtx {
                         let response = #func_ident(&mut rc).await;
                         rc.response = response;
                         rc
@@ -229,7 +229,7 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
             
             if returns_http_response {
                 (quote! {
-                    async fn #wrapper_func_ident(mut rc: Rc) -> Rc {
+                    async fn #wrapper_func_ident(mut rc: HttpReqCtx) -> HttpReqCtx {
                         let response = #func_ident(&mut rc).await;
                         rc.response = response;
                         rc
@@ -247,8 +247,8 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
         let mut new_inputs = syn::punctuated::Punctuated::new();
         
         if returns_http_response {
-            // Create &mut Rc type for parameter
-            let rc_path = syn::parse_str::<syn::Path>("Rc").unwrap();
+            // Create &mut HttpReqCtx type for parameter
+            let rc_path = syn::parse_str::<syn::Path>("HttpReqCtx").unwrap();
             let rc_type = syn::TypePath { 
                 qself: None,
                 path: rc_path
@@ -278,10 +278,10 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
             
             new_inputs.push(param);
         } else {
-            // For Rc return type, keep original behavior with mut Rc parameter
+            // For HttpReqCtx return type, keep original behavior with mut HttpReqCtx parameter
             let param_path = syn::TypePath { 
                 qself: None,
-                path: syn::Path::from(syn::Ident::new("Rc", func_ident.span()))
+                path: syn::Path::from(syn::Ident::new("HttpReqCtx", func_ident.span()))
             };
             
             let param_type = syn::Type::Path(param_path);
@@ -307,7 +307,7 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
 
         if returns_http_response {
             (quote! {
-                async fn #wrapper_func_ident(mut rc: Rc) -> Rc {
+                async fn #wrapper_func_ident(mut rc: HttpReqCtx) -> HttpReqCtx {
                     let response = #func_ident(&mut rc).await;
                     rc.response = response;
                     rc

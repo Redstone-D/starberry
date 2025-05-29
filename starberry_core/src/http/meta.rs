@@ -690,6 +690,12 @@ impl HttpMeta {
         &self.header 
     } 
 
+    pub fn get_header<T: Into<String>>(&self, key: T) -> Option<String> { 
+        self.header.get(&key.into().trim().to_lowercase()).and_then(|v| 
+            Some(v.as_str()) 
+        ) 
+    } 
+
     /// 
     pub fn set_attribute<T: Into<String>, S: Into<HeaderValue>>(&mut self, key: T, value: S) { 
         self.header.insert(key.into().trim().to_lowercase(), value.into()); 

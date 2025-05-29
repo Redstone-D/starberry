@@ -228,6 +228,10 @@ async fn redirect() -> HttpResponse {
 
 ## 📋 Changelog 
 
+### 0.6.0 
+- Change the design of APP to enable multi-protocol 
+- Added database support 
+
 ### 0.5.1 
 - Reform Cookie and CookieMap, deleted the CookieResponse struct 
 - Merge Request's Meta & Body and Response's into one unified struct 

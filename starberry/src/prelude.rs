@@ -5,6 +5,7 @@ pub use crate::{App, RunMode};
 pub use crate::{LitUrl, RegUrl, PatUrl, AnyUrl, ArgUrl, AnyPath, TrailingSlash}; 
 pub use crate::urls::*; 
 pub use crate::{Rx, Tx}; 
+pub use crate::{HttpResCtx, HttpReqCtx}; 
 pub use crate::{HttpMeta, HttpResponse}; 
 pub use crate::request_templates::*; 
 pub use crate::sm::akari_render; 
