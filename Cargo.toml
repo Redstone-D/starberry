@@ -4,7 +4,7 @@ members = [
     "sm", 
     "starberry_core", 
     "sbmstd", 
-    "oauth_core", 
+    "starberry_oauth", 
     "starberry_sql", 
     "example", 
 ] 
