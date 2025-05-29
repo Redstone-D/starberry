@@ -1,4 +1,46 @@
-# Starberry Documentation for 0.4.7 (Core) 
+# Starberry Documentation for 0.6.1 (Core) 
+
+# Chapter 0: New Concept Introduced 0.5.x and 0.6.x 
+
+### Multi Protocol and new App Mechanism 
+
+```mermaid
+flowchart TD
+    RX1[Get Connection from TcpListener] --> RX2{Multiple Protocol Mode?}
+    RX2 -- Yes --> RX3[Test each protocol with Rx::test()]
+    RX3 --> RX4[Select first protocol returning true]
+    RX4 --> RX5[Use that protocol type]
+    RX5 --> RX7[Process request: read/write as needed]
+
+    RX2 -- No --> RX6[Use the single protocol directly]
+    RX6 --> RX7[Process request: read/write as needed]
+
+    RX7 -.-> TX1[Build Tx and Connection]
+    TX1 --> TX2[Tx::send(): send Response, get Request]
+    TX2 --> TX3{Is connection needed?}
+    TX3 -- No --> TX4[Close connection]
+    TX3 -- Yes --> TX5[Keep connection open]
+``` 
+
+### Request context, Rx, Tx 
+
+### Unify Http Request and Http Response 
+
+You may see in the new Http mod, request and responses are in the same structure of 
+
+```rust 
+pub struct HttpRequest {
+    pub meta: HttpMeta,
+    pub body: HttpBody
+}
+
+pub struct HttpResponse { 
+    pub meta: HttpMeta, 
+    pub body: HttpBody 
+}  
+``` 
+
+Where `HttpMeta` and `HttpBody` both implemented different methods for sending/parsing request/response 
 
 # Chapter 1: Hello Starberry! 
 
