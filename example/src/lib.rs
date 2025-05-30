@@ -5,6 +5,6 @@ pub static APP: SApp = Lazy::new(|| {
 }); 
 
 #[url(reg![&APP, LitUrl("")])] 
-pub async fn index() -> HttpResponse {
+async fn index() -> HttpResponse {
     text_response("Hello 0.6!") 
 } 

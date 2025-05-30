@@ -37,7 +37,38 @@ As the diagram shown above, Rx (Receive) and Tx (Transmit) are the 2 most import
 
 This means that you will be able to define your own protocol in App, and very soon you will be able to use socket and ftp in starberry. Currently Http and Sql has been implemented 
 
-### Sending outbound Http Request 
+For example, you may send an Http request by 
+
+(1) Building a connection with the server 
+
+```rust
+let builder = ConnectionBuilder::new("example.com", 443)
+    .protocol(Protocol::HTTP)
+    .tls(true);
+let connection = builder.connect().await.unwrap(); 
+``` 
+
+(2) Create a new Tx (HttpResCtx is the struct implemented Tx in Http) 
+
+```rust 
+let mut request = HttpResCtx::new(connection, "example.com"); 
+``` 
+
+(3) Insert the request by using the `Tx::prcess()` function 
+
+```rust 
+let _ = request.process(request_templates::get_request("/")).await; 
+``` 
+
+Because we need to borrow the reader from the HttpResCtx so we didn't use the &mut Response from the process() function, we directly use HttpReqCtx.response to further process 
+
+```rust 
+request.response.parse_body(
+    &mut request.reader,
+    1024 * 1024,
+).await;
+println!("{:?}, {:?}", request.response.meta, request.response.body); 
+``` 
 
 ### Argumented URLs 
 

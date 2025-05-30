@@ -45,4 +45,5 @@ pub trait Tx: Send + Sync {
     type Response; 
     type Error; 
     async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error>; 
+    async fn shutdown(&mut self) -> Result<(), Self::Error>; 
 } 

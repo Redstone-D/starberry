@@ -75,12 +75,12 @@ pub mod request_templates {
 
     use super::HttpRequest;
  
-    pub fn get_request() -> HttpRequest { 
+    pub fn get_request<T: Into<String>>(url: T) -> HttpRequest { 
         let meta = HttpMeta::new(
             HttpStartLine::new_request(
                 HttpVersion::Http11,
                 HttpMethod::GET,
-                String::from("/"),
+                url.into(), 
             ),
             HashMap::new(),
         );

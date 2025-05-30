@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 use async_trait::async_trait;
-use tokio::io::{BufReader, BufWriter, ReadHalf, WriteHalf};
+use tokio::io::{AsyncWriteExt, BufReader, BufWriter, ReadHalf, WriteHalf};
 use akari::Value;
 use once_cell::sync::Lazy;
 use crate::app::{application::App, urls::Url};
@@ -220,25 +220,30 @@ impl Rx for HttpReqCtx {
 
 pub struct HttpResCtx {
     pub request: HttpRequest,
-    pub response: HttpResponse,
+    pub response: HttpResponse, 
+    pub host: String, 
     pub reader: BufReader<ReadHalf<Connection>>,
     pub writer: BufWriter<WriteHalf<Connection>>,
 }
 impl HttpResCtx {
-    pub fn new(mut request: HttpRequest, connection: Connection, host: impl Into<String>) -> Self {
+    pub fn new(connection: Connection, host: impl Into<String>) -> Self {
         let (reader, writer) = connection.split(); 
-        if request.meta.get_host().is_none() {
-            request.meta.set_host(Some(host.into()));
-        } 
         Self {
-            request,
-            response: HttpResponse::default(),
+            request: HttpRequest::default(),
+            response: HttpResponse::default(), 
+            host: host.into(), 
             reader: BufReader::new(reader),
             writer: BufWriter::new(writer)
         }
+    } 
+    pub fn request(&mut self, mut request: HttpRequest) { 
+        if request.meta.get_host().is_none() {
+            request.meta.set_host(Some(self.host.clone()));
+        }; 
+        self.request = request; 
     }
     pub async fn send(&mut self) {
-        self.request.send(&mut self.writer).await;
+        let _ = self.request.send(&mut self.writer).await;
         self.response = HttpResponse::parse_lazy(&mut self.reader, &ParseConfig::default(), false).await;
     }
 } 
@@ -247,28 +252,28 @@ impl HttpResCtx {
 impl Tx for HttpResCtx { 
     type Request = HttpRequest; 
     type Response = HttpResponse; 
-    type Error = (); 
+    type Error = std::io::Error; 
     async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error> {
-        self.request = request; 
+        self.request(request); 
         self.send().await; 
         Ok(&mut self.response)
+    } 
+    async fn shutdown(&mut self) -> Result<(), Self::Error> { 
+        self.writer.shutdown().await 
     }
 }
 
 #[cfg(test)]
-mod test {
-    use std::collections::HashMap; 
-    use crate::{connection::{ConnectionBuilder, Protocol}, http::{context::HttpResCtx, http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, start_line::HttpStartLine}};
+mod test { 
+    use crate::{connection::{ConnectionBuilder, Protocol}, context::Tx, http::{context::HttpResCtx, http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, request::request_templates, start_line::HttpStartLine}};
     #[tokio::test]
     async fn request_a_page() {
         let builder = ConnectionBuilder::new("example.com", 443)
             .protocol(Protocol::HTTP)
             .tls(true);
-        let connection = builder.connect().await.unwrap();
-        // 6. Create a request context 
-        let request = crate::http::request::request_templates::get_request(); 
-        let mut request = HttpResCtx::new(request, connection, "example.com");
-        request.send().await;
+        let connection = builder.connect().await.unwrap(); 
+        let mut request = HttpResCtx::new(connection, "example.com");
+        let _ = request.process(request_templates::get_request("/")).await;
         request.response.parse_body(
             &mut request.reader,
             1024 * 1024,
