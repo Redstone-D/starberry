@@ -13,7 +13,7 @@ use std::future::Future;
 
 use crate::app::urls;
 use crate::connection::Connection;
-use crate::context::{Rx, Tx};
+use crate::connection::Rx;
 use crate::app::config::ParseConfig; 
 
 use crate::extensions::ParamsClone;

@@ -1,12 +1,11 @@
 use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::net::TcpStream;
-use tokio_rustls::client::TlsStream;
+use tokio::net::TcpStream; 
 use tokio_rustls::TlsConnector;
 use rustls::{
     ClientConfig, RootCertStore,
-    pki_types::{ServerName, TrustAnchor},
+    pki_types::ServerName,
 }; 
 use rustls::crypto::ring::default_provider; 
 use webpki_roots::TLS_SERVER_ROOTS;

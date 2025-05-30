@@ -11,7 +11,7 @@ use tokio::io::{
     ReadHalf,
     WriteHalf,
 };
-use crate::{connection::Connection, context::Rx};
+use crate::{connection::{Connection, Rx}};
 use super::application::App;
 
 /// A function pointer to inspect the first bytes of a connection

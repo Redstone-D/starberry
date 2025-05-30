@@ -3,7 +3,7 @@ use std::future::Future;
 use std::sync::Arc; 
 use crate::http::context::HttpReqCtx;
 
-use super::super::context::Rx; 
+use crate::connection::Rx; 
 use std::any::Any; 
 
 /// A boxed future returning `R`.

@@ -1,8 +1,18 @@
-use std::collections::VecDeque;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use crate::context::Tx;
-use async_trait::async_trait;
+use std::sync::Arc; 
+use std::collections::VecDeque; 
+
+use async_trait::async_trait; 
+
+use tokio::sync::Mutex; 
+
+#[async_trait]  
+pub trait Tx: Send + Sync { 
+    type Request; 
+    type Response; 
+    type Error; 
+    async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error>; 
+    async fn shutdown(&mut self) -> Result<(), Self::Error>; 
+} 
 
 /// A simple asynchronous pool for objects implementing the `Tx` trait.
 #[derive(Clone, Debug)]
@@ -69,8 +79,8 @@ impl<T: Tx + Send + Sync + 'static> Pool for TxPool<T> {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use crate::context::Tx;
-    use crate::pool::Pool;
+    use super::Tx;
+    use super::Pool;
 
     #[derive(Clone)]
     struct DummyTx {
@@ -112,4 +122,4 @@ mod tests {
         let item = <TxPool<DummyTx> as Pool>::get(&pool).await.expect("get via Pool");
         <TxPool<DummyTx> as Pool>::release(&pool, item).await;
     }
-} 
+}  
