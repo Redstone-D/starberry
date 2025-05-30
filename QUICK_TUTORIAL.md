@@ -72,6 +72,10 @@ println!("{:?}, {:?}", request.response.meta, request.response.body);
 
 ### Argumented URLs 
 
+Two new kinds of url has been introduced in the 0.5 version, which is `PatUrl` and `ArgUrl`. 
+
+Both of them support aliasing url, and you may use the given name to look for them. This solves the problem of we can only get the url segment by inputting index in `HttpReqCtx::get_path()`. We may insert the name in `HttpReqCtx::get_arg()` to look for it 
+
 ### Sql support 
 
 ### Unify Http Request and Http Response 
@@ -94,9 +98,11 @@ Where `HttpMeta` and `HttpBody` both implemented different methods for sending/p
 
 # Chapter 1: Hello Starberry! 
 
+In this chapter, we are going to create a simpliest Http server by using Starberry 
+
 ### Installation: 
 
-You can install starberry by using the following commandL 
+You can install starberry by using the following command 
 
 ```
 cargo install starberry 
@@ -132,7 +138,7 @@ In the tokio environment (note you don't need to import tokio because starberry 
 Note that you must clone the instance before running it since APP is a global instance wrapped with Lazy. 
 
 ```rust 
-pub static APP: SApp = once_cell::sync::Lazy::new(|| {
+pub static APP: SApp = Lazy::new(|| {
     App::new().build()
 }); 
 ``` 
