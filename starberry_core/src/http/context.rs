@@ -315,7 +315,7 @@ impl Tx for HttpResCtx {
 
 #[cfg(test)]
 mod test { 
-    use crate::{connection::{ConnectionBuilder, Protocol}, context::Tx, http::{context::HttpResCtx, http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, request::request_templates, start_line::HttpStartLine}};
+    use crate::{connection::{ConnectionBuilder, Protocol}, connection::transmit::Tx, http::{context::HttpResCtx, http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, request::request_templates, start_line::HttpStartLine}};
     #[tokio::test]
     async fn request_a_page() {
         let builder = ConnectionBuilder::new("example.com", 443)

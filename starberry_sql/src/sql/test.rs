@@ -1,6 +1,7 @@
 use super::*;
 use std::collections::HashMap;
-use starberry_core::pool::Pool;
+use starberry_core::connection::transmit::Pool;
+
 
 #[test]
 fn test_encode_primitives() {

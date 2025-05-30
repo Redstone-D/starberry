@@ -3,7 +3,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{Mutex, Semaphore, OwnedSemaphorePermit};
 use async_trait::async_trait;
-use starberry_core::pool::Pool;
+use starberry_core::connection::transmit::Pool;
 
 use super::connection::{DbConnectionBuilder, DbConnection};
 use super::error::DbError;
@@ -87,8 +87,8 @@ impl Pool for SqlPool {
     type Item = PooledSqlConnection;
     type Error = DbError;
 
-    async fn get(&self) -> Result<Self::Item, Self::Error> {
-        self.get().await
+    async fn get(&self) -> std::result::Result<Self::Item, Self::Error> {
+        SqlPool::get(self).await
     }
 
     async fn release(&self, item: Self::Item) {

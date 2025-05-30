@@ -9,7 +9,7 @@ use tokio::time;
 use starberry_macro::middleware; 
 use starberry_core::app::middleware::AsyncMiddleware; 
 use starberry_core::http::context::HttpReqCtx;  
-use starberry_core::context::Rx; 
+use starberry_core::connection::Rx; 
 
 #[derive(Debug, Clone)]
 pub struct SessionCont {

@@ -7,7 +7,7 @@ use base64::{engine::general_purpose, Engine as _};
 use ring::{digest, hmac, pbkdf2};
 use std::num::NonZeroU32;
 use async_trait::async_trait;
-use starberry_core::context::Tx;
+use starberry_core::connection::Tx;
 
 /// Represents PostgreSQL SSL mode options for connection.
 #[derive(Debug, Clone, PartialEq)]

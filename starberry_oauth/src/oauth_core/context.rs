@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use starberry_core::context::{Rx, Tx};
+use starberry_core::connection::{Rx, Tx};
 use starberry_core::http::context::{HttpReqCtx, HttpResCtx};
 use super::http_client::{OAuthHttpClient, HttpRequest, HttpResponse, HttpClientError};
 

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use starberry_core::context::Tx;
+use starberry_core::connection::Tx;
 use super::connection::{DbConnectionBuilder, DbConnection};
 use super::error::DbError;
 use super::query::QueryResult;
