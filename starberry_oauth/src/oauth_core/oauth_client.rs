@@ -77,6 +77,11 @@ impl OAuthClient {
         &self.state
     }
 
+    /// Returns a reference to the PKCE code challenge.
+    pub fn code_challenge(&self) -> &str {
+        &self.code_challenge
+    }
+
     /// Constructs the authorization URL with the appropriate query parameters.
     pub fn get_authorize_url(&self, redirect_uri: &str) -> String {
         let mut params = vec![

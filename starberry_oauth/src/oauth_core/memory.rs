@@ -7,6 +7,7 @@ use super::types::{Client, Grant, Token, TokenModel, OAuthError};
 use super::oauth_provider::{ClientStore, TokenManager, Authorizer, TokenStorage};
 use tokio::sync::RwLock;
 use std::collections::{HashMap, HashSet};
+use async_trait::async_trait;
 
 #[derive(Clone)]
 pub struct InMemoryClientStore {
@@ -24,15 +25,12 @@ impl InMemoryClientStore {
     }
 }
 
+#[async_trait]
 impl ClientStore for InMemoryClientStore {
-    fn get_client(&self, id: &str) -> Pin<Box<dyn Future<Output = Result<Client, OAuthError>> + Send + 'static>> {
-        let clients = self.clients.clone();
-        let id_owned = id.to_owned();
-        Box::pin(async move {
-            clients.get(&id_owned)
-                .map(|entry| entry.value().clone())
-                .ok_or(OAuthError::InvalidClient)
-        })
+    async fn get_client(&self, id: &str) -> Result<Client, OAuthError> {
+        self.clients.get(id)
+            .map(|entry| entry.value().clone())
+            .ok_or(OAuthError::InvalidClient)
     }
 }
 
@@ -48,42 +46,31 @@ impl InMemoryTokenManager {
     }
 }
 
+#[async_trait]
 impl TokenManager for InMemoryTokenManager {
-    fn generate_token(&self, _grant: Grant) -> Pin<Box<dyn Future<Output = Result<Token, OAuthError>> + Send + 'static>> {
-        let tokens = self.tokens.clone();
-        Box::pin(async move {
-            // Generate a new opaque token pair
-            let access_token = Uuid::new_v4().to_string();
-            let refresh_token = Some(Uuid::new_v4().to_string());
-            let token = Token {
-                model: TokenModel::BearerOpaque,
-                access_token: access_token.clone(),
-                refresh_token: refresh_token.clone(),
-                expires_in: 3600,
-                scope: None,
-            };
-            tokens.insert(access_token.clone(), token.clone());
-            Ok(token)
-        })
+    async fn generate_token(&self, _grant: Grant) -> Result<Token, OAuthError> {
+        let access_token = Uuid::new_v4().to_string();
+        let refresh_token = Some(Uuid::new_v4().to_string());
+        let token = Token {
+            model: TokenModel::BearerOpaque,
+            access_token: access_token.clone(),
+            refresh_token: refresh_token.clone(),
+            expires_in: 3600,
+            scope: None,
+        };
+        self.tokens.insert(access_token.clone(), token.clone());
+        Ok(token)
     }
 
-    fn revoke_token(&self, token: &str) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let tokens = self.tokens.clone();
-        let token_owned = token.to_owned();
-        Box::pin(async move {
-            tokens.remove(&token_owned);
-            Ok(())
-        })
+    async fn revoke_token(&self, token: &str) -> Result<(), OAuthError> {
+        self.tokens.remove(token);
+        Ok(())
     }
 
-    fn validate_token(&self, token: &str) -> Pin<Box<dyn Future<Output = Result<Token, OAuthError>> + Send + 'static>> {
-        let tokens = self.tokens.clone();
-        let token_owned = token.to_owned();
-        Box::pin(async move {
-            tokens.get(&token_owned)
-                .map(|entry| entry.value().clone())
-                .ok_or(OAuthError::InvalidToken)
-        })
+    async fn validate_token(&self, token: &str) -> Result<Token, OAuthError> {
+        self.tokens.get(token)
+            .map(|entry| entry.value().clone())
+            .ok_or(OAuthError::InvalidToken)
     }
 }
 
@@ -99,29 +86,20 @@ impl InMemoryAuthorizer {
     }
 }
 
+#[async_trait]
 impl Authorizer for InMemoryAuthorizer {
-    fn record_consent(&self, client_id: &str, user_id: &str, scopes: &[String]) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let consents = self.consents.clone();
-        let key = (client_id.to_owned(), user_id.to_owned());
-        let scopes_vec = scopes.to_vec();
-        Box::pin(async move {
-            consents.insert(key, scopes_vec);
-            Ok(())
-        })
+    async fn record_consent(&self, client_id: &str, user_id: &str, scopes: &[String]) -> Result<(), OAuthError> {
+        self.consents.insert((client_id.to_owned(), user_id.to_owned()), scopes.to_vec());
+        Ok(())
     }
 
-    fn check_consent(&self, client_id: &str, user_id: &str, scopes: &[String]) -> Pin<Box<dyn Future<Output = Result<bool, OAuthError>> + Send + 'static>> {
-        let consents = self.consents.clone();
-        let key = (client_id.to_owned(), user_id.to_owned());
-        let required = scopes.to_vec();
-        Box::pin(async move {
-            if let Some(entry) = consents.get(&key) {
-                let granted = entry.value();
-                Ok(required.iter().all(|s| granted.contains(s)))
-            } else {
-                Ok(false)
-            }
-        })
+    async fn check_consent(&self, client_id: &str, user_id: &str, scopes: &[String]) -> Result<bool, OAuthError> {
+        if let Some(entry) = self.consents.get(&(client_id.to_owned(), user_id.to_owned())) {
+            let granted = entry.value();
+            Ok(scopes.iter().all(|s| granted.contains(s)))
+        } else {
+            Ok(false)
+        }
     }
 }
 
@@ -146,164 +124,73 @@ impl InMemoryTokenStorage {
     }
 }
 
+#[async_trait]
 impl TokenStorage for InMemoryTokenStorage {
-    fn store_access_token(
-        &self,
-        token: &str,
-        data: Token,
-        _expires_in: u64,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.access_tokens.clone();
-        let key = token.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.insert(key, data);
-            Ok(())
-        })
+    async fn store_access_token(&self, token: &str, data: Token, _expires_in: u64) -> Result<(), OAuthError> {
+        let mut guard = self.access_tokens.write().await;
+        guard.insert(token.to_string(), data);
+        Ok(())
     }
 
-    fn get_access_token(
-        &self,
-        token: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<Token>, OAuthError>> + Send + 'static>> {
-        let map = self.access_tokens.clone();
-        let key = token.to_string();
-        Box::pin(async move {
-            let guard = map.read().await;
-            Ok(guard.get(&key).cloned())
-        })
+    async fn get_access_token(&self, token: &str) -> Result<Option<Token>, OAuthError> {
+        let guard = self.access_tokens.read().await;
+        Ok(guard.get(token).cloned())
     }
 
-    fn delete_access_token(
-        &self,
-        token: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.access_tokens.clone();
-        let key = token.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.remove(&key);
-            Ok(())
-        })
+    async fn delete_access_token(&self, token: &str) -> Result<(), OAuthError> {
+        let mut guard = self.access_tokens.write().await;
+        guard.remove(token);
+        Ok(())
     }
 
-    fn store_refresh_token(
-        &self,
-        refresh_token: &str,
-        access_token: &str,
-        _expires_in: u64,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.refresh_tokens.clone();
-        let rkey = refresh_token.to_string();
-        let akey = access_token.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.insert(rkey, akey);
-            Ok(())
-        })
+    async fn store_refresh_token(&self, refresh_token: &str, access_token: &str, _expires_in: u64) -> Result<(), OAuthError> {
+        let mut guard = self.refresh_tokens.write().await;
+        guard.insert(refresh_token.to_string(), access_token.to_string());
+        Ok(())
     }
 
-    fn get_refresh_token(
-        &self,
-        refresh_token: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, OAuthError>> + Send + 'static>> {
-        let map = self.refresh_tokens.clone();
-        let key = refresh_token.to_string();
-        Box::pin(async move {
-            let guard = map.read().await;
-            Ok(guard.get(&key).cloned())
-        })
+    async fn get_refresh_token(&self, refresh_token: &str) -> Result<Option<String>, OAuthError> {
+        let guard = self.refresh_tokens.read().await;
+        Ok(guard.get(refresh_token).cloned())
     }
 
-    fn delete_refresh_token(
-        &self,
-        refresh_token: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.refresh_tokens.clone();
-        let key = refresh_token.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.remove(&key);
-            Ok(())
-        })
+    async fn delete_refresh_token(&self, refresh_token: &str) -> Result<(), OAuthError> {
+        let mut guard = self.refresh_tokens.write().await;
+        guard.remove(refresh_token);
+        Ok(())
     }
 
-    fn store_pkce_verifier(
-        &self,
-        code_challenge: &str,
-        code_verifier: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.pkce_store.clone();
-        let c_chal = code_challenge.to_string();
-        let c_ver = code_verifier.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.insert(c_chal, c_ver);
-            Ok(())
-        })
+    async fn store_pkce_verifier(&self, code_challenge: &str, code_verifier: &str) -> Result<(), OAuthError> {
+        let mut guard = self.pkce_store.write().await;
+        guard.insert(code_challenge.to_string(), code_verifier.to_string());
+        Ok(())
     }
 
-    fn get_pkce_verifier(
-        &self,
-        code_challenge: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<Option<String>, OAuthError>> + Send + 'static>> {
-        let map = self.pkce_store.clone();
-        let key = code_challenge.to_string();
-        Box::pin(async move {
-            let guard = map.read().await;
-            Ok(guard.get(&key).cloned())
-        })
+    async fn get_pkce_verifier(&self, code_challenge: &str) -> Result<Option<String>, OAuthError> {
+        let guard = self.pkce_store.read().await;
+        Ok(guard.get(code_challenge).cloned())
     }
 
-    fn delete_pkce_verifier(
-        &self,
-        code_challenge: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.pkce_store.clone();
-        let key = code_challenge.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.remove(&key);
-            Ok(())
-        })
+    async fn delete_pkce_verifier(&self, code_challenge: &str) -> Result<(), OAuthError> {
+        let mut guard = self.pkce_store.write().await;
+        guard.remove(code_challenge);
+        Ok(())
     }
 
-    fn store_csrf_state(
-        &self,
-        state: &str,
-        _expires_in: u64,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.csrf_store.clone();
-        let key = state.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.insert(key);
-            Ok(())
-        })
+    async fn store_csrf_state(&self, state: &str, _expires_in: u64) -> Result<(), OAuthError> {
+        let mut guard = self.csrf_store.write().await;
+        guard.insert(state.to_string());
+        Ok(())
     }
 
-    fn get_csrf_state(
-        &self,
-        state: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<bool, OAuthError>> + Send + 'static>> {
-        let map = self.csrf_store.clone();
-        let key = state.to_string();
-        Box::pin(async move {
-            let guard = map.read().await;
-            Ok(guard.contains(&key))
-        })
+    async fn get_csrf_state(&self, state: &str) -> Result<bool, OAuthError> {
+        let guard = self.csrf_store.read().await;
+        Ok(guard.contains(state))
     }
 
-    fn delete_csrf_state(
-        &self,
-        state: &str,
-    ) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
-        let map = self.csrf_store.clone();
-        let key = state.to_string();
-        Box::pin(async move {
-            let mut guard = map.write().await;
-            guard.remove(&key);
-            Ok(())
-        })
+    async fn delete_csrf_state(&self, state: &str) -> Result<(), OAuthError> {
+        let mut guard = self.csrf_store.write().await;
+        guard.remove(state);
+        Ok(())
     }
 } 

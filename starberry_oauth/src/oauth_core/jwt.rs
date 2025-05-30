@@ -6,6 +6,7 @@ use serde::{Serialize, Deserialize};
 use chrono::Utc;
 use super::types::{JWTAlgorithm, TokenModel, Token, Grant, OAuthError};
 use super::oauth_provider::TokenManager;
+use async_trait::async_trait;
 
 /// A TokenManager that issues JWT access tokens.
 pub struct JWTTokenManager {
@@ -44,63 +45,59 @@ struct Claims {
     scope: Option<String>,
 }
 
+#[async_trait]
 impl TokenManager for JWTTokenManager {
-    fn generate_token(&self, grant: Grant) -> Pin<Box<dyn Future<Output = Result<Token, OAuthError>> + Send + 'static>> {
+    async fn generate_token(&self, grant: Grant) -> Result<Token, OAuthError> {
         let encoding_key = self.encoding_key.clone();
         let alg = self.algorithm.clone();
         let exp_secs = self.expiration_seconds as usize;
-        Box::pin(async move {
-            // Determine subject and scope based on grant.
-            let (sub, scope) = match grant {
-                Grant::AuthorizationCode { code, .. } => (code, None),
-                Grant::ClientCredentials => ("client_credentials".to_string(), None),
-                Grant::RefreshToken { token } => (token, None),
-                Grant::ResourceOwnerPassword { username, .. } => (username, None),
-                Grant::DeviceCode { device_code, .. } => (device_code, None),
-            };
-            let now = Utc::now().timestamp() as usize;
-            let claims = Claims { sub, exp: now + exp_secs, scope };
-            let header = match alg {
-                JWTAlgorithm::HS256 => Header::new(jsonwebtoken::Algorithm::HS256),
-                JWTAlgorithm::RS256 => Header::new(jsonwebtoken::Algorithm::RS256),
-            };
-            let token_str = encode(&header, &claims, &encoding_key).map_err(|_| OAuthError::ServerError)?;
-            Ok(Token {
-                model: TokenModel::JWT { algorithm: alg },
-                access_token: token_str,
-                refresh_token: None,
-                expires_in: exp_secs as u64,
-                scope: None,
-            })
+        // Determine subject and scope based on grant.
+        let (sub, scope) = match grant {
+            Grant::AuthorizationCode { code, .. } => (code, None),
+            Grant::ClientCredentials => ("client_credentials".to_string(), None),
+            Grant::RefreshToken { token } => (token, None),
+            Grant::ResourceOwnerPassword { username, .. } => (username, None),
+            Grant::DeviceCode { device_code, .. } => (device_code, None),
+        };
+        let now = Utc::now().timestamp() as usize;
+        let claims = Claims { sub, exp: now + exp_secs, scope };
+        let header = match alg {
+            JWTAlgorithm::HS256 => Header::new(jsonwebtoken::Algorithm::HS256),
+            JWTAlgorithm::RS256 => Header::new(jsonwebtoken::Algorithm::RS256),
+        };
+        let token_str = encode(&header, &claims, &encoding_key).map_err(|_| OAuthError::ServerError)?;
+        Ok(Token {
+            model: TokenModel::JWT { algorithm: alg },
+            access_token: token_str,
+            refresh_token: None,
+            expires_in: exp_secs as u64,
+            scope: None,
         })
     }
 
-    fn revoke_token(&self, _token: &str) -> Pin<Box<dyn Future<Output = Result<(), OAuthError>> + Send + 'static>> {
+    async fn revoke_token(&self, _token: &str) -> Result<(), OAuthError> {
         // Stateless JWT; revocation requires blacklist if needed
-        Box::pin(async move { Ok(()) })
+        Ok(())
     }
 
-    fn validate_token(&self, token: &str) -> Pin<Box<dyn Future<Output = Result<Token, OAuthError>> + Send + 'static>> {
+    async fn validate_token(&self, token: &str) -> Result<Token, OAuthError> {
         let decoding_key = self.decoding_key.clone();
         let alg = self.algorithm.clone();
-        // Clone token string to satisfy 'static future
         let token_owned = token.to_owned();
-        Box::pin(async move {
-            let mut validation = Validation::new(match alg {
-                JWTAlgorithm::HS256 => jsonwebtoken::Algorithm::HS256,
-                JWTAlgorithm::RS256 => jsonwebtoken::Algorithm::RS256,
-            });
-            let token_data = decode::<Claims>(&token_owned, &decoding_key, &validation).map_err(|_| OAuthError::InvalidToken)?;
-            let claims = token_data.claims;
-            let now = Utc::now().timestamp() as usize;
-            let expires_in = if claims.exp > now { (claims.exp - now) as u64 } else { 0 };
-            Ok(Token {
-                model: TokenModel::JWT { algorithm: alg },
-                access_token: token_owned.clone(),
-                refresh_token: None,
-                expires_in,
-                scope: claims.scope,
-            })
+        let mut validation = Validation::new(match alg {
+            JWTAlgorithm::HS256 => jsonwebtoken::Algorithm::HS256,
+            JWTAlgorithm::RS256 => jsonwebtoken::Algorithm::RS256,
+        });
+        let token_data = decode::<Claims>(&token_owned, &decoding_key, &validation).map_err(|_| OAuthError::InvalidToken)?;
+        let claims = token_data.claims;
+        let now = Utc::now().timestamp() as usize;
+        let expires_in = if claims.exp > now { (claims.exp - now) as u64 } else { 0 };
+        Ok(Token {
+            model: TokenModel::JWT { algorithm: alg },
+            access_token: token_owned.clone(),
+            refresh_token: None,
+            expires_in,
+            scope: claims.scope,
         })
     }
 } 

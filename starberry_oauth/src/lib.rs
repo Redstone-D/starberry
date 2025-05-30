@@ -5,3 +5,4 @@ pub use oauth_core::memory::{InMemoryClientStore, InMemoryTokenManager, InMemory
 pub use oauth_core::oauth_client::OAuthClient;
 pub use oauth_core::http_client::{OAuthHttpClient, HttpRequest, HttpResponse, RedirectPolicy, HttpClientError, InMemoryHttpClient};
 pub use oauth_core::oauth_provider::TokenStorage;
+pub use oauth_core::grant_helpers::{AuthorizationCodePkceFlow, ClientCredentialsFlow, RefreshTokenFlow};

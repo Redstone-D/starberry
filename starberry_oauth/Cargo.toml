@@ -20,3 +20,6 @@ starberry_lib = { path = "../starberry_lib", version = "0.6.0" }
 sbmstd = { path = "../sbmstd", version = "0.6.0" }
 starberry_sql = { path = "../starberry_sql", version = "0.6.0" }
 async-trait = "0.1"
+
+[dev-dependencies]
+ tokio = { version = "1.28", features = ["full", "macros"] }
