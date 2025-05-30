@@ -397,4 +397,8 @@ impl Tx for DbConnection {
     async fn process(&mut self, _: Self::Request) -> Result<&mut Self::Response, Self::Error> {
         Ok(self)
     }
+
+    async fn shutdown(&mut self) -> Result<(), Self::Error> {
+        self.close().await
+    }
 }

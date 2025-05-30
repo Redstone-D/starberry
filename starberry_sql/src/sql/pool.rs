@@ -2,6 +2,8 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use std::time::Instant;
 use tokio::sync::{Mutex, Semaphore, OwnedSemaphorePermit};
+use async_trait::async_trait;
+use starberry_core::pool::Pool;
 
 use super::connection::{DbConnectionBuilder, DbConnection};
 use super::error::DbError;
@@ -77,5 +79,20 @@ impl Drop for PooledSqlConnection {
                 pool.release(conn).await;
             });
         }
+    }
+}
+
+#[async_trait]
+impl Pool for SqlPool {
+    type Item = PooledSqlConnection;
+    type Error = DbError;
+
+    async fn get(&self) -> Result<Self::Item, Self::Error> {
+        self.get().await
+    }
+
+    async fn release(&self, item: Self::Item) {
+        // Dropping the item returns its connection to the pool.
+        drop(item);
     }
 } 

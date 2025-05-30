@@ -49,4 +49,11 @@ impl Tx for SqlContext {
         self.last_result = Some(result);
         Ok(self.last_result.as_mut().unwrap())
     }
+
+    async fn shutdown(&mut self) -> Result<(), Self::Error> {
+        if let Some(mut conn) = self.connection.take() {
+            conn.close().await?;
+        }
+        Ok(())
+    }
 }

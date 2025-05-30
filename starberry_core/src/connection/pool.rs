@@ -2,13 +2,15 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 use tokio::sync::{Mutex, Semaphore};
 use std::time::{Duration, Instant};
+use async_trait::async_trait;
 
 use crate::connection::builder::ConnectionBuilder;
 use crate::connection::error::{ConnectionError, Result};
 use crate::connection::connection::Connection; 
+use crate::pool::Pool;
 
 /// Connection pool for managing connections 
-struct PooledConnection {
+pub struct PooledConnection {
     connection: Connection,
     last_used: Instant,
 } 
@@ -158,4 +160,18 @@ impl ConnectionPool {
             self.semaphore.add_permits(diff as usize);
         }
     } 
+} 
+
+#[async_trait]
+impl Pool for ConnectionPool {
+    type Item = PooledConnection;
+    type Error = ConnectionError;
+
+    async fn get(&self) -> std::result::Result<Self::Item, Self::Error> {
+        ConnectionPool::get(self).await
+    }
+
+    async fn release(&self, item: Self::Item) {
+        ConnectionPool::release(self, item).await;
+    }
 } 

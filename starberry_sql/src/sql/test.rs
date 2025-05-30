@@ -1,5 +1,6 @@
 use super::*;
 use std::collections::HashMap;
+use starberry_core::pool::Pool;
 
 #[test]
 fn test_encode_primitives() {
@@ -194,4 +195,21 @@ async fn test_batch_execute_and_transactions_and_prepare() {
 
     // Clean up
     SqlQuery::new("DROP TABLE tx_test").execute(&mut conn).await.expect("drop table failed");
+}
+
+#[tokio::test]
+async fn test_sqlpool_trait() {
+    // Create a small pool
+    let builder = DbConnectionBuilder::new("127.0.0.1", 5432)
+        .ssl_mode(SslMode::Disable)
+        .database("postgres")
+        .username("postgres")
+        .password("JerrySu5379");
+    let pool = SqlPool::new(builder, 2);
+
+    // Acquire and release via Pool trait
+    let mut item = <SqlPool as Pool>::get(&pool).await.expect("Pool::get failed");
+    // Ensure we can access the inner connection
+    let _conn_ref = item.connection();
+    <SqlPool as Pool>::release(&pool, item).await;
 } 

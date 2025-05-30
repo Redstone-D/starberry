@@ -3,6 +3,7 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use super::{ConnectionBuilder, ConnectionPool, Protocol, Connection, Result}; 
 use super::super::http::response::HttpResponse;  
+use crate::pool::Pool;
 
 const TEST_HTTP_SERVER: &str = "fds.rs";
 const TEST_HTTPS_SERVER: &str = "fds.rs";
@@ -64,4 +65,19 @@ async fn test_connection_pool() {
     // let _ = send_http_request(&mut *conn.connection.lock().await).await;
     
     // assert_eq!(pool.connections.lock().await.len(), start_count - 1);
+} 
+
+#[tokio::test]
+async fn test_connection_pool_trait() {
+    let builder = ConnectionBuilder::new(TEST_HTTP_SERVER, 80)
+        .protocol(Protocol::HTTP);
+    let pool = ConnectionPool::new(builder, 2)
+        .min_size(1)
+        .max_idle_time(Duration::from_secs(30));
+
+    pool.initialize().await.unwrap();
+
+    // Test get and release via Pool trait
+    let item = <ConnectionPool as Pool>::get(&pool).await.expect("Pool::get failed");
+    <ConnectionPool as Pool>::release(&pool, item).await;
 } 
