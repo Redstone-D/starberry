@@ -115,7 +115,7 @@ pub struct OAuthContext {
 use starberry_core::http::start_line::HttpStartLine;
 use starberry_core::http::http_value::{HttpVersion, StatusCode};
 use starberry_core::http::response::HttpResponse;
-use starberry_core::http::response::request_templates::normal_response;
+use starberry_core::http::response::response_templates::normal_response;
 use starberry_core::http::http_value::HttpContentType;
 use serde_json::{json, to_vec};
 use tracing::warn;
