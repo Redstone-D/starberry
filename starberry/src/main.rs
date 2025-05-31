@@ -39,32 +39,42 @@ fn run_cargo(cmd: &str, args: &[String]) -> i32 {
         exit(status.code().unwrap_or(1));
     }
     status.code().unwrap_or(0)
-}
+} 
 
-/// Copies templates to the appropriate target folder after a build.
-/// Assumes a templates folder exists in the crate root.
-fn copy_templates(is_release: bool) {
+/// Copies required assets (templates and programfiles) to the target folder after a build.
+fn copy_assets(is_release: bool) {
     let target_dir = env::var("CARGO_TARGET_DIR").unwrap_or_else(|_| "target".into());
     let build_folder = if is_release { "release" } else { "debug" };
     let out_dir = Path::new(&target_dir).join(build_folder);
-    let dest_templates = out_dir.join("templates");
-    let src_templates = Path::new("templates");
+    
+    // Define directories to copy (templates is required, programfiles is optional)
+    let dirs = [
+        ("templates", false),   // (directory name, not required)
+        ("programfiles", true), // (directory name, required) 
+    ];
 
-    if !src_templates.exists() {
-        eprintln!("No templates directory found in crate root.");
-        exit(1);
+    for (dir_name, required) in dirs {
+        let src_dir = Path::new(dir_name);
+        let dest_dir = out_dir.join(dir_name);
+
+        // Handle missing directories based on requirement
+        if !src_dir.exists() {
+            if required {
+                eprintln!("Error: required directory '{}' not found in crate root", dir_name);
+                exit(1);
+            }
+            continue; // Skip optional missing directories
+        }
+
+        // Perform the copy
+        if let Err(e) = copy_dir_all(src_dir, &dest_dir) {
+            eprintln!("Error copying {}: {}", dir_name, e);
+            exit(1);
+        }
+        
+        println!("Successfully copied {} to {}", dir_name, dest_dir.display());
     }
-
-    if let Err(e) = copy_dir_all(src_templates, &dest_templates) {
-        eprintln!("Error copying templates: {}", e);
-        exit(1);
-    }
-
-    println!(
-        "Successfully copied templates to {}",
-        dest_templates.display()
-    );
-}
+} 
 
 /// Creates a new project with the given app name.
 /// This function calls `cargo new <app_name>`, then creates a default main.rs,
@@ -137,6 +147,13 @@ tokio = {{ version = "1", features = ["full"] }}
     if let Err(e) = fs::create_dir_all(&templates_path) {
         eprintln!("Failed to create templates directory: {}", e);
         exit(1);
+    } 
+
+    // Create a new program files directory at the same level as src.
+    let templates_path = Path::new(app_name).join("templates");
+    if let Err(e) = fs::create_dir_all(&templates_path) {
+        eprintln!("Failed to create templates directory: {}", e);
+        exit(1);
     }
     println!("Created templates directory at {}", templates_path.display());
 }
@@ -201,7 +218,7 @@ fn main() {
             // Determine whether the build is release.
             let is_release = args.iter().any(|arg| arg == "--release");
             // Copy templates after a successful build.
-            copy_templates(is_release);
+            copy_assets(is_release);
             exit(exit_code);
         },
         "run" => {
@@ -215,7 +232,7 @@ fn main() {
                 args.push("--release".to_string());
             }
             let exit_code = run_cargo("build", &args);
-            copy_templates(true);
+            copy_assets(true);
             exit(exit_code);
         },
         "new" => {

@@ -20,7 +20,8 @@ pub use starberry_core::object;
 
 pub use starberry_core::connection::{Rx, Tx};  
 
-pub use starberry_core::http::response::request_templates; 
+pub use starberry_core::http::request::request_templates; 
+pub use starberry_core::http::response::response_templates; 
 
 pub use starberry_core::http::response::HttpResponse;  
 pub use starberry_core::http::request::HttpRequest;  

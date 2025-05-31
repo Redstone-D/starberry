@@ -81,7 +81,7 @@ impl Default for HttpResponse {
 /// This module provides convenient functions to create standardized HTTP responses
 /// such as text, HTML, JSON, redirects, status codes, and template-based responses.
 /// All functions return an `HttpResponse` that can be further customized if needed.
-pub mod request_templates {
+pub mod response_templates {
     use std::path::Path; 
     use std::collections::HashMap; 
 
@@ -107,9 +107,9 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::response_templates;
     /// 
-    /// let response = request_templates::text_response("Hello, world!");
+    /// let response = response_templates::text_response("Hello, world!");
     /// ```
     pub fn text_response(body: impl Into<String>) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
@@ -134,10 +134,10 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::response_templates;
     /// 
     /// let html = "<html><body><h1>Hello, world!</h1></body></html>";
-    /// let response = request_templates::html_response(html);
+    /// let response = response_templates::html_response(html);
     /// ```
     pub fn html_response(body: impl Into<Vec<u8>>) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
@@ -162,9 +162,9 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::response_templates;
     /// 
-    /// let response = request_templates::redirect_response("/login");
+    /// let response = response_templates::redirect_response("/login");
     /// ```
     pub fn redirect_response(url: &str) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
@@ -189,9 +189,9 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::response_templates;
     /// 
-    /// let response = request_templates::plain_template_response("index.html");
+    /// let response = response_templates::plain_template_response("index.html");
     /// ```
     pub fn plain_template_response(file: &str) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
@@ -222,10 +222,10 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::response_templates;
     /// use starberry_core::http::http_value::StatusCode;
     /// 
-    /// let response = request_templates::normal_response(StatusCode::CREATED, "Resource created");
+    /// let response = response_templates::normal_response(StatusCode::CREATED, "Resource created");
     /// ```
     pub fn normal_response(status_code: StatusCode, body: impl Into<Vec<u8>>) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
@@ -249,14 +249,14 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
-    /// use akari::Object;
+    /// use starberry_core::http::response::response_templates;
+    /// use akari::{Value, object};
     /// 
-    /// let mut data = Object::new();
-    /// data.insert("message", "Success");
-    /// data.insert("status", 200);
+    /// let mut data = object!({}); 
+    /// data.set("message", "Success");
+    /// data.set("status", 200);
     ///
-    /// let response = request_templates::json_response(data);
+    /// let response = response_templates::json_response(data);
     /// ```
     pub fn json_response(body: Value) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
@@ -282,7 +282,7 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::response_templates;
     /// use akari::Object;
     /// use std::collections::HashMap;
     /// 
@@ -291,7 +291,7 @@ pub mod request_templates {
     /// user.insert("name", "John Doe");
     /// data.insert("user", user);
     ///
-    /// let response = request_templates::template_response("user_profile.html", data);
+    /// let response = response_templates::template_response("user_profile.html", data);
     /// ```
     pub fn template_response(file: &str, data: HashMap<String, Value>) -> HttpResponse { 
         let template_manager = TemplateManager::new("templates");
@@ -324,11 +324,11 @@ pub mod request_templates {
     /// # Examples
     ///
     /// ```rust
-    /// use starberry_core::http::request_templates;
+    /// use starberry_core::http::response_templates;
     /// use starberry_core::http::http_value::StatusCode;
     /// 
     /// // Return a 404 Not Found response
-    /// let response = request_templates::return_status(StatusCode::NOT_FOUND);
+    /// let response = response_templates::return_status(StatusCode::NOT_FOUND);
     /// ```
     pub fn return_status(status_code: StatusCode) -> HttpResponse { 
         normal_response(status_code, Vec::<u8>::new())

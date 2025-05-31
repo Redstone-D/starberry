@@ -25,7 +25,7 @@ use crate::http::{
 use crate::app::config::ParseConfig;
 
 use super::http_value::StatusCode; 
-use super::response::request_templates; 
+use super::response::response_templates; 
 
 /// The `RequestContext` struct is used to hold the context of a request.
 pub struct HttpReqCtx {
@@ -262,7 +262,7 @@ impl Rx for HttpReqCtx {
     } 
 
     fn bad_request(&mut self) { 
-        self.response = request_templates::return_status(StatusCode::NOT_FOUND) 
+        self.response = response_templates::return_status(StatusCode::NOT_FOUND) 
     }
 }
 

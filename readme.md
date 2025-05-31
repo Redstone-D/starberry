@@ -20,8 +20,9 @@ Starberry is a lightweight, intuitive web framework focused on simplicity and pr
 - **Asynchronous**: Built with Tokio for efficient async handling
 - **Form Handling**: Easy processing of form data and file uploads
 - **Middleware Support**: Create reusable request processing chains 
+- **Multi-Protocal Support**: Starberry is now planning to handle ingoing or outgoing http(s), ws(s), db and other tcp protocals. This feature will come with the **0.6 stable version** 
 
-- **Multi-Protocal Support**: Starberry is now planning to handle ingoing or outgoing http(s), ws(s), db and other tcp protocals. This will be implemented after **0.7** 
+## 🎇 New Features 
 
 ## 🚀 Getting Started
 
@@ -70,14 +71,27 @@ project/
 ├── src/
 │   ├── main.rs
 │   ├── lib.rs
-│   └── ...
+│   └── ... 
+├── programfiles/ 
+│   ├── config.json 
+│   └── ... 
 └── templates/
     ├── base.html
     ├── index.html
-    └── ...
-```
+    └── ... 
+``` 
 
-Templates are automatically copied to the `dist` directory when you run `starberry build`.
+Program file folder is used to store the config of the program data generated during the process of running the program. The files are automatically copied to the `dist` directory when you run `starberry build`. 
+
+Templates are automatically copied to the `dist` directory when you run `starberry build`. 
+
+### Stable Versions 
+
+| Version | Download | Notes | 
+| --- | --- | --- | 
+| 0.6.4 | Not released | | 
+| 0.4.7 | `cargo install starberry@0.4.7` | Async + Request Context | 
+| 0.3.3 | `cargo install starberry@0.3.3` | Sync Starberry | 
 
 ## 📝 Usage Guide
 
@@ -158,7 +172,7 @@ async fn template() -> HttpResponse {
         page_title="Welcome to My Website",
         show_message=true,
         message="Hello, world!",
-        items=[1, 2, 3, 4, 5]
+        items=[1, 2, 3, 4, 5] 
     )
 }
 ```
@@ -277,5 +291,3 @@ Learn more about Akari template: https://crates.io/crates/akari
 ## 📄 License
 
 MIT License
- 
- 

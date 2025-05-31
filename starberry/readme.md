@@ -71,12 +71,17 @@ project/
 ├── src/
 │   ├── main.rs
 │   ├── lib.rs
-│   └── ...
+│   └── ... 
+├── programfiles/ 
+│   ├── config.json 
+│   └── ... 
 └── templates/
     ├── base.html
     ├── index.html
-    └── ...
-```
+    └── ... 
+``` 
+
+Program file folder is used to store the config of the program data generated during the process of running the program. The files are automatically copied to the `dist` directory when you run `starberry build`. 
 
 Templates are automatically copied to the `dist` directory when you run `starberry build`. 
 

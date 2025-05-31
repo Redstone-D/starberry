@@ -8,6 +8,7 @@ pub use crate::{Rx, Tx};
 pub use crate::{HttpResCtx, HttpReqCtx}; 
 pub use crate::{HttpMeta, HttpResponse}; 
 pub use crate::request_templates::*; 
+pub use crate::response_templates::*; 
 pub use crate::sm::akari_render; 
 pub use crate::sm::akari_json; 
 pub use crate::url; 
