@@ -1,12 +1,14 @@
 //! JWT-based TokenManager for OAuth2.
 
 use std::{pin::Pin, future::Future};
-use jsonwebtoken::{EncodingKey, DecodingKey, Header, Validation, encode, decode};
+use jsonwebtoken::{EncodingKey, DecodingKey, Header, Validation, encode, decode, decode_header};
 use serde::{Serialize, Deserialize};
 use chrono::Utc;
 use super::types::{JWTAlgorithm, TokenModel, Token, Grant, OAuthError};
 use super::oauth_provider::TokenManager;
 use async_trait::async_trait;
+use super::jwks::JwksCache;
+use tracing::instrument;
 
 /// A TokenManager that issues JWT access tokens.
 pub struct JWTTokenManager {
@@ -14,6 +16,9 @@ pub struct JWTTokenManager {
     decoding_key: DecodingKey,
     algorithm: JWTAlgorithm,
     expiration_seconds: u64,
+    issuer: Option<String>,
+    audience: Option<String>,
+    jwks_cache: Option<JwksCache>,
 }
 
 impl JWTTokenManager {
@@ -24,6 +29,9 @@ impl JWTTokenManager {
             decoding_key: DecodingKey::from_secret(secret),
             algorithm: JWTAlgorithm::HS256,
             expiration_seconds,
+            issuer: None,
+            audience: None,
+            jwks_cache: None,
         }
     }
 
@@ -34,7 +42,23 @@ impl JWTTokenManager {
             decoding_key: DecodingKey::from_rsa_pem(public_key_pem).expect("Invalid public key"),
             algorithm: JWTAlgorithm::RS256,
             expiration_seconds,
+            issuer: None,
+            audience: None,
+            jwks_cache: None,
         }
+    }
+
+    /// Configure expected issuer and audience.
+    pub fn with_claims(mut self, issuer: impl Into<String>, audience: impl Into<String>) -> Self {
+        self.issuer = Some(issuer.into());
+        self.audience = Some(audience.into());
+        self
+    }
+
+    /// Configure a JWKS caching layer for RS256 key retrieval.
+    pub fn with_jwks(mut self, jwks_cache: JwksCache) -> Self {
+        self.jwks_cache = Some(jwks_cache);
+        self
     }
 }
 
@@ -47,6 +71,7 @@ struct Claims {
 
 #[async_trait]
 impl TokenManager for JWTTokenManager {
+    #[instrument(skip(self, grant), level = "debug")]
     async fn generate_token(&self, grant: Grant) -> Result<Token, OAuthError> {
         let encoding_key = self.encoding_key.clone();
         let alg = self.algorithm.clone();
@@ -80,15 +105,32 @@ impl TokenManager for JWTTokenManager {
         Ok(())
     }
 
+    #[instrument(skip(self, token), level = "debug")]
     async fn validate_token(&self, token: &str) -> Result<Token, OAuthError> {
-        let decoding_key = self.decoding_key.clone();
         let alg = self.algorithm.clone();
-        let token_owned = token.to_owned();
+        let token_owned = token.to_string();
+        // Set up validation checks
         let mut validation = Validation::new(match alg {
             JWTAlgorithm::HS256 => jsonwebtoken::Algorithm::HS256,
             JWTAlgorithm::RS256 => jsonwebtoken::Algorithm::RS256,
         });
-        let token_data = decode::<Claims>(&token_owned, &decoding_key, &validation).map_err(|_| OAuthError::InvalidToken)?;
+        validation.validate_exp = true;
+        if let Some(ref iss) = self.issuer {
+            validation.set_issuer(&[iss.clone()]);
+        }
+        if let Some(ref aud) = self.audience {
+            validation.set_audience(&[aud.clone()]);
+        }
+        // Determine decoding key: JWKS cache overrides static key
+        let decoding_key = if let Some(cache) = &self.jwks_cache {
+            let header = decode_header(&token_owned).map_err(|_| OAuthError::InvalidToken)?;
+            let kid = header.kid.ok_or(OAuthError::InvalidToken)?;
+            cache.get(&kid).await.map_err(|_| OAuthError::InvalidToken)?
+        } else {
+            self.decoding_key.clone()
+        };
+        let token_data = decode::<Claims>(&token_owned, &decoding_key, &validation)
+            .map_err(|_| OAuthError::InvalidToken)?;
         let claims = token_data.claims;
         let now = Utc::now().timestamp() as usize;
         let expires_in = if claims.exp > now { (claims.exp - now) as u64 } else { 0 };

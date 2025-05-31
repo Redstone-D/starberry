@@ -1,13 +1,14 @@
 use std::sync::Arc;
 use super::oauth_client::OAuthClient;
-use super::types::{Token, OAuthError};
+use super::types::{Token, OAuthError, TokenModel};
 use super::oauth_provider::TokenStorage;
 use super::http_client::{OAuthHttpClient, HttpRequest, RedirectPolicy};
 use starberry_lib::encode_url_owned;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use starberry_core::http::http_value::HttpMethod;
-use serde_json;
+use serde_json::Value;
+use tracing::instrument;
 
 /// Authorization Code + PKCE flow helper.
 pub struct AuthorizationCodePkceFlow<S: TokenStorage> {
@@ -39,6 +40,7 @@ impl<S: TokenStorage> AuthorizationCodePkceFlow<S> {
     }
 
     /// Initiate the authorization code flow: store state & verifier and return auth URL.
+    #[instrument(skip(self), level = "debug")]
     pub async fn initiate(&self, redirect_uri: &str, state_expires_in: u64) -> Result<String, OAuthError> {
         let url = self.client.get_authorize_url(redirect_uri);
         // Persist state and PKCE verifier
@@ -48,6 +50,7 @@ impl<S: TokenStorage> AuthorizationCodePkceFlow<S> {
     }
 
     /// Exchange the code for a token: validate state, load verifier, call token endpoint.
+    #[instrument(skip(self, http_client), level = "debug")]
     pub async fn exchange<C: OAuthHttpClient>(
         &self,
         http_client: &C,
@@ -99,6 +102,7 @@ impl ClientCredentialsFlow {
     }
 
     /// Execute client credentials flow, returning an access token.
+    #[instrument(skip(self, http_client), level = "debug")]
     pub async fn execute<C: OAuthHttpClient>(&self, http_client: &C) -> Result<Token, OAuthError> {
         // Build form
         let mut form = vec![
@@ -131,8 +135,12 @@ impl ClientCredentialsFlow {
         if resp.status != 200 {
             return Err(OAuthError::InvalidGrant);
         }
-        let token: Token = serde_json::from_slice(&resp.body).map_err(|_| OAuthError::ServerError)?;
-        Ok(token)
+        let v: Value = serde_json::from_slice(&resp.body).map_err(|_| OAuthError::ServerError)?;
+        let access_token = v.get("access_token").and_then(|t| t.as_str()).unwrap_or_default().to_string();
+        let refresh_token = v.get("refresh_token").and_then(|t| t.as_str()).map(|s| s.to_string());
+        let expires_in = v.get("expires_in").and_then(|t| t.as_u64()).unwrap_or(0);
+        let scope = v.get("scope").and_then(|t| t.as_str()).map(|s| s.to_string());
+        Ok(Token { model: TokenModel::BearerOpaque, access_token, refresh_token, expires_in, scope })
     }
 }
 
@@ -163,6 +171,7 @@ impl RefreshTokenFlow {
     }
 
     /// Execute refresh token flow, returning a new access token.
+    #[instrument(skip(self, http_client), level = "debug")]
     pub async fn execute<C: OAuthHttpClient>(
         &self,
         http_client: &C,
@@ -194,7 +203,11 @@ impl RefreshTokenFlow {
         if resp.status != 200 {
             return Err(OAuthError::InvalidGrant);
         }
-        let token: Token = serde_json::from_slice(&resp.body).map_err(|_| OAuthError::ServerError)?;
-        Ok(token)
+        let v: Value = serde_json::from_slice(&resp.body).map_err(|_| OAuthError::ServerError)?;
+        let access_token = v.get("access_token").and_then(|t| t.as_str()).unwrap_or_default().to_string();
+        let refresh_token = v.get("refresh_token").and_then(|t| t.as_str()).map(|s| s.to_string());
+        let expires_in = v.get("expires_in").and_then(|t| t.as_u64()).unwrap_or(0);
+        let scope = v.get("scope").and_then(|t| t.as_str()).map(|s| s.to_string());
+        Ok(Token { model: TokenModel::BearerOpaque, access_token, refresh_token, expires_in, scope })
     }
 } 

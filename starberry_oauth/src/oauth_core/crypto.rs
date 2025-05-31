@@ -1,6 +1,6 @@
 //! Cryptographic utilities for OAuth (PKCE, HMAC, AES-GCM, RSA) using `ring`.
 
-use ring::{digest, hmac, aead, signature, error::Unspecified};
+use ring::{digest, hmac, aead, signature, error::Unspecified, constant_time::verify_slices_are_equal};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 
@@ -67,4 +67,9 @@ pub fn rsa_sign(private_key_der: &[u8], data: &[u8]) -> Result<Vec<u8>, Box<dyn 
 pub fn rsa_verify(public_key_der: &[u8], data: &[u8], sig: &[u8]) -> bool {
     let public_key = signature::UnparsedPublicKey::new(&signature::RSA_PKCS1_2048_8192_SHA256, public_key_der);
     public_key.verify(data, sig).is_ok()
+}
+
+/// Constant-time equality comparison for two byte slices.
+pub fn constant_eq(a: &[u8], b: &[u8]) -> bool {
+    verify_slices_are_equal(a, b).is_ok()
 } 
