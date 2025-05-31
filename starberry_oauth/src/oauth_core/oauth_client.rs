@@ -6,8 +6,9 @@ use starberry_lib::{encode_url_owned};
 use super::crypto::pkce_code_challenge;
 use starberry_core::http::http_value::HttpMethod;
 use super::http_client::{OAuthHttpClient, HttpRequest, HttpResponse, RedirectPolicy};
-use super::types::{Token, OAuthError};
+use super::types::{Token, OAuthError, TokenModel};
 use serde_json;
+use tracing::instrument;
 
 /// OAuth2 client that encapsulates all OAuth2 client state, including PKCE and CSRF.
 #[derive(Clone, Debug)]
@@ -102,6 +103,7 @@ impl OAuthClient {
     }
 
     /// Exchanges an authorization code for an access token using a generic HTTP client.
+    #[instrument(skip(self, http_client), level = "debug")]
     pub async fn exchange_code<C: OAuthHttpClient>(
         &self,
         http_client: &C,
@@ -141,8 +143,18 @@ impl OAuthClient {
         if response.status != 200 {
             return Err(OAuthError::InvalidGrant);
         }
-        let token: Token = serde_json::from_slice(&response.body)
-            .map_err(|_| OAuthError::ServerError)?;
-        Ok(token)
+        // Manually parse JSON into Token
+        let v: serde_json::Value = serde_json::from_slice(&response.body).map_err(|_| OAuthError::ServerError)?;
+        let access_token = v.get("access_token").and_then(|t| t.as_str()).unwrap_or_default().to_string();
+        let refresh_token = v.get("refresh_token").and_then(|t| t.as_str()).map(|s| s.to_string());
+        let expires_in = v.get("expires_in").and_then(|t| t.as_u64()).unwrap_or(0);
+        let scope = v.get("scope").and_then(|t| t.as_str()).map(|s| s.to_string());
+        Ok(Token {
+            model: TokenModel::BearerOpaque,
+            access_token,
+            refresh_token,
+            expires_in,
+            scope,
+        })
     }
 } 
