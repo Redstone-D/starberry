@@ -904,12 +904,16 @@ impl RequestPath{
     } 
 
     pub fn url_part(&self, part: usize) -> String{ 
-        if part < 0 { 
-            return self.path[self.path.len() as usize + part as usize].clone(); 
-        } else if part >= self.path.len() { 
+        // if part < 0 { 
+        //     return self.path[self.path.len() as usize + part as usize].clone(); 
+        // } else if part >= self.path.len() { 
+        //     return "".to_string(); 
+        // } 
+        // self.path[part].clone()  
+        if part >= self.path.len() { 
             return "".to_string(); 
         } 
-        self.path[part].clone()  
+        self.path[part].clone()    
     }
 } 
 
@@ -918,3 +922,117 @@ impl Default for RequestPath {
         Self::new(Vec::new())
     }
 } 
+
+/// Represents HTTP `Accept-Language` header for client language preferences.
+/// 
+/// Stores language tags with quality weights (q-values) for content negotiation.
+/// 
+/// # RFC 7231 Compliance:
+/// - Language tags are case-insensitive (but stored in original case)
+/// - Default weight = 1.0 if not specified
+/// - Weights range 0.0-1.0 (higher = more preferred)
+/// - Order indicates priority for equal weights 
+#[derive(Debug, Clone, PartialEq)] 
+pub struct AcceptLang {
+    langs: Vec<(String, f32)>,
+}
+
+impl AcceptLang {
+    /// Parses an `Accept-Language` header string
+    /// 
+    /// # Example:
+    /// ```
+    /// let accept_lang = AcceptLang::from_str("en-US, fr;q=0.7, zh-CN;q=0.5");
+    /// ```
+    pub fn from_str<S: AsRef<str>>(s: S) -> Self {
+        let mut langs = Vec::new();
+        
+        for lang_str in s.as_ref().split(',') {
+            let mut parts = lang_str.splitn(2, ';');
+            let lang = parts.next().unwrap().trim().to_string();
+            
+            // Default weight = 1.0
+            let mut weight = 1.0;
+            
+            // Parse q-value if exists
+            if let Some(q_part) = parts.next() {
+                if let Some(q_str) = q_part.trim().strip_prefix("q=") {
+                    weight = q_str.trim().parse().unwrap_or(1.0);
+                }
+            } 
+            
+            langs.push((lang, weight));
+        }
+        
+        AcceptLang { langs }
+    }
+
+    /// Returns most preferred language (highest weight, original case)
+    /// 
+    /// # Defaults to "en" if:
+    /// - No languages exist
+    /// - All weights <= 0.0
+    /// 
+    /// # Example:
+    /// ```
+    /// let lang = accept_lang.most_preferred(); // "en-US"
+    /// ```
+    pub fn most_preferred(&self) -> String {
+        self.langs.iter()
+            .max_by(|(_, w1), (_, w2)| w1.total_cmp(w2))
+            .map(|(lang, _)| lang.clone())
+            .unwrap_or_else(|| "en".to_string())
+    } 
+
+    /// Returns all languages in original order
+    pub fn all_languages(&self) -> Vec<String> {
+        self.langs.iter().map(|(lang, _)| lang.clone()).collect()
+    }
+
+    /// Gets weight for a language (case-insensitive)
+    /// 
+    /// # Returns 0.0 if not found
+    pub fn get_weight(&self, lang: &str) -> f32 {
+        self.langs.iter()
+            .find(|(l, _)| l.eq_ignore_ascii_case(lang))
+            .map(|(_, w)| *w)
+            .unwrap_or(0.0)
+    }
+
+    /// Adds language (maintains insertion order)
+    pub fn add_language(&mut self, lang: String, weight: f32) {
+        self.langs.push((lang, weight));
+    }
+
+    /// Removes language (case-insensitive)
+    pub fn remove_language(&mut self, lang: &str) {
+        self.langs.retain(|(l, _)| !l.eq_ignore_ascii_case(lang));
+    }
+
+    /// Serializes to `Accept-Language` header format
+    /// 
+    /// # Formatting rules:
+    /// - Omits q-value for 1.0 weights
+    /// - Trims trailing zeros (0.7 → "0.7", 0.500 → "0.5")
+    /// - Maintains original case
+    pub fn to_header_string(&self) -> String {
+        self.langs.iter()
+            .map(|(lang, weight)| {
+                if (weight - 1.0).abs() < f32::EPSILON {
+                    lang.clone()
+                } else {
+                    let weight_str = format!("{:.3}", weight)
+                        .trim_end_matches('0')
+                        .trim_end_matches('.')
+                        .to_string();
+                    format!("{};q={}", lang, weight_str)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ")
+    } 
+
+    pub fn to_response_header(&self) -> String {
+        self.most_preferred() 
+    }  
+}

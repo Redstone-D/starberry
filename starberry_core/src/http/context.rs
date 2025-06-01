@@ -110,8 +110,8 @@ impl HttpReqCtx {
     } 
 
     /// Returns the meta in the request as reference 
-    pub fn meta(&self) -> &HttpMeta {
-        &self.request.meta
+    pub fn meta(&mut self) -> &mut HttpMeta {
+        &mut self.request.meta
     } 
 
     /// Returns the Arc<App> to the user 

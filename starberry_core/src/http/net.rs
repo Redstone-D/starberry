@@ -45,7 +45,7 @@ pub async fn send<W: AsyncWrite +  Unpin>(meta: &mut HttpMeta, body: &mut HttpBo
     writer.write_all(headers.as_bytes()).await?;
     writer.write_all(bin).await?; 
 
-    println!("{:?}, {:?}", headers, bin); 
+    // println!("{:?}, {:?}", headers, bin); 
     writer.flush().await?; 
     
     Ok(()) 

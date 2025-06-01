@@ -12,7 +12,7 @@ keywords = ["full-stack", "web-framework", "starberry"]
 readme = "readme.md" 
 
 [dependencies] 
-akari = "0.2.3" 
+akari = "0.2.4" 
 regex = "1.5.6" 
 tokio = { version = "1.28", features = ["full"] } 
 futures = "0.3" 

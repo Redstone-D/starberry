@@ -12,11 +12,25 @@ use std::str;
 #[derive(Debug)]
 pub struct HttpMeta { 
     pub start_line: HttpStartLine, 
-    pub header: HashMap<String, HeaderValue>, 
-    content_type: Option<HttpContentType>,
-    content_length: Option<usize>,
+    pub header: HashMap<String, HeaderValue>,  
+
+    // Content-type header, overrides the content type from the hashmap if present 
+    content_type: Option<HttpContentType>, 
+
+    // Content-length header, overrides the content length from the hashmap if present 
+    content_length: Option<usize>, 
+
+    // Cookies header in request, Set-Cookie header in response 
     cookies: Option<CookieMap>, 
+
+    // Host header, overrides the content length from the hashmap if present  
     host: Option<String>, 
+
+    // Accept-Language header in request and Content-Language header in response 
+    // Overrides the content length from the hashmap if present   
+    lang: Option<AcceptLang>, 
+
+    /// Location header, used for redirects in responses 
     location: Option<String>, 
 } 
 
@@ -474,6 +488,7 @@ impl HttpMeta {
             content_length: None,
             cookies: None, 
             host: None, 
+            lang: None, 
             location: None, 
         }
     } 
@@ -1387,6 +1402,144 @@ impl HttpMeta {
         self.host = None;
     } 
 
+    /// Gets the language preference from the HTTP meta data.
+    ///
+    /// Returns the cached language if available, otherwise parses
+    /// the appropriate language header from the headers map.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<AcceptLang>` - The language preference, or None if not available.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use starberry_core::http::meta::HttpMeta;
+    /// # use starberry_core::http::meta::HeaderValue;
+    /// # use starberry_core::http::start_line::HttpStartLine;
+    /// # use starberry_core::http::http_value::*;
+    /// # use std::collections::HashMap;
+    /// let mut headers = HashMap::new();
+    /// headers.insert("accept-language".to_string(), HeaderValue::new("en-US, en;q=0.9"));
+    /// headers.insert("content-language".to_string(), HeaderValue::new("zh-TW"));
+    /// let mut meta = HttpMeta::new(HttpStartLine::new_request(HttpVersion::Http11, HttpMethod::GET, "/".to_string()), headers.clone());
+    /// 
+    /// let lang = meta.get_lang().unwrap(); 
+    /// assert_eq!(lang.most_preferred(), "en-US"); 
+    /// 
+    /// let mut meta = HttpMeta::new(HttpStartLine::new_response(HttpVersion::Http11, StatusCode::OK), headers);
+    /// let lang = meta.get_lang().unwrap(); 
+    /// assert_eq!(lang.most_preferred(), "zh-TW"); 
+    /// ```
+    pub fn get_lang(&mut self) -> Option<AcceptLang> {
+        if let Some(ref lang) = self.lang {
+            return Some(lang.clone());
+        }
+        self.parse_lang()
+    }
+
+    /// Parses the language header from the headers map and stores it in the lang field.
+    ///
+    /// For requests: Parses "accept-language" header
+    /// For responses: Parses "content-language" header
+    ///
+    /// # Returns
+    ///
+    /// * `Option<AcceptLang>` - The parsed language value, or None if not present.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// # use starberry_core::http::meta::HttpMeta;
+    /// # use starberry_core::http::meta::HeaderValue;
+    /// # use starberry_core::http::start_line::HttpStartLine;
+    /// # use starberry_core::http::http_value::*;
+    /// # use std::collections::HashMap;
+    /// let mut headers = HashMap::new();
+    /// headers.insert("accept-language".to_string(), HeaderValue::new("en-US, en;q=0.9"));
+    /// headers.insert("content-language".to_string(), HeaderValue::new("zh-TW"));
+    /// let mut meta = HttpMeta::new(HttpStartLine::new_request(HttpVersion::Http11, HttpMethod::GET, "/".to_string()), headers.clone());
+    /// 
+    /// let lang = meta.parse_lang().unwrap(); 
+    /// assert_eq!(lang.most_preferred(), "en-US"); 
+    /// 
+    /// let mut meta = HttpMeta::new(HttpStartLine::new_response(HttpVersion::Http11, StatusCode::OK), headers);
+    /// let lang = meta.parse_lang().unwrap(); 
+    /// assert_eq!(lang.most_preferred(), "zh-TW"); 
+    /// ```
+    pub fn parse_lang(&mut self) -> Option<AcceptLang> {
+        let header_name = if self.start_line.is_request() {
+            "accept-language"
+        } else {
+            "content-language"
+        };
+        
+        let lang_str = self.header
+            .get(header_name)
+            .map(|value| value.as_str()); 
+            
+        let lang = lang_str.as_ref().map(|s| AcceptLang::from_str(s));
+        self.lang = lang.clone();
+        lang
+    }
+
+    /// Sets the lang field.
+    ///
+    /// # Arguments
+    ///
+    /// * `lang` - The language preference to set.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// use starberry_core::http::http_value::AcceptLang;
+    /// let mut meta = HttpMeta::default();
+    /// meta.set_lang(Some(AcceptLang::from_str("en")));
+    /// ```
+    pub fn set_lang(&mut self, lang: Option<AcceptLang>) {
+        self.lang = lang;
+    }
+
+    /// Clears the cached lang field without modifying the header map.
+    ///
+    /// This method invalidates the cached lang value but preserves
+    /// the header in the map. Subsequent calls to `get_lang()` will
+    /// re-parse the value from headers.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// let mut meta = HttpMeta::default();
+    /// meta.clear_lang();
+    /// ```
+    pub fn clear_lang(&mut self) {
+        self.lang = None;
+    }
+
+    /// Deletes the language header completely, clearing both the cached field
+    /// and removing it from the header map.
+    ///
+    /// For requests: Removes "accept-language" header
+    /// For responses: Removes "content-language" header
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// let mut meta = HttpMeta::default();
+    /// meta.delete_lang();
+    /// ```
+    pub fn delete_lang(&mut self) {
+        self.lang = None;
+        if self.start_line.is_request() {
+            self.header.remove("accept-language");
+        } else {
+            self.header.remove("content-language");
+        }
+    } 
+
     /// Deletes the Host header completely, clearing both the cached field 
     /// and removing it from the header map.
     /// 
@@ -1564,7 +1717,7 @@ impl HttpMeta {
         self.header.remove("location");
     } 
 
-        /// Serializes the HTTP meta data to a string representation.
+    /// Serializes the HTTP meta data to a string representation.
     ///
     /// This method generates a properly formatted HTTP header section,
     /// including the start line and all headers.
@@ -1624,12 +1777,23 @@ impl HttpMeta {
             result.push_str(&format!("host: {}\r\n", host));
             handled_headers.insert("host".to_string());
         } 
+
+        // Add language if present 
+        if let Some(ref lang) = self.lang { 
+            if self.start_line.is_request() { 
+                result.push_str(&format!("accept-language: {}\r\n", lang.to_header_string()));
+                handled_headers.insert("host".to_string());
+            } else { 
+                result.push_str(&format!("content-language: {}\r\n", lang.to_response_header()));
+                handled_headers.insert("content-language".to_string()); 
+            } 
+        } 
         
         // Add location if present
         if let Some(ref location) = self.location {
             result.push_str(&format!("location: {}\r\n", location));
             handled_headers.insert("location".to_string());
-        }
+        } 
         
         // Add cookies based on whether this is a request or response
         if let Some(ref cookies) = self.cookies {
@@ -1688,6 +1852,7 @@ impl Default for HttpMeta {
             content_length: None,
             cookies: None, 
             host: None, 
+            lang: None, 
             location: None, 
         }
     } 

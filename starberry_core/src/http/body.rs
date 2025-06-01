@@ -25,7 +25,7 @@ impl HttpBody {
     ) -> Self {
         let parsed;
         let content_length = header.get_content_length().unwrap_or(0).min(max_size);
-println!("Content‐Length header says: {}", content_length);
+// println!("Content‐Length header says: {}", content_length);
         if content_length == 0 {
             parsed = Self::Empty;
         } else {
@@ -35,8 +35,8 @@ println!("Content‐Length header says: {}", content_length);
                 .read_exact(&mut body_buffer)
                 .await
                 .expect("failed to read exactly content_length bytes");
-            println!("Read {} bytes", body_buffer.len());
-            println!("Body buffer: {:?}", body_buffer); 
+            // println!("Read {} bytes", body_buffer.len());
+            // println!("Body buffer: {:?}", body_buffer); 
 
             parsed = match header
                 .get_content_type()
@@ -165,7 +165,7 @@ println!("Content‐Length header says: {}", content_length);
     } 
 
     pub fn parse_text(body: Vec<u8>) -> Self { 
-        println!("Text body: {:?}", body); 
+        // println!("Text body: {:?}", body); 
         return Self::Text(String::from_utf8_lossy(&body).to_string());
     } 
 
