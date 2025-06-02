@@ -24,6 +24,100 @@ Starberry is a lightweight, intuitive web framework focused on simplicity and pr
 
 ## 🎇 New Features 
 
+### Multi Protocol and new App Mechanism 
+
+```mermaid
+flowchart TD
+    RX1[Get Connection from TcpListener]
+    RX2{Multiple Protocol Mode?}
+    RX3["Test each protocol with Rx::test()"]
+    RX4[Select first protocol returning true]
+    RX5[Use that protocol type]
+    RX6[Use the single protocol directly]
+    RX7[Process request: read/write as needed]
+    TX1[Build Tx and Connection]
+    TX2["Tx::send(): send Response, get Request"]
+    TX3{Is connection needed?}
+    TX4[Close connection]
+    TX5[Keep connection open]
+
+    RX1 --> RX2
+    RX2 -- Yes --> RX3
+    RX3 --> RX4
+    RX4 --> RX5
+    RX5 --> RX7
+    RX2 -- No --> RX6
+    RX6 --> RX7
+    RX7 --////--> TX1
+    TX1 --> TX2
+    TX2 --> TX3
+    TX3 -- No --> TX4
+    TX3 -- Yes --> TX5
+``` 
+
+As the diagram shown above, Rx (Receive) and Tx (Transmit) are the 2 most important traits introduced in Starberry 0.6. All of the protocols are wrapped with them. 
+
+This means that you will be able to define your own protocol in App, and very soon you will be able to use socket and ftp in starberry. Currently Http and Sql has been implemented 
+
+For example, you may send an Http request by 
+
+(1) Building a connection with the server 
+
+```rust
+let builder = ConnectionBuilder::new("example.com", 443)
+    .protocol(Protocol::HTTP)
+    .tls(true);
+let connection = builder.connect().await.unwrap(); 
+``` 
+
+(2) Create a new Tx (HttpResCtx is the struct implemented Tx in Http) 
+
+```rust 
+let mut request = HttpResCtx::new(connection, "example.com"); 
+``` 
+
+(3) Insert the request by using the `Tx::prcess()` function 
+
+```rust 
+let _ = request.process(request_templates::get_request("/")).await; 
+``` 
+
+Because we need to borrow the reader from the HttpResCtx so we didn't use the &mut Response from the process() function, we directly use HttpReqCtx.response to further process 
+
+```rust 
+request.response.parse_body(
+    &mut request.reader,
+    1024 * 1024,
+).await;
+println!("{:?}, {:?}", request.response.meta, request.response.body); 
+``` 
+
+### Argumented URLs 
+
+Two new kinds of url has been introduced in the 0.5 version, which is `PatUrl` and `ArgUrl`. 
+
+Both of them support aliasing url, and you may use the given name to look for them. This solves the problem of we can only get the url segment by inputting index in `HttpReqCtx::get_path()`. We may insert the name in `HttpReqCtx::get_arg()` to look for it 
+
+### Sql support 
+
+### Unify Http Request and Http Response 
+
+You may see in the new Http mod, request and responses are in the same structure of 
+
+```rust 
+pub struct HttpRequest {
+    pub meta: HttpMeta,
+    pub body: HttpBody
+}
+
+pub struct HttpResponse { 
+    pub meta: HttpMeta, 
+    pub body: HttpBody 
+}  
+``` 
+
+Where `HttpMeta` and `HttpBody` both implemented different methods for sending/parsing request/response 
+
 ## 🚀 Getting Started
 
 ### Installation
@@ -245,6 +339,7 @@ async fn redirect() -> HttpResponse {
 ### 0.6.0 
 - Change the design of APP to enable multi-protocol 
 - Added database support 
+- Languages are readable from headers 
 
 ### 0.5.1 
 - Reform Cookie and CookieMap, deleted the CookieResponse struct 
@@ -291,5 +386,3 @@ Learn more about Akari template: https://crates.io/crates/akari
 ## 📄 License
 
 MIT License
- 
- 
