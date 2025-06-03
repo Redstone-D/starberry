@@ -336,6 +336,11 @@ async fn redirect() -> HttpResponse {
 
 ## 📋 Changelog 
 
+### 0.6.1 
+- Language struct built in Http mod 
+- Static file serving response (with auto assigned content type) 
+- Bug fix & Update Akari 
+
 ### 0.6.0 
 - Change the design of APP to enable multi-protocol 
 - Added database support 
@@ -376,7 +381,7 @@ async fn redirect() -> HttpResponse {
 - [ ] Grammar sugar for Regex 
 
 - [ ] Middleware libraries (OAuth, Surreal) 
-- [ ] Static file serving 
+- [x] Static file serving 
 - [ ] Logging 
 
 ## 📚 Learn More

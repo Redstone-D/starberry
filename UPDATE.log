@@ -1,3 +1,9 @@
+0.6.1: Preferred languages are able to fetch from request directly, as well as send in response 
+
+Short cuts for serving static files and other operations 
+
+Update Akari & Bug fix 
+
 0.6.0: Enable multiple protocol 
 
 Extensions has been seperated to extension mod which performs better 
