@@ -214,7 +214,8 @@ impl<R: Rx + 'static> Url<R> {
         drop(guard); // Not strictly necessary, but clarifies we no longer need the lock
 
         // Now create the async portion to iterate over the children
-        Box::pin(async move {
+        Box::pin(async move { 
+            let mut best_fit: Option<Arc<Url<R>>> = None; 
             for child_url in children.iter() { 
                 // println!("Comparing: {}, {}", child_url.path, this_segment);  
                 match &child_url.path { 
@@ -256,11 +257,11 @@ impl<R: Rx + 'static> Url<R> {
 
                     // Else 
                     PathPattern::AnyPath => {
-                        return Some(child_url.clone());
+                        best_fit = Some(child_url.clone());
                     }
                 }
             }
-            None
+            best_fit 
         })
     } 
 

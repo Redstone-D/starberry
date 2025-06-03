@@ -801,6 +801,20 @@ impl HttpContentType {
         Self::Text { subtype: "plain".to_string(), charset: Some("UTF-8".to_string()) } 
     } 
 
+    pub fn TextCss() -> Self {
+        Self::Text { 
+            subtype: "css".to_string(), 
+            charset: Some("UTF-8".to_string()) 
+        }
+    }
+
+    pub fn ApplicationJavascript() -> Self {
+        Self::Application { 
+            subtype: "javascript".to_string(), 
+            parameters: Some(vec![("charset".to_string(), "UTF-8".to_string())]) 
+        }
+    } 
+
     pub fn ApplicationJson() -> Self { 
         Self::Application { subtype: "json".to_string(), parameters: Some(vec![("charset".to_string(), "UTF-8".to_string())]) } 
     } 
@@ -815,6 +829,18 @@ impl HttpContentType {
 
     pub fn ApplicationOctetStream() -> Self { 
         Self::Application { subtype: "octet-stream".to_string(), parameters: Some(vec![("charset".to_string(), "UTF-8".to_string())]) } 
+    } 
+
+    pub fn ImagePng() -> Self {
+        Self::Image { subtype: "png".to_string() }
+    }
+
+    pub fn ImageJpeg() -> Self {
+        Self::Image { subtype: "jpeg".to_string() }
+    }
+
+    pub fn ImageGif() -> Self {
+        Self::Image { subtype: "gif".to_string() }
     } 
 }
 

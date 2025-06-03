@@ -9,7 +9,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
 use std::str; 
 
 /// RequestHeader is a struct that represents the headers of an HTTP request. 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct HttpMeta { 
     pub start_line: HttpStartLine, 
     pub header: HashMap<String, HeaderValue>,  

@@ -212,6 +212,18 @@ impl HttpReqCtx {
     pub fn get_arg_index<S: AsRef<str>>(&self, arg: S) -> Option<usize> {
         self.endpoint.get_segment_index(arg.as_ref())
     } 
+    
+    /// Get the preferred by the user 
+    pub fn get_preferred_language(&mut self) -> Option<String> {
+        self.request.meta.get_lang().map(|lang_dict| { 
+            lang_dict.most_preferred() 
+        }) 
+    } 
+
+    /// Get the preferred by the user with a default value 
+    pub fn get_preferred_language_or_default<T: AsRef<str>>(&mut self, default: T) -> String {
+        self.get_preferred_language().unwrap_or_else(|| default.as_ref().to_string())
+    } 
 
     /// Get the part of the url by using its given name 
     pub fn get_arg<S: AsRef<str>>(&mut self, arg: S) -> Option<String> {

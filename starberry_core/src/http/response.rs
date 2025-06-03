@@ -2,12 +2,15 @@ use crate::app::config::ParseConfig;
 
 use super::cookie::Cookie; 
 use super::body::HttpBody;
+use super::http_value::HttpContentType;
 use super::meta::HttpMeta;
 use super::net;
 use super::start_line::{HttpStartLine, ResponseStartLine}; 
 use std::collections::HashMap;
+use rustls::ContentType;
 use tokio::io::{AsyncRead, AsyncWrite, BufReader, BufWriter}; 
 
+#[derive(Debug, Clone)] 
 pub struct HttpResponse { 
     pub meta: HttpMeta, 
     pub body: HttpBody 
@@ -42,10 +45,18 @@ impl HttpResponse {
         let _ = net::parse_body(&mut self.meta, &mut self.body, reader, max_size).await; 
     }  
 
+    /// Add a cookie into the response metadata. 
+    /// Insert an empty cookie to delete the cookie. 
     pub fn add_cookie<T: Into<String>>(mut self, key: T, cookie: Cookie) -> Self { 
         self.meta.add_cookie(key, cookie); 
         self 
     } 
+
+    /// Set content type for Http Response 
+    pub fn content_type(mut self, content_type: HttpContentType) -> Self { 
+        self.meta.set_content_type(content_type); 
+        self 
+    }
 
     /// Send the response 
     /// When this method is changed, please also check Request::send() 
@@ -180,7 +191,8 @@ pub mod response_templates {
     ///
     /// # Arguments
     ///
-    /// * `file` - The filename of the template within the templates directory.
+    /// * `file` - The filename of the template within the templates directory. 
+    /// Never use absolute path for file argument 
     ///
     /// # Returns
     ///
@@ -200,6 +212,7 @@ pub mod response_templates {
         ); 
         let mut meta = HttpMeta::new(start_line, HashMap::new()); 
         let file_path = Path::new("templates").join(file);
+        // println!("[Response] Loading template: {}", file_path.display()); 
         let body = match std::fs::read(file_path) { 
             Ok(content) => content,
             Err(_) => return return_status(StatusCode::NOT_FOUND), 
@@ -207,6 +220,31 @@ pub mod response_templates {
         meta.set_content_type(HttpContentType::TextHtml()); 
         HttpResponse::new(meta, HttpBody::Binary(body)) 
     } 
+
+    pub fn serve_static_file(file: &str) -> HttpResponse { 
+        let start_line = HttpStartLine::new_response(
+            HttpVersion::Http11, 
+            StatusCode::OK
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
+        let file_path = Path::new("templates").join(file); 
+        // Set the response content type based on the file extension 
+        meta.set_content_type(match file_path.extension().and_then(|s| s.to_str()) {
+            Some("html") => HttpContentType::TextHtml(),
+            Some("css") => HttpContentType::TextCss(),
+            Some("js") => HttpContentType::ApplicationJavascript(),
+            Some("json") => HttpContentType::ApplicationJson(),
+            Some("png") => HttpContentType::ImagePng(),
+            Some("jpg") | Some("jpeg") => HttpContentType::ImageJpeg(),
+            Some("gif") => HttpContentType::ImageGif(),
+            _ => HttpContentType::ApplicationOctetStream(), // Default binary type
+        });
+        let body = match std::fs::read(file_path) { 
+            Ok(content) => content,
+            Err(_) => return return_status(StatusCode::NOT_FOUND), 
+        }; 
+        HttpResponse::new(meta, HttpBody::Binary(body)) 
+    }
 
     /// Creates an HTTP response with a specified status code and binary body.
     ///

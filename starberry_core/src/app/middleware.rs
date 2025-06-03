@@ -19,7 +19,7 @@ pub trait AsyncMiddleware<R: Rx>: Send + Sync + 'static {
         &self,
         rc: R,
         next: Box<dyn Fn(R) -> Pin<Box<dyn Future<Output = R> + Send>> + Send + Sync + 'static>,
-    ) -> Pin<Box<dyn Future<Output = R> + Send + 'static>>;
+    ) -> Pin<Box<dyn Future<Output = R> + Send + 'static>>; 
 } 
 
 /// The “final handler” trait that sits at the end of a middleware chain.
