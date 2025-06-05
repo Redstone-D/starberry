@@ -20,17 +20,13 @@ impl Encode for i64 {
 
 impl Encode for &str {
     fn encode(&self) -> Result<String, DbError> {
-        // Escape single quotes and wrap in single quotes
-        let escaped = self.replace("'", "''");
-        Ok(format!("'{}'", escaped))
+        Ok(self.to_string())
     }
 }
 
 impl Encode for String {
     fn encode(&self) -> Result<String, DbError> {
-        // Escape single quotes and wrap in single quotes
-        let escaped = self.replace("'", "''");
-        Ok(format!("'{}'", escaped))
+        Ok(self.to_string())
     }
 }
 
