@@ -245,8 +245,8 @@ impl DbConnection {
         self.execute_query("ROLLBACK", vec![]).await.map(|_| ())
     }
 
-    /// Prepares a statement for repeated execution.
-    pub async fn prepare_statement(&mut self, query: &str) -> Result<String, DbError> {
+    /// Prepares a statement for repeated execution. `query` must be a compile-time, trusted SQL string; untrusted dynamic queries must be validated externally or whitelisted.
+    pub async fn prepare_statement(&mut self, query: &'static str) -> Result<String, DbError> {
         use starberry_lib::random_alphanumeric_string;
         // Generate a random statement name
         let stmt_name = format!("stmt_{}", random_alphanumeric_string(8));
