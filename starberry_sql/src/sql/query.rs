@@ -182,6 +182,21 @@ impl DbConnection {
             .await
             .map_err(|e| DbError::ProtocolError(e.to_string()))?;
 
+        // ---- 5. Describe message ----
+        // Request RowDescription for the unnamed portal
+        let mut buf = Vec::new();
+        buf.push(b'D'); // Describe
+        let mut body = Vec::new();
+        body.push(b'P'); // describe portal (empty name)
+        body.push(0);    // zero-length name
+        let len = (body.len() + 4) as u32;
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&body);
+        stream
+            .write_all(&buf)
+            .await
+            .map_err(|e| DbError::ProtocolError(e.to_string()))?;
+
         // ---- 5. Execute message ----
         // 'E' | Int32(len) | portal_name\0 | max_rows(0=Unlimited)
         let mut buf = Vec::new();
