@@ -233,11 +233,11 @@ impl<R: Rx + 'static> Url<R> {
                     } 
 
                     // Matches the Regex Path 
-                    PathPattern::Regex(regex_str) | PathPattern::Pattern(regex_str, _ )=> {
+                    PathPattern::Regex(regex_str) | PathPattern::Pattern(regex_str, _ ) => {
                         let re = Regex::new(regex_str).unwrap(); 
                         // println!("Comparing Regex match: {}, {}, Paths: {:?}", re, this_segment, path);  
                         if re.is_match(this_segment) { 
-                            if path.len() > 1 {
+                            if path.len() >= 1 {
                                 return child_url.clone().walk(path).await;
                             } else {
                                 return Some(child_url.clone());

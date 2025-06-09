@@ -64,6 +64,7 @@ impl HttpReqCtx {
     /// Handles the request by parsing it and creating a new `HttpReqCtx`. 
     pub async fn handle(
         app: Arc<App>, 
+        root: Url<HttpReqCtx>, 
         mut reader: BufReader<ReadHalf<Connection>>, 
         writer: BufWriter<WriteHalf<Connection>> 
     ) -> Self {
