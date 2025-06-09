@@ -1,6 +1,8 @@
 use super::connection::DbConnection;
 use super::error::DbError;
 use std::collections::HashMap;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use starberry_core::connection::Connection as GenericConnection;
 
 /// Represents a database query result with PostgreSQL specifics.
 #[derive(Debug, Clone)]
@@ -17,6 +19,77 @@ fn validate_params(params: &Vec<String>) -> Result<(), DbError> {
         return Err(DbError::QueryError("Null byte detected in parameter".to_string()));
     }
     Ok(())
+}
+
+/// Reads server messages and collects rows and optional affected row count.
+async fn read_response(stream: &mut GenericConnection) -> Result<(Vec<HashMap<String, String>>, Option<usize>), DbError> {
+    let mut rows = Vec::new();
+    let mut columns = Vec::new();
+    let mut count: Option<usize> = None;
+    loop {
+        let mut tag = [0u8];
+        stream.read_exact(&mut tag).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
+        let mut len_buf = [0u8; 4];
+        stream.read_exact(&mut len_buf).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
+        let payload_len = u32::from_be_bytes(len_buf) as usize - 4;
+        let mut payload = vec![0u8; payload_len];
+        stream.read_exact(&mut payload).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
+
+        match tag[0] {
+            b'T' => {
+                // RowDescription: parse column names
+                let mut off = 0;
+                let fcnt = u16::from_be_bytes([payload[off], payload[off+1]]) as usize;
+                off += 2;
+                for _ in 0..fcnt {
+                    let end = payload[off..].iter().position(|b| *b == 0).unwrap();
+                    let name = String::from_utf8_lossy(&payload[off..off+end]).to_string();
+                    columns.push(name);
+                    off += end + 1 + 18;
+                }
+            }
+            b'D' => {
+                // DataRow: parse each row
+                let mut off = 0;
+                let c = u16::from_be_bytes([payload[off], payload[off+1]]) as usize;
+                off += 2;
+                let mut row_map = HashMap::new();
+                for i in 0..c {
+                    let l = i32::from_be_bytes([payload[off], payload[off+1], payload[off+2], payload[off+3]]);
+                    off += 4;
+                    let val = if l < 0 {
+                        String::new()
+                    } else {
+                        let s = String::from_utf8_lossy(&payload[off..off + l as usize]).to_string();
+                        off += l as usize;
+                        s
+                    };
+                    row_map.insert(columns[i].clone(), val);
+                }
+                rows.push(row_map);
+            }
+            b'C' => {
+                // CommandComplete: affected row count
+                let tag = String::from_utf8_lossy(&payload[..payload.len()-1]).to_string();
+                if let Some(n) = tag.split_whitespace().last().and_then(|s| s.parse().ok()) {
+                    count = Some(n);
+                }
+            }
+            b'E' => {
+                // ErrorResponse
+                let msg = String::from_utf8_lossy(&payload[..payload.len()-1]).to_string();
+                return Err(DbError::QueryError(msg));
+            }
+            b'Z' => {
+                // ReadyForQuery: end of request
+                break;
+            }
+            _ => {
+                // ignore other messages
+            }
+        }
+    }
+    Ok((rows, count))
 }
 
 impl QueryResult {
@@ -42,105 +115,123 @@ impl QueryResult {
 impl DbConnection {
     /// Executes a general SQL query.
     pub async fn execute_query(&mut self, query: &str, params: Vec<String>) -> Result<QueryResult, DbError> {
-        // Validate params to prevent injection
-        if let Err(e) = validate_params(&params) {
-            return Err(e);
+        // 1. Basic validation: disallow NULL bytes
+        validate_params(&params)?;
+
+        // 2. Ensure underlying stream is available
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| DbError::ConnectionError("No active connection".into()))?;
+
+        // ---- 3. Parse message ----
+        // Format: 'P' | Int32(len) | statement_name\0 | query\0 | param_type_count(0)
+        let mut buf = Vec::new();
+        buf.push(b'P');
+        let mut body = Vec::new();
+        // unnamed statement
+        body.extend_from_slice(b""); body.push(0);
+        // SQL text
+        body.extend_from_slice(query.as_bytes()); body.push(0);
+        // 0 means do not specify parameter types explicitly; server will infer via context or casts
+        body.extend_from_slice(&0u16.to_be_bytes());
+
+        let len = (body.len() + 4) as u32;
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&body);
+
+        stream
+            .write_all(&buf)
+            .await
+            .map_err(|e| DbError::ProtocolError(e.to_string()))?;
+
+        // ---- 4. Bind message ----
+        // 'B' | Int32(len) | portal_name\0 | statement_name\0
+        //             | format_code_count(0=All text)
+        //             | param_count | [ param_len | param_bytes ]*
+        //             | result_format_count(0=All text)
+        let mut buf = Vec::new();
+        buf.push(b'B');
+        let mut body = Vec::new();
+        // portal name (empty = unnamed portal)
+        body.extend_from_slice(b""); body.push(0);
+        // statement name (same as in Parse; empty = unnamed)
+        body.extend_from_slice(b""); body.push(0);
+
+        // use text format for all parameters
+        body.extend_from_slice(&0u16.to_be_bytes());
+
+        // number of parameters
+        body.extend_from_slice(&(params.len() as u16).to_be_bytes());
+        for p in &params {
+            let v = p.as_bytes();
+            // 每个参数：int32(len) + bytes
+            body.extend_from_slice(&(v.len() as i32).to_be_bytes());
+            body.extend_from_slice(v);
         }
-        if let Some(stream) = &mut self.stream {
-            use tokio::io::{AsyncWriteExt, AsyncReadExt};
-            // Substitute placeholders $1, $2, ... with safely quoted parameters
-            let mut sql = query.to_string();
-            for (i, p) in params.iter().enumerate() {
-                let placeholder = format!("${}", i + 1);
-                let escaped = p.replace("'", "''");
-                let quoted = format!("'{}'", escaped);
-                if let Some(pos) = sql.find(&placeholder) {
-                    sql.replace_range(pos..pos + placeholder.len(), &quoted);
-                } else {
-                    return Err(DbError::QueryError(format!("Missing parameter {} in query", placeholder)));
-                }
-            }
-            // Build simple query message ('Q')
-            let mut msg = Vec::new();
-            msg.push(b'Q');
-            let mut body = sql.into_bytes();
-            body.push(0);
-            let len = (body.len() + 4) as u32;
-            msg.extend_from_slice(&len.to_be_bytes());
-            msg.extend_from_slice(&body);
-            // Send Query
-            stream.write_all(&msg).await.map_err(|e| DbError::QueryError(e.to_string()))?;
-            stream.flush().await.map_err(|e| DbError::QueryError(e.to_string()))?;
-            // Read responses
-            let mut rows = Vec::new();
-            let mut columns = Vec::new();
-            let mut count: Option<usize> = None;
-            loop {
-                let mut tag = [0u8];
-                stream.read_exact(&mut tag).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
-                let mut len_buf = [0u8; 4];
-                stream.read_exact(&mut len_buf).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
-                let payload_len = u32::from_be_bytes(len_buf);
-                let mut payload = vec![0u8; (payload_len - 4) as usize];
-                stream.read_exact(&mut payload).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
-                match tag[0] {
-                    b'T' => { // RowDescription
-                        let mut off = 0;
-                        let field_count = u16::from_be_bytes([payload[off], payload[off+1]]) as usize;
-                        off += 2;
-                        for _ in 0..field_count {
-                            let end = payload[off..].iter().position(|&b| b==0).unwrap_or(0);
-                            let name = String::from_utf8_lossy(&payload[off..off+end]).to_string();
-                            columns.push(name);
-                            off += end + 1 + 18; // skip name + descriptor
-                        }
-                    }
-                    b'D' => { // DataRow
-                        let mut off = 0;
-                        let col_count = u16::from_be_bytes([payload[off], payload[off+1]]) as usize;
-                        off += 2;
-                        let mut row = HashMap::new();
-                        for i in 0..col_count {
-                            let col_len = i32::from_be_bytes([
-                                payload[off], payload[off+1], payload[off+2], payload[off+3]
-                            ]);
-                            off += 4;
-                            let val = if col_len < 0 {
-                                String::new()
-                            } else {
-                                let v = String::from_utf8_lossy(&payload[off..off + col_len as usize]).to_string();
-                                off += col_len as usize;
-                                v
-                            };
-                            row.insert(columns[i].clone(), val);
-                        }
-                        rows.push(row);
-                    }
-                    b'C' => { // CommandComplete
-                        let tag_str = String::from_utf8_lossy(&payload[..payload.len()-1]).to_string();
-                        if let Some(n) = tag_str.split_whitespace().last().and_then(|s| s.parse::<usize>().ok()) {
-                            count = Some(n);
-                        }
-                    }
-                    b'E' => { // ErrorResponse
-                        let msg = String::from_utf8_lossy(&payload[..payload.len()-1]).to_string();
-                        return Err(DbError::QueryError(msg));
-                    }
-                    b'Z' => { // ReadyForQuery
-                        break;
-                    }
-                    _ => {} // ignore others
-                }
-            }
-            if query.trim().to_uppercase().starts_with("SELECT") {
-                Ok(QueryResult::Rows(rows))
-            } else if let Some(n) = count {
-                Ok(QueryResult::Count(n))
-            } else {
-                Ok(QueryResult::Empty)
-            }
+
+        // use text format for all results
+        body.extend_from_slice(&0u16.to_be_bytes());
+
+        let len = (body.len() + 4) as u32;
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&body);
+
+        stream
+            .write_all(&buf)
+            .await
+            .map_err(|e| DbError::ProtocolError(e.to_string()))?;
+
+        // ---- 5. Describe message ----
+        // Request RowDescription for the unnamed portal
+        let mut buf = Vec::new();
+        buf.push(b'D'); // Describe
+        let mut body = Vec::new();
+        body.push(b'P'); // describe portal (empty name)
+        body.push(0);    // zero-length name
+        let len = (body.len() + 4) as u32;
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&body);
+        stream
+            .write_all(&buf)
+            .await
+            .map_err(|e| DbError::ProtocolError(e.to_string()))?;
+
+        // ---- 5. Execute message ----
+        // 'E' | Int32(len) | portal_name\0 | max_rows(0=Unlimited)
+        let mut buf = Vec::new();
+        buf.push(b'E');
+        let mut body = Vec::new();
+        // portal_name
+        body.extend_from_slice(b""); body.push(0);
+        // max rows = 0 (fetch all at once)
+        body.extend_from_slice(&0u32.to_be_bytes());
+
+        let len = (body.len() + 4) as u32;
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&body);
+
+        stream
+            .write_all(&buf)
+            .await
+            .map_err(|e| DbError::ProtocolError(e.to_string()))?;
+
+        // ---- 6. Sync message ----
+        stream
+            .write_all(&[b'S', 0, 0, 0, 4])
+            .await
+            .map_err(|e| DbError::ProtocolError(e.to_string()))?;
+
+        // ---- 7. Read server responses ----
+        let (rows, count) = read_response(stream).await?;
+
+        // ---- 8. Return result ----
+        if query.trim_start().to_uppercase().starts_with("SELECT") {
+            Ok(QueryResult::Rows(rows))
+        } else if let Some(n) = count {
+            Ok(QueryResult::Count(n))
         } else {
-            Err(DbError::ConnectionError("No active connection stream".to_string()))
+            Ok(QueryResult::Empty)
         }
     }
 
@@ -169,8 +260,8 @@ impl DbConnection {
         self.execute_query("ROLLBACK", vec![]).await.map(|_| ())
     }
 
-    /// Prepares a statement for repeated execution.
-    pub async fn prepare_statement(&mut self, query: &str) -> Result<String, DbError> {
+    /// Prepares a statement for repeated execution. `query` must be a compile-time, trusted SQL string; untrusted dynamic queries must be validated externally or whitelisted.
+    pub async fn prepare_statement(&mut self, query: &'static str) -> Result<String, DbError> {
         use starberry_lib::random_alphanumeric_string;
         // Generate a random statement name
         let stmt_name = format!("stmt_{}", random_alphanumeric_string(8));
@@ -181,14 +272,59 @@ impl DbConnection {
 
     /// Executes a prepared statement.
     pub async fn execute_prepared(&mut self, statement_id: &str, params: Vec<String>) -> Result<QueryResult, DbError> {
-        // Validate params
+        // 1. Validate parameters
         validate_params(&params)?;
-        // Build EXECUTE statement
-        let mut exec = format!("EXECUTE {}", statement_id);
-        if !params.is_empty() {
-            let args: Vec<String> = params.into_iter().map(|p| format!("'{}'", p.replace("'", "''"))).collect();
-            exec.push_str(&format!(" ({})", args.join(", ")));
+        // 2. Ensure underlying stream is available
+        let stream = self
+            .stream
+            .as_mut()
+            .ok_or_else(|| DbError::ConnectionError("No active connection".into()))?;
+        // 3. Bind message: portal="", statement=statement_id, params in text format
+        let mut buf = Vec::new();
+        buf.push(b'B');
+        let mut body = Vec::new();
+        // portal name (empty = unnamed portal)
+        body.extend_from_slice(b""); body.push(0);
+        // statement name
+        body.extend_from_slice(statement_id.as_bytes()); body.push(0);
+        // all parameters in text format
+        body.extend_from_slice(&0u16.to_be_bytes());
+        // parameter count
+        body.extend_from_slice(&(params.len() as u16).to_be_bytes());
+        for p in &params {
+            let bytes = p.as_bytes();
+            // int32 length + bytes
+            body.extend_from_slice(&(bytes.len() as i32).to_be_bytes());
+            body.extend_from_slice(bytes);
         }
-        self.execute_query(&exec, vec![]).await
+        // all results in text format
+        body.extend_from_slice(&0u16.to_be_bytes());
+        // prepend length and send
+        let len = (body.len() + 4) as u32;
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&body);
+        stream.write_all(&buf).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
+        // 4. Execute message: portal="", max_rows=0 (fetch all)
+        let mut buf = Vec::new();
+        buf.push(b'E');
+        let mut body = Vec::new();
+        body.extend_from_slice(b""); body.push(0);
+        body.extend_from_slice(&0u32.to_be_bytes());
+        let len = (body.len() + 4) as u32;
+        buf.extend_from_slice(&len.to_be_bytes());
+        buf.extend_from_slice(&body);
+        stream.write_all(&buf).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
+        // 5. Sync message
+        stream.write_all(&[b'S', 0, 0, 0, 4]).await.map_err(|e| DbError::ProtocolError(e.to_string()))?;
+        // 6. Read server responses
+        let (rows, count) = read_response(stream).await?;
+        // 7. Return result for prepared execution
+        if !rows.is_empty() {
+            Ok(QueryResult::Rows(rows))
+        } else if let Some(n) = count {
+            Ok(QueryResult::Count(n))
+        } else {
+            Ok(QueryResult::Empty)
+        }
     }
 }
