@@ -1,3 +1,11 @@
+0.6.2: Protocol registry now manages middleware chains and handler registration through a unified API 
+
+The `App` type no longer owns a global `Url` tree or middleware list 
+
+URLs and middleware must now be configured on the **protocol** level during protocol registration 
+
+Fixed a regex URL matching issue in the `Url` path walker 
+
 0.6.1: Preferred languages are able to fetch from request directly, as well as send in response 
 
 Short cuts for serving static files and other operations 

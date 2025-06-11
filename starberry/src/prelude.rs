@@ -4,6 +4,7 @@ pub use crate::object;
 pub use crate::{App, RunMode}; 
 pub use crate::{LitUrl, RegUrl, PatUrl, AnyUrl, ArgUrl, AnyPath, TrailingSlash}; 
 pub use crate::urls::*; 
+pub use crate::{ProtocolHandlerBuilder as ProtocolBuilder, ProtocolRegistryBuilder as HandlerBuilder, ProtocolRegistryKind}; 
 pub use crate::{Rx, Tx}; 
 pub use crate::{HttpResCtx, HttpReqCtx}; 
 pub use crate::{HttpMeta, HttpResponse}; 

@@ -901,12 +901,13 @@ impl HeaderAttribute{
 
 #[derive(Debug, Clone)] 
 pub struct RequestPath{ 
-    path: Vec<String> 
+    path: Vec<String>, 
+    arguments: HashMap<String, String>, 
 } 
 
 impl RequestPath{   
-    pub fn new(path: Vec<String>) -> Self{ 
-        Self { path }  
+    pub fn new(path: Vec<String>, arguments: HashMap<String, String>) -> Self{ 
+        Self { path, arguments }  
     } 
 
     pub fn to_string(&self) -> String{ 
@@ -919,14 +920,25 @@ impl RequestPath{
     } 
 
     pub fn from_string(url: &str) -> Self{ 
+        let (path_str, args_str) = match url.find('?') {
+            Some(pos) => (&url[..pos], &url[pos + 1..]),
+            None => (url, ""),
+        }; 
         let mut path = Vec::new(); 
-        let parts: Vec<&str> = url.split('/').collect(); 
+        let parts: Vec<&str> = path_str.split('/').collect(); 
         for part in parts { 
             if !part.is_empty() { 
                 path.push(part.to_string()); 
             } 
         } 
-        Self { path } 
+        let mut arguments = HashMap::new(); 
+        for arg in args_str.split('&') { 
+            let arg_parts: Vec<&str> = arg.split('=').collect(); 
+            if arg_parts.len() == 2 { 
+                arguments.insert(arg_parts[0].to_string(), arg_parts[1].to_string()); 
+            } 
+        } 
+        Self { path, arguments } 
     } 
 
     pub fn url_part(&self, part: usize) -> String{ 
@@ -940,12 +952,16 @@ impl RequestPath{
             return "".to_string(); 
         } 
         self.path[part].clone()    
-    }
+    } 
+
+    pub fn get_url_args(&self, key: &str) -> Option<String> {
+        self.arguments.get(key).cloned()
+    } 
 } 
 
 impl Default for RequestPath {
     fn default() -> Self {
-        Self::new(Vec::new())
+        Self::new(Vec::new(), HashMap::new()) 
     }
 } 
 

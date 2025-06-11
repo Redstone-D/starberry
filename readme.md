@@ -336,6 +336,14 @@ async fn redirect() -> HttpResponse {
 
 ## 📋 Changelog 
 
+### 0.6.2 
+- Bug fix for Regex Url 
+- Protocol Registery handling middleware and handlers 
+- **Important Syntax Change** 
+    - Now APP is no longer associated with a Url & Middleware. Url will be associated with protocol 
+    - This means that you will need to to middleware operation when you creating protocol 
+    - Please read more in our documentation: https://fds.rs/starberry/tutorial/0.6.4/ 
+
 ### 0.6.1 
 - Language struct built in Http mod 
 - Static file serving response (with auto assigned content type) 

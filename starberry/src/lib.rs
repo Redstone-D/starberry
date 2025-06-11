@@ -13,12 +13,14 @@ pub use starberry_core::app::urls::path_pattern_creator::{
 }; 
 
 pub use starberry_core::app::middleware::AsyncMiddleware; 
+pub use starberry_core::app::protocol::{ProtocolHandlerBuilder, ProtocolRegistryKind, ProtocolRegistryBuilder}; 
 
 pub use starberry_core::Value; 
 pub use starberry_core::TemplateManager; 
 pub use starberry_core::object; 
 
 pub use starberry_core::connection::{Rx, Tx};  
+pub use starberry_core::connection::{Connection, ConnectionBuilder}; 
 
 pub use starberry_core::http::request::request_templates; 
 pub use starberry_core::http::response::response_templates; 
@@ -33,6 +35,7 @@ pub use starberry_core::http::cookie::*;
 pub use starberry_core::http::body::*; 
 pub use starberry_core::http::form::*; 
 
+pub use starberry_core; 
 pub use akari; 
 
 pub use starberry_macro as sm; 

@@ -574,6 +574,19 @@ impl<R: Rx + 'static> Url<R> {
 
 } 
 
+impl <R: Rx + 'static> Default for Url<R> {
+    fn default() -> Self {
+        Self {
+            path: PathPattern::Literal(String::from("/")),
+            children: RwLock::new(Children::Nil),
+            method: RwLock::new(None),
+            ancestor: Ancestor::Nil,
+            middlewares: RwLock::new(vec![]),
+            params: RwLock::new(ParamsClone::default()),
+        } 
+    }
+}
+
 pub fn dangling_url<R: Rx>() -> Arc<Url<R>> { 
     Arc::new(Url { 
         path: PathPattern::Any, 

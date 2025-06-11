@@ -64,7 +64,7 @@ impl HttpReqCtx {
     /// Handles the request by parsing it and creating a new `HttpReqCtx`. 
     pub async fn handle(
         app: Arc<App>, 
-        root: Url<HttpReqCtx>, 
+        root_handler: Arc<Url<HttpReqCtx>>, 
         mut reader: BufReader<ReadHalf<Connection>>, 
         writer: BufWriter<WriteHalf<Connection>> 
     ) -> Self {
@@ -74,9 +74,7 @@ impl HttpReqCtx {
             &app.connection_config,
             app.get_mode() == crate::app::application::RunMode::Build,
         ).await;
-        let endpoint = app
-            .root_url
-            .clone()
+        let endpoint = root_handler
             .walk_str(&request.meta.path())
             .await;
         // let endpoint = dangling_url();
@@ -213,6 +211,11 @@ impl HttpReqCtx {
     pub fn get_arg_index<S: AsRef<str>>(&self, arg: S) -> Option<usize> {
         self.endpoint.get_segment_index(arg.as_ref())
     } 
+
+    /// Get the arguments in the Url by using its key 
+    pub fn get_url_args<T: Into<String>>(&mut self, key: T) -> Option<String> {
+        self.request.meta.get_url_args(key)
+    } 
     
     /// Get the preferred by the user 
     pub fn get_preferred_language(&mut self) -> Option<String> {
@@ -257,12 +260,14 @@ impl HttpReqCtx {
 
 #[async_trait] 
 impl Rx for HttpReqCtx { 
+
     async fn process(
         app: Arc<App>, 
+        root_handler: Arc<Url<HttpReqCtx>>, 
         reader: BufReader<ReadHalf<Connection>>, 
         writer: BufWriter<WriteHalf<Connection>>, 
     ) {
-        let handler = Self::handle(app, reader, writer).await;
+        let handler = Self::handle(app, root_handler, reader, writer).await;
         handler.run().await; 
     } 
 

@@ -9,6 +9,8 @@ use std::any::Any;
 /// A boxed future returning `R`.
 pub type BoxFuture<R> = Pin<Box<dyn Future<Output = R> + Send + 'static>>; 
 
+pub type AsyncMiddlewareChain<R: Rx> = Vec<Arc<dyn AsyncMiddleware<R>>>; 
+
 pub trait AsyncMiddleware<R: Rx>: Send + Sync + 'static { 
     fn as_any(&self) -> &dyn Any; 
 

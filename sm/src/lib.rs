@@ -521,7 +521,7 @@ pub fn reg(input: TokenStream) -> TokenStream {
                 let ancestor = #first;
                 let _segments: Vec<PathPattern> = vec![#(#path_segments),*];
                 // Call .reg_from() if the type is an App-like
-                ancestor.reg_from(&_segments)
+                ancestor.reg_from::<HttpReqCtx>(&_segments)
             }
         }
     };

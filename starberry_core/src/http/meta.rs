@@ -720,8 +720,17 @@ impl HttpMeta {
         self.start_line.get_url().url_part(part)
     }
 
-    pub fn path(&self) -> String {
+    pub fn url(&self) -> String {
         self.start_line.path() 
+    } 
+
+    pub fn path(&self) -> String {
+        // Return the path part of the URL, removing the query string if present 
+        self.start_line.path().split('?').next().unwrap_or("").to_string() 
+    } 
+
+    pub fn get_url_args<T: Into<String>>(&mut self, key: T) -> Option<String> {
+        self.start_line.get_url().get_url_args(&key.into())
     } 
 
     pub fn method(&self) -> HttpMethod {

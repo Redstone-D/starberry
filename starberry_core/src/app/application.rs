@@ -11,6 +11,7 @@ use starberry_lib::random_string;
 use tokio::runtime::Runtime;
 use std::future::Future;
 
+use crate::app::protocol::{ProtocolHandlerBuilder, ProtocolRegistryBuilder};
 use crate::app::urls;
 use crate::connection::Connection;
 use crate::connection::Rx;
@@ -48,9 +49,6 @@ pub struct App {
     pub connection_config: ParseConfig, 
     pub config: HashMap<String, Box<dyn Any + Send + Sync>>, 
     pub statics: HashMap<TypeId, Box<dyn Any + Send + Sync>>, 
-    
-    pub root_url: Arc<Url<HttpReqCtx>>, // Only for Http 
-    pub middlewares: Arc<Vec<Arc<dyn AsyncMiddleware<HttpReqCtx>>>>, // Only for Http 
 }
 
 /// Builder for App
@@ -65,10 +63,7 @@ pub struct AppBuilder {
     max_line_length: Option<usize>, 
     max_headers: Option<usize>, 
     config: HashMap<String, Box<dyn Any + Send + Sync>>, 
-    statics: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
-
-    root_url: Option<Arc<Url<HttpReqCtx>>>, 
-    middle_wares: Option<Vec<Arc<dyn AsyncMiddleware<HttpReqCtx>>>>, 
+    statics: HashMap<TypeId, Box<dyn Any + Send + Sync>>, 
 }
 
 impl AppBuilder {
@@ -85,9 +80,6 @@ impl AppBuilder {
             max_headers: None,
             config: HashMap::new(), 
             statics: HashMap::new(),  
-            
-            root_url: None,
-            middle_wares: Some(Self::default_http_middlewares()),  
         }
     } 
 
@@ -146,64 +138,15 @@ impl AppBuilder {
         self 
     } 
 
-    pub fn default_http_middlewares() -> Vec<Arc<dyn AsyncMiddleware<HttpReqCtx>>> { 
-        vec![]
-    } 
-    
-    // Append a middleware instance created by T to the end of the vector.
-    pub fn append_middleware<T: 'static + AsyncMiddleware<HttpReqCtx>>(mut self) -> Self {
-        let middleware = Arc::new(T::return_self());
-        if let Some(middle_wares) = &mut self.middle_wares {
-            middle_wares.push(middleware);
-        } else {
-            self.middle_wares = Some(vec![middleware]);
-        }
-        self
-    }
-
-    // Insert a middleware instance created by T at the beginning of the vector.
-    pub fn extend_middleware<T: 'static + AsyncMiddleware<HttpReqCtx>>(mut self) -> Self { 
-        let middleware = Arc::new(T::return_self());
-        if let Some(middle_wares) = &mut self.middle_wares {
-            middle_wares.insert(0, middleware);
-        } else {
-            self.middle_wares = Some(vec![middleware]);
-        }
-        self
-    } 
-
-    pub fn remove_middleware<T: 'static + AsyncMiddleware<HttpReqCtx>>(mut self) -> Self { 
-        if let Some(middle_wares) = &mut self.middle_wares {
-            middle_wares.retain(|m| {
-                // Keep the middleware if it's NOT of type T
-                !m.as_any().is::<T>() 
-            });
-        } 
-        self  
-    }  
-
-    pub fn root_url(mut self, root_url: Arc<Url<HttpReqCtx>>) -> Self { 
-        self.root_url = Some(root_url); 
-        self 
-    } 
-
     /// Build method: create the `App`, storing binding address without creating a TcpListener
     pub fn build(self) -> Arc<App> { 
-        let root_url = match self.root_url { 
+        let protocol = match self.protocol { 
             Some(root_url) => root_url, 
-            None => {
-                Arc::new(Url {
-                    path: PathPattern::Literal(String::from("/")),
-                    children: RwLock::new(Children::Nil),
-                    method: RwLock::new(None),
-                    ancestor: Ancestor::Nil,
-                    middlewares: RwLock::new(vec![]),
-                    params: RwLock::new(ParamsClone::default()),
-                })
-            }
+            None => ProtocolRegistryBuilder::new()
+            .protocol(ProtocolHandlerBuilder::<HttpReqCtx>::new())
+            .build() 
         };
 
-        let protocol = self.protocol.unwrap_or_else(|| ProtocolRegistryKind::single::<HttpReqCtx>());  
         let binding_address = self.binding_address.unwrap_or_else(|| String::from("127.0.0.1:3003")); 
         let mode = self.mode.unwrap_or_else(|| RunMode::Development);
         let worker = self.worker.unwrap_or_else(|| num_cpus()); 
@@ -228,12 +171,6 @@ impl AppBuilder {
             connection_config,
             config: self.config, 
             statics: self.statics,  
-
-            root_url, 
-            middlewares: self
-                .middle_wares
-                .unwrap_or_else(|| Self::default_http_middlewares())
-                .into(), 
         })
     }
 }
@@ -241,10 +178,6 @@ impl AppBuilder {
 impl App {
     pub fn new() -> AppBuilder { 
         AppBuilder::new() 
-    }
-
-    pub fn set_root_url(&mut self, root_url: Arc<Url<HttpReqCtx>>) { 
-        self.root_url = root_url; 
     } 
 
     pub fn get_protocol_address<T: Rx>(&self) -> String {
@@ -314,18 +247,29 @@ impl App {
     /// This function add a new url to the app. It will be added to the root url 
     /// # Arguments 
     /// * `url` - The url to add. It should be a string.
-    pub fn lit_url<T: Into<String>>(
+    pub fn lit_url<R: Rx + 'static, T: Into<String>>(
         self: &Arc<Self>, 
         url: T, 
-    ) -> Arc<super::urls::Url<HttpReqCtx>> { 
-        let url = url.into(); 
-        println!("Adding url: {}", url); 
-        match self.root_url
-            .clone()
-            .literal_url(&url, None, (*self.middlewares).clone(), ParamsClone::default())
-        {
-            Ok(url) => url,
-            Err(_) => super::urls::dangling_url(),
+    ) -> Arc<super::urls::Url<R>> { 
+        match self.protocol.lit_url::<R, _>(url) { 
+            Ok(url) => url, 
+            Err(e) => { 
+                eprintln!("{}", e); 
+                dangling_url() 
+            }
+        }
+    } 
+
+    pub fn reg_from<R: Rx + 'static>(
+        self: &Arc<Self>,
+        segments: &[PathPattern]
+    ) -> Arc<Url<R>> { 
+        match self.protocol.reg_from::<R>(segments){ 
+            Ok(url) => url, 
+            Err(e) => { 
+                eprintln!("{}", e); 
+                urls::dangling_url()
+            }
         }
     }
 
@@ -391,29 +335,6 @@ impl App {
         println!("Server shutdown complete");
     }
 
-    pub fn app_url(
-        self: &Arc<Self>,
-        segments: &[PathPattern]
-    ) -> Result<Arc<Url<HttpReqCtx>>, String> {
-        let mut current = self.root_url.clone();
-        for seg in segments { 
-            current = current.get_child_or_create(seg.clone())?; 
-            current.set_middlewares((*self.middlewares).clone()); 
-        }
-        Ok(current)
-    }
-
-    pub fn reg_from(
-        self: &Arc<Self>,
-        segments: &[PathPattern]
-    ) -> Arc<Url<HttpReqCtx>> { 
-        match self.app_url(segments){ 
-            Ok(url) => url, 
-            Err(_) => {
-                urls::dangling_url()
-            }
-        }
-    }
 } 
 
 // Helper function for determining CPU count
