@@ -92,6 +92,28 @@ request.response.parse_body(
 println!("{:?}, {:?}", request.response.meta, request.response.body); 
 ``` 
 
+### Protocol Registry 
+
+Protocol registry now manages middleware chains and handler registration through a unified API 
+
+The `App` type no longer owns a global `Url` tree or middleware list. 
+
+URLs and middleware must now be configured on the **protocol** level during protocol registration. 
+
+You
+
+```rust 
+pub static APP: SApp = once_cell::sync::Lazy::new(|| {
+    App::new() 
+        .protocol(HandlerBuilder::new()
+            .protocol(ProtocolBuilder::<HttpReqCtx>::new()) 
+            // .protocol(ProtocolBuilder:: /* .. /* ) <- Add another protocol 
+            .build() 
+        )
+        .build() 
+}); 
+``` 
+
 ### Argumented URLs 
 
 Two new kinds of url has been introduced in the 0.5 version, which is `PatUrl` and `ArgUrl`. 
