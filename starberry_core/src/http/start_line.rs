@@ -799,7 +799,210 @@ impl HttpStartLine {
     /// converts it to a response with default values and returns the status code.
     pub fn status_code_mut(&mut self) -> &mut StatusCode {
         &mut self.as_response_mut().status_code
+    } 
+
+    /// Sets the status code of the HTTP start line.
+    ///
+    /// If this start line represents a request, it will be converted to a response
+    /// with the specified status code and default HTTP version (HTTP/1.1).
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - The new status code. Can be any type that implements `Into<StatusCode>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use starberry_core::http::{HttpStartLine, StatusCode};
+    ///
+    /// // Setting status on a response
+    /// let mut response = HttpStartLine::new_response(HttpVersion::Http11, StatusCode::OK);
+    /// response.set_status_code(StatusCode::NotFound);
+    ///
+    /// // Setting status on a request converts it to a response
+    /// let mut request = HttpStartLine::new_request(HttpVersion::Http11, HttpMethod::GET, "/".into());
+    /// request.set_status_code(404);  // Converts to response with 404 status
+    /// ```
+    pub fn set_status_code<T: Into<StatusCode>>(&mut self, status: T) {
+        if let Self::Response(res) = self {
+            res.status_code = status.into();
+        } else {
+            *self = Self::Response(ResponseStartLine::new(
+                HttpVersion::Http11,
+                status.into(),
+            ));
+        }
     }
+
+    /// Sets the HTTP version of the start line.
+    ///
+    /// This method works for both request and response start lines.
+    ///
+    /// # Arguments
+    ///
+    /// * `version` - The new HTTP version.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use starberry_core::http::{HttpStartLine, HttpVersion, StatusCode};
+    ///
+    /// // Setting version on a request
+    /// let mut request = HttpStartLine::new_request(HttpVersion::Http11, HttpMethod::GET, "/".into());
+    /// request.set_http_version(HttpVersion::Http2);
+    ///
+    /// // Setting version on a response
+    /// let mut response = HttpStartLine::new_response(HttpVersion::Http11, StatusCode::OK);
+    /// response.set_http_version(HttpVersion::Http3);
+    /// ```
+    pub fn set_http_version(&mut self, version: HttpVersion) {
+        match self {
+            Self::Request(req) => req.http_version = version,
+            Self::Response(res) => res.http_version = version,
+        }
+    }
+
+    /// Sets the request path of the HTTP start line.
+    ///
+    /// If this start line represents a response, it will be converted to a request
+    /// with the specified path and default method (GET) and HTTP version (HTTP/1.1).
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The new request path. Can be any type that implements `Into<String>`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use starberry_core::http::HttpStartLine;
+    ///
+    /// // Setting path on a request
+    /// let mut request = HttpStartLine::new_request(HttpVersion::Http11, HttpMethod::GET, "/".into());
+    /// request.set_path("/new-path");
+    ///
+    /// // Setting path on a response converts it to a request
+    /// let mut response = HttpStartLine::new_response(HttpVersion::Http11, StatusCode::OK);
+    /// response.set_path("/index.html");  // Converts to request with GET /index.html
+    /// ```
+    pub fn set_path<T: Into<String>>(&mut self, path: T) {
+        if let Self::Request(req) = self {
+            req.path = path.into();
+            req.clear_url();  // Clear cached URL when path changes
+        } else {
+            *self = Self::Request(RequestStartLine::new(
+                HttpVersion::Http11,
+                HttpMethod::GET,
+                path.into(),
+            ));
+        }
+    }
+
+    /// Sets the HTTP method of the start line.
+    ///
+    /// If this start line represents a response, it will be converted to a request
+    /// with the specified method and default path ("/") and HTTP version (HTTP/1.1).
+    ///
+    /// # Arguments
+    ///
+    /// * `method` - The new HTTP method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use starberry_core::http::{HttpStartLine, HttpMethod};
+    ///
+    /// // Setting method on a request
+    /// let mut request = HttpStartLine::new_request(HttpVersion::Http11, HttpMethod::GET, "/".into());
+    /// request.set_method(HttpMethod::POST);
+    ///
+    /// // Setting method on a response converts it to a request
+    /// let mut response = HttpStartLine::new_response(HttpVersion::Http11, StatusCode::OK);
+    /// response.set_method(HttpMethod::PUT);  // Converts to request with PUT /
+    /// ```
+    pub fn set_method(&mut self, method: HttpMethod) {
+        if let Self::Request(req) = self {
+            req.method = method;
+        } else {
+            *self = Self::Request(RequestStartLine::new(
+                HttpVersion::Http11,
+                method,
+                "/".to_string(),
+            ));
+        }
+    } 
+
+    /// Creates a new HTTP POST request start line.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The request path. This can be any type that can be converted into a `String`.
+    ///
+    /// # Returns
+    ///
+    /// A new `HttpStartLine::Request` variant with the POST method and the given path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use starberry_core::http::HttpStartLine;
+    /// let start_line = HttpStartLine::request_post("/submit");
+    /// ```
+    pub fn request_post<T: Into<String>>(url: T) -> Self {
+        Self::Request(RequestStartLine::new(
+            HttpVersion::Http11,
+            HttpMethod::POST,
+            url.into(),
+        ))
+    }
+
+    /// Creates a new HTTP GET request start line.
+    ///
+    /// # Arguments
+    ///
+    /// * `url` - The request path. This can be any type that can be converted into a `String`.
+    ///
+    /// # Returns
+    ///
+    /// A new `HttpStartLine::Request` variant with the GET method and the given path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use starberry_core::http::HttpStartLine;
+    /// let start_line = HttpStartLine::request_get("/index.html");
+    /// ```
+    pub fn request_get<T: Into<String>>(url: T) -> Self {
+        Self::Request(RequestStartLine::new(
+            HttpVersion::Http11,
+            HttpMethod::GET,
+            url.into(),
+        ))
+    }
+
+    /// Creates a new HTTP response start line with a custom status code.
+    ///
+    /// # Arguments
+    ///
+    /// * `status` - The response status code. This can be any type that can be converted into a `StatusCode`.
+    ///
+    /// # Returns
+    ///
+    /// A new `HttpStartLine::Response` variant with the given status code and HTTP/1.1 version.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use starberry_core::http::{HttpStartLine, StatusCode};
+    /// let start_line = HttpStartLine::response(StatusCode::NotFound);
+    /// // or using an integer:
+    /// let start_line = HttpStartLine::response(404);
+    /// ```
+    pub fn response<T: Into<StatusCode>>(status: T) -> Self {
+        Self::Response(ResponseStartLine::new(
+            HttpVersion::Http11,
+            status.into(),
+        ))
+    } 
 
     /// Tries to unwrap this start line as a request.
     ///

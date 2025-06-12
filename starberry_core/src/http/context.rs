@@ -1,15 +1,15 @@
-use std::collections::HashMap;
+use std::collections::HashMap; 
 use std::sync::Arc;
 use async_trait::async_trait;
 use tokio::io::{AsyncWriteExt, BufReader, BufWriter, ReadHalf, WriteHalf};
 use akari::Value;
 use once_cell::sync::Lazy;
 use crate::app::{application::App, urls::Url};
-use crate::connection::Connection;
+use crate::connection::{Connection, ConnectionBuilder};
 use crate::connection::{Rx, Tx};
 use crate::extensions::{Locals, Params};
 use crate::http::cookie::{Cookie, CookieMap};
-use crate::http::request::HttpRequest; 
+use crate::http::request::{self, HttpRequest}; 
 use crate::http::safety::*; 
 use crate::http::{
     http_value::HttpMethod,
@@ -304,12 +304,35 @@ impl HttpResCtx {
             writer: BufWriter::new(writer)
         }
     } 
+
+    /// Sends a request to the given host and returns a `HttpResCtx` context. 
+    /// This function will automatically determine whether to use HTTP or HTTPS based on the host string. 
+    pub async fn send_request<T: Into<String>>(host: T, request: HttpRequest) -> HttpResCtx {
+        let host = host.into(); 
+        // Test whether the host uses https 
+        let is_https = host.starts_with("https://"); 
+        let host = if is_https {
+            host.trim_start_matches("https://").to_string()
+        } else {
+            host.trim_start_matches("http://").to_string()
+        }; 
+        let connection = ConnectionBuilder::new(&host, 80)
+            .tls(is_https)  
+            .connect()
+            .await 
+            .unwrap(); 
+        let mut ctx = HttpResCtx::new(connection, host);
+        ctx.request(request);
+        ctx
+    } 
+
     pub fn request(&mut self, mut request: HttpRequest) { 
         if request.meta.get_host().is_none() {
             request.meta.set_host(Some(self.host.clone()));
         }; 
         self.request = request; 
-    }
+    } 
+
     pub async fn send(&mut self) {
         let _ = self.request.send(&mut self.writer).await;
         self.response = HttpResponse::parse_lazy(&mut self.reader, &ParseConfig::default(), false).await;
@@ -329,7 +352,7 @@ impl Tx for HttpResCtx {
     async fn shutdown(&mut self) -> Result<(), Self::Error> { 
         self.writer.shutdown().await 
     }
-}
+} 
 
 #[cfg(test)]
 mod test { 

@@ -1,4 +1,5 @@
 use crate::app::config::ParseConfig;
+use crate::http::http_value::StatusCode;
 
 use super::cookie::Cookie; 
 use super::body::HttpBody;
@@ -55,6 +56,12 @@ impl HttpResponse {
     /// Set content type for Http Response 
     pub fn content_type(mut self, content_type: HttpContentType) -> Self { 
         self.meta.set_content_type(content_type); 
+        self 
+    } 
+
+    /// Send a status 
+    pub fn status<T: Into<StatusCode>>(mut self, status: T) -> Self { 
+        self.meta.start_line.set_status_code(status); 
         self 
     }
 
