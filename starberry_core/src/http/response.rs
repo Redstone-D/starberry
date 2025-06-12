@@ -59,11 +59,17 @@ impl HttpResponse {
         self 
     } 
 
+    /// Add a header for Http Response 
+    pub fn add_header<T: Into<String>, U: Into<String>>(mut self, key: T, value: U) -> Self { 
+        self.meta.set_attribute(key, value.into()); 
+        self 
+    }
+
     /// Send a status 
     pub fn status<T: Into<StatusCode>>(mut self, status: T) -> Self { 
         self.meta.start_line.set_status_code(status); 
         self 
-    }
+    } 
 
     /// Send the response 
     /// When this method is changed, please also check Request::send() 

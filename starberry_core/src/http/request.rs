@@ -1,4 +1,5 @@
-use crate::app::config::ParseConfig; 
+use crate::app::config::ParseConfig;
+use crate::http::cookie::Cookie; 
 
 use super::{http_value::*, net}; 
 use super::body::HttpBody;
@@ -46,10 +47,28 @@ impl HttpRequest {
         // }; 
         let _ = net::parse_body(&mut self.meta, &mut self.body, reader, max_size).await; 
     } 
+
+    /// Add a cookie into the response metadata. 
+    pub fn add_cookie<T: Into<String>>(mut self, key: T, cookie: Cookie) -> Self { 
+        self.meta.add_cookie(key, cookie); 
+        self 
+    } 
+
+    /// Set content type for Http Response 
+    pub fn content_type(mut self, content_type: HttpContentType) -> Self { 
+        self.meta.set_content_type(content_type); 
+        self 
+    } 
+
+    /// Add a header for Http Request 
+    pub fn add_header<T: Into<String>, U: Into<String>>(mut self, key: T, value: U) -> Self { 
+        self.meta.set_attribute(key, value.into()); 
+        self 
+    }
     
     pub async fn send<W: AsyncWrite + Unpin>(&mut self, writer: &mut BufWriter<W>) -> std::io::Result<()> { 
         net::send(&mut self.meta, &mut self.body, writer).await 
-    }
+    } 
 }
 
 impl Default for HttpRequest {

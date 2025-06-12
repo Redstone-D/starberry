@@ -307,7 +307,7 @@ impl HttpResCtx {
 
     /// Sends a request to the given host and returns a `HttpResCtx` context. 
     /// This function will automatically determine whether to use HTTP or HTTPS based on the host string. 
-    pub async fn send_request<T: Into<String>>(host: T, request: HttpRequest) -> HttpResCtx {
+    pub async fn send_request<T: Into<String>>(host: T, request: HttpRequest) -> HttpResponse {
         let host = host.into(); 
         // Test whether the host uses https 
         let is_https = host.starts_with("https://"); 
@@ -316,14 +316,17 @@ impl HttpResCtx {
         } else {
             host.trim_start_matches("http://").to_string()
         }; 
-        let connection = ConnectionBuilder::new(&host, 80)
+        let connection = ConnectionBuilder::new(&host, match is_https {true => 443, false => 80}) 
+            .protocol(crate::connection::Protocol::HTTP)
             .tls(is_https)  
             .connect()
             .await 
             .unwrap(); 
         let mut ctx = HttpResCtx::new(connection, host);
-        ctx.request(request);
-        ctx
+        ctx.request(request); 
+        ctx.send().await; 
+        ctx.parse_response().await; 
+        ctx.response 
     } 
 
     pub fn request(&mut self, mut request: HttpRequest) { 
@@ -332,6 +335,13 @@ impl HttpResCtx {
         }; 
         self.request = request; 
     } 
+
+    pub async fn parse_response(&mut self) { 
+        self.response.parse_body( 
+            &mut self.reader, 
+            1024 * 1024 
+        ).await; 
+    }
 
     pub async fn send(&mut self) {
         let _ = self.request.send(&mut self.writer).await;
@@ -365,10 +375,7 @@ mod test {
         let connection = builder.connect().await.unwrap(); 
         let mut request = HttpResCtx::new(connection, "example.com");
         let _ = request.process(request_templates::get_request("/")).await;
-        request.response.parse_body(
-            &mut request.reader,
-            1024 * 1024,
-        ).await;
+        request.parse_response().await; 
         println!("{:?}, {:?}", request.response.meta, request.response.body);
     }
 }  

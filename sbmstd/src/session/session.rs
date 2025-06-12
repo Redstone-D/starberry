@@ -9,7 +9,6 @@ use tokio::time;
 use starberry_macro::middleware; 
 use starberry_core::app::middleware::AsyncMiddleware; 
 use starberry_core::http::context::HttpReqCtx;  
-use starberry_core::connection::Rx; 
 
 #[derive(Debug, Clone)]
 pub struct SessionCont {
@@ -83,12 +82,12 @@ impl<'a> SessionRW<'a> {
         self.guard.expiry_time = now + ttl_secs;
     }
 
-    pub fn get(&self, key: &str) -> Option<&String> {
-        self.guard.data.get(key)
+    pub fn get<T: AsRef<str>>(&self, key: T) -> Option<&String> {
+        self.guard.data.get(key.as_ref())
     }
 
-    pub fn set(&mut self, key: String, value: String) {
-        self.guard.data.insert(key, value); 
+    pub fn set<T: Into<String>, U: Into<String>>(&mut self, key: T, value: U) {
+        self.guard.data.insert(key.into(), value.into()); 
     }
 
     pub fn set_all(&mut self, data: HashMap<String, String>) {
@@ -97,6 +96,15 @@ impl<'a> SessionRW<'a> {
         }
     }
 }
+
+impl<'a> Default for SessionRW<'a> {
+    fn default() -> Self {
+        SessionRW {
+            guard: SESSIONS.get_mut(&0).expect("Default session not found"),
+            session_id: 0,
+        } 
+    }
+} 
 
 pub fn get_mut<'a>(id: u64) -> Result<SessionRW<'a>, &'static str> {
     match SESSIONS.get_mut(&id) {

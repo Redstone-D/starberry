@@ -185,9 +185,9 @@ impl<R: Rx> ProtocolHandlerBuilder<R> {
     // Append a middleware instance created by T to the end of the vector.
     pub fn append_middleware<M>(mut self) -> Self
     where
-        M: AsyncMiddleware<R> + Default + 'static,
+        M: AsyncMiddleware<R> + 'static,
     {
-        self.middlewares.push(Arc::new(M::default()));
+        self.middlewares.push(Arc::new(M::return_self()));
         self
     }
 
