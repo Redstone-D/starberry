@@ -9,7 +9,7 @@ use crate::connection::{Connection, ConnectionBuilder};
 use crate::connection::{Rx, Tx};
 use crate::extensions::{Locals, Params};
 use crate::http::cookie::{Cookie, CookieMap};
-use crate::http::request::{self, HttpRequest}; 
+use crate::http::request::HttpRequest; 
 use crate::http::safety::*; 
 use crate::http::{
     http_value::HttpMethod,

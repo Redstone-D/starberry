@@ -2,6 +2,7 @@
 #![allow(non_camel_case_types)] 
 
 use std::{collections::HashMap, hash::Hash}; 
+use starberry_lib::url_encoding::*; 
 
 #[derive(Debug, Clone)]  
 pub enum HttpVersion { 
@@ -857,6 +858,535 @@ impl Default for HttpContentType {
             subtype: "Unknown".to_string(), 
             parameters: None, 
         }
+    }
+} 
+
+/// Error type for Content-Disposition operations
+#[derive(Debug)]
+pub enum ContentDispositionError {
+    /// Empty Content-Disposition header
+    EmptyHeader,
+    /// Invalid parameter format
+    InvalidParameterFormat(String),
+    /// Invalid extended parameter format
+    InvalidExtendedParameter(String),
+    /// UTF-8 decoding error
+    Utf8DecodingError(String),
+    /// Invalid charset
+    InvalidCharset(String),
+}
+
+impl std::fmt::Display for ContentDispositionError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::EmptyHeader => write!(f, "Empty Content-Disposition header"),
+            Self::InvalidParameterFormat(s) => write!(f, "Invalid parameter format: {}", s),
+            Self::InvalidExtendedParameter(s) => write!(f, "Invalid extended parameter format: {}", s),
+            Self::Utf8DecodingError(s) => write!(f, "UTF-8 decoding error: {}", s),
+            Self::InvalidCharset(s) => write!(f, "Invalid charset: {}", s),
+        }
+    }
+}
+
+impl std::error::Error for ContentDispositionError {}
+
+/// Represents the Content-Disposition header as defined in RFC 6266.
+///
+/// The Content-Disposition header is commonly used in HTTP responses to suggest
+/// a filename for a download, and to indicate whether the content should be displayed
+/// inline or as an attachment.
+///
+/// This implementation supports both regular parameters and the extended parameter
+/// syntax defined in RFC 5987 for internationalized filenames (filename*).
+///
+/// # Examples
+///
+/// ```
+/// use content_disposition::{ContentDisposition, ContentDispositionType};
+///
+/// // Create an attachment disposition
+/// let disposition = ContentDisposition::attachment("report.pdf");
+/// assert_eq!(disposition.to_string(), "attachment; filename=\"report.pdf\"");
+///
+/// // Parse a Content-Disposition header with extended parameter syntax
+/// let header = "attachment; filename*=UTF-8''%F0%9F%93%96.txt";
+/// let disposition = ContentDisposition::parse(header).unwrap();
+/// assert_eq!(disposition.filename().unwrap(), "📖.txt");
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub struct ContentDisposition { 
+    disposition_type: ContentDispositionType,
+    // Unified parameter storage - stores both regular and extended parameters
+    parameters: HashMap<String, ParameterValue>,
+}
+
+/// Represents a parameter value (either regular or extended)
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParameterValue {
+    /// Regular parameter value
+    Regular(String),
+    /// Extended parameter value (RFC 5987)
+    Extended(ExtendedValue),
+}
+
+/// Represents an extended parameter value as defined in RFC 5987. 
+/// 
+/// Note that currently only utf-8 is supported 
+///
+/// Extended parameter values have the format: `charset'language'value` 
+/// where:
+/// - `charset` is the character encoding (e.g., "UTF-8")
+/// - `language` is an optional language tag (can be empty)
+/// - `value` is the percent-encoded value
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExtendedValue {
+    /// The character encoding (e.g., "UTF-8")
+    pub charset: String,
+    /// The language tag (can be empty)
+    pub language: String,
+    /// The decoded value
+    pub value: String,
+}
+
+/// Represents the type of a Content-Disposition header.
+///
+/// According to RFC 6266 and common usage, the main types are:
+/// - `Inline`: Content should be displayed within the web page
+/// - `Attachment`: Content should be downloaded as a file
+/// - `FormData`: Content is part of a multipart form submission
+/// - `Other`: Any other disposition type not covered by the standard types
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ContentDispositionType { 
+    /// Content that should be displayed inline in the browser
+    Inline, 
+    /// Content that should be downloaded as a file
+    Attachment, 
+    /// Content that is part of a multipart form submission
+    FormData, 
+    /// Any other disposition type not covered by the standard types
+    Other(String),  
+}
+
+impl ContentDispositionType { 
+    /// Creates a `ContentDispositionType` from a string.
+    ///
+    /// The comparison is case-insensitive. If the string does not match one of the
+    /// standard types, it will be stored as `Other`.
+    ///
+    /// # Arguments
+    ///
+    /// * `string` - A string reference that can be converted to a str
+    ///
+    /// # Returns
+    ///
+    /// A `ContentDispositionType` corresponding to the input string
+    pub fn from_string<A: AsRef<str>>(string: A) -> Self { 
+        let string = string.as_ref().to_lowercase(); 
+        match string.as_str() { 
+            "inline" => ContentDispositionType::Inline, 
+            "attachment" => ContentDispositionType::Attachment, 
+            "form-data" => ContentDispositionType::FormData, 
+            _ => ContentDispositionType::Other(string), 
+        } 
+    } 
+
+    /// Converts the `ContentDispositionType` to its string representation.
+    ///
+    /// # Returns
+    ///
+    /// A `String` containing the canonical string representation of the type
+    pub fn to_string(&self) -> String { 
+        match self { 
+            ContentDispositionType::Inline => "inline".to_string(), 
+            ContentDispositionType::Attachment => "attachment".to_string(), 
+            ContentDispositionType::FormData => "form-data".to_string(), 
+            ContentDispositionType::Other(s) => s.to_string(), 
+        } 
+    } 
+}
+
+impl ExtendedValue {
+    /// Creates a new ExtendedValue from its components.
+    ///
+    /// # Arguments
+    ///
+    /// * `charset` - The character encoding
+    /// * `language` - The language tag
+    /// * `value` - The decoded value
+    ///
+    /// # Returns
+    ///
+    /// A new `ExtendedValue`
+    pub fn new<S1: Into<String>, S2: Into<String>, S3: Into<String>>(charset: S1, language: S2, value: S3) -> Self {
+        ExtendedValue {
+            charset: charset.into(),
+            language: language.into(),
+            value: value.into(),
+        }
+    }
+
+    /// Parses an extended parameter value string.
+    ///
+    /// # Arguments
+    ///
+    /// * `value` - The extended parameter value string (charset'language'value)
+    ///
+    /// # Returns
+    ///
+    /// `Result<ExtendedValue, ContentDispositionError>` containing either the parsed value or an error
+    pub fn parse(value: &str) -> Result<Self, ContentDispositionError> {
+        let mut parts = value.splitn(3, '\'');
+        
+        let charset = parts.next()
+            .ok_or_else(|| ContentDispositionError::InvalidExtendedParameter("missing charset".to_string()))?;
+        
+        let language = parts.next()
+            .ok_or_else(|| ContentDispositionError::InvalidExtendedParameter("missing language".to_string()))?;
+        
+        let encoded_value = parts.next()
+            .ok_or_else(|| ContentDispositionError::InvalidExtendedParameter("missing value".to_string()))?;
+        
+        // Decode the percent-encoded value
+        let bytes = percent_decode(encoded_value.as_bytes()).collect::<Vec<u8>>(); 
+        
+        let decoded_value: String  = if charset.eq_ignore_ascii_case("utf-8") { 
+            String::from_utf8(bytes)
+                .map_err(|e| ContentDispositionError::Utf8DecodingError(e.to_string()))? 
+        } else { 
+            Err(ContentDispositionError::InvalidCharset(charset.into()))? 
+        }; 
+
+        Ok(ExtendedValue {
+            charset: charset.to_string(),
+            language: language.to_string(),
+            value: decoded_value,
+        })
+    }
+
+    /// Gets the percent-encoded form of the value
+    pub fn encoded_value(&self) -> String {
+        encode_url_owned(&self.value) 
+    } 
+
+    /// Converts the extended value to its string representation.
+    ///
+    /// # Returns
+    ///
+    /// A `String` containing the extended parameter value
+    pub fn to_string(&self) -> String {
+        format!("{}'{}'{}",
+            self.charset,
+            self.language,
+            self.encoded_value()
+        )
+    }
+}
+
+impl ContentDisposition {
+    /// Creates a new `ContentDisposition` with the specified type and no parameters.
+    ///
+    /// # Arguments
+    ///
+    /// * `disposition_type` - The type of content disposition
+    ///
+    /// # Returns
+    ///
+    /// A new `ContentDisposition` instance
+    pub fn new(disposition_type: ContentDispositionType) -> Self {
+        ContentDisposition {
+            disposition_type,
+            parameters: HashMap::new(),
+        }
+    }
+
+    /// Creates a new `ContentDisposition` with type "inline".
+    ///
+    /// # Returns
+    ///
+    /// A new `ContentDisposition` instance with type set to `Inline`
+    pub fn inline() -> Self {
+        Self::new(ContentDispositionType::Inline)
+    }
+
+    /// Creates a new `ContentDisposition` with type "attachment".
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` - Optional filename for the attachment
+    ///
+    /// # Returns
+    ///
+    /// A new `ContentDisposition` instance with type set to `Attachment`
+    pub fn attachment<S: Into<String>>(filename: S) -> Self {
+        let mut disposition = Self::new(ContentDispositionType::Attachment);
+        disposition.set_filename(filename);
+        disposition
+    }
+
+    /// Creates a new `ContentDisposition` with type "form-data".
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The form field name
+    /// * `filename` - Optional filename for the form data
+    ///
+    /// # Returns
+    ///
+    /// A new `ContentDisposition` instance with type set to `FormData`
+    pub fn form_data<S: Into<String>, T: Into<String>>(name: S, filename: Option<T>) -> Self {
+        let mut disposition = Self::new(ContentDispositionType::FormData);
+        disposition.set_parameter("name", name);
+        if let Some(fname) = filename {
+            disposition.set_filename(fname);
+        }
+        disposition
+    }
+
+    /// Parses a Content-Disposition header string into a `ContentDisposition`.
+    ///
+    /// This method supports both regular parameters and extended parameters using
+    /// the RFC 5987 syntax (e.g., `filename*=UTF-8''file.txt`).
+    ///
+    /// # Arguments
+    ///
+    /// * `header` - The Content-Disposition header string
+    ///
+    /// # Returns
+    ///
+    /// `Result<ContentDisposition, ContentDispositionError>` containing either the parsed disposition
+    /// or an error message
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use content_disposition::ContentDisposition;
+    ///
+    /// // Regular parameter
+    /// let header = "attachment; filename=\"example.txt\"";
+    /// let disposition = ContentDisposition::parse(header).unwrap();
+    /// assert_eq!(disposition.filename().unwrap(), "example.txt");
+    ///
+    /// // Extended parameter
+    /// let header = "attachment; filename*=UTF-8''%F0%9F%93%96.txt";
+    /// let disposition = ContentDisposition::parse(header).unwrap();
+    /// assert_eq!(disposition.filename().unwrap(), "📖.txt");
+    /// ```
+    pub fn parse(header: &str) -> Result<Self, ContentDispositionError> {
+        let mut parts = header.split(';').map(|s| s.trim());
+        
+        let first = parts.next().ok_or(ContentDispositionError::EmptyHeader)?;
+        let disposition_type = ContentDispositionType::from_string(first);
+        let mut disposition = ContentDisposition::new(disposition_type);
+        
+        // Keep track of regular vs extended parameters for precedence rules
+        let mut extended_params = HashMap::new();
+        let mut regular_params = HashMap::new();
+        
+        for part in parts {
+            if let Some(idx) = part.find('=') {
+                let (key, value) = part.split_at(idx);
+                let key = key.trim();
+                // Skip the '=' character
+                let value = &value[1..].trim();
+                
+                // Check if this is an extended parameter (ends with *)
+                if key.ends_with('*') {
+                    let param_name = key[..key.len() - 1].to_lowercase();
+                    match ExtendedValue::parse(value) {
+                        Ok(extended_value) => {
+                            extended_params.insert(param_name.clone(), extended_value.clone());
+                        },
+                        Err(e) => return Err(e),
+                    }
+                } else {
+                    // Regular parameter
+                    let param_name = key.to_lowercase();
+                    let param_value = unescape_quoted_string(value);
+                    regular_params.insert(param_name.clone(), param_value.clone());
+                }
+            } else if !part.is_empty() {
+                return Err(ContentDispositionError::InvalidParameterFormat(part.to_string()));
+            }
+        }
+        
+        // Apply RFC 6266 precedence rules - extended parameters override regular ones
+        for (name, value) in regular_params {
+            if !extended_params.contains_key(&name) {
+                disposition.set_parameter(&name, value);
+            }
+        }
+        
+        // Extended parameters have precedence
+        for (name, value) in extended_params {
+            disposition.set_parameter_extended(&name, &value.charset, &value.language, &value.value);
+        }
+        
+        Ok(disposition)
+    }
+
+    /// Returns the disposition type.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the `ContentDispositionType`
+    pub fn disposition_type(&self) -> &ContentDispositionType {
+        &self.disposition_type
+    }
+
+    /// Sets the disposition type.
+    ///
+    /// # Arguments
+    ///
+    /// * `disposition_type` - The new disposition type
+    pub fn set_disposition_type(&mut self, disposition_type: ContentDispositionType) {
+        self.disposition_type = disposition_type;
+    }
+
+    /// Returns the filename, if any.
+    ///
+    /// # Returns
+    ///
+    /// An `Option<&str>` containing the filename or `None` if no filename is not set
+    ///
+    /// Per RFC 6266, the filename* parameter has precedence over filename.
+    pub fn filename(&self) -> Option<&str> {
+        match self.parameters.get("filename") {
+            Some(ParameterValue::Regular(v)) => Some(v),
+            Some(ParameterValue::Extended(v)) => Some(&v.value),
+            None => None,
+        }
+    }
+
+    /// Sets the filename.
+    ///
+    /// # Arguments
+    ///
+    /// * `filename` - The new filename
+    ///
+    /// If the filename contains non-ASCII characters, it will automatically
+    /// use the extended parameter format.
+    pub fn set_filename<S: Into<String>>(&mut self, filename: S) {
+        let filename = filename.into();
+        if needs_extended_encoding(&filename) {
+            self.set_parameter_extended("filename", "UTF-8", "", filename);
+        } else {
+            self.set_parameter("filename", filename);
+        }
+    }
+
+    /// Gets a parameter value by name.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The parameter name
+    ///
+    /// # Returns
+    ///
+    /// An `Option<&str>` containing the parameter value or `None` if the parameter is not set
+    pub fn get_parameter(&self, name: &str) -> Option<&str> {
+        match self.parameters.get(&name.to_lowercase()) {
+            Some(ParameterValue::Regular(v)) => Some(v),
+            Some(ParameterValue::Extended(v)) => Some(&v.value),
+            None => None,
+        }
+    }
+
+    /// Sets a regular parameter value.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The parameter name
+    /// * `value` - The parameter value
+    pub fn set_parameter<K: Into<String>, V: Into<String>>(&mut self, name: K, value: V) {
+        let name = name.into().to_lowercase();
+        self.parameters.insert(name, ParameterValue::Regular(value.into()));
+    }
+
+    /// Sets an extended parameter value.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The parameter name (without the trailing '*')
+    /// * `charset` - The character set (e.g., "UTF-8")
+    /// * `language` - The language tag (can be empty)
+    /// * `value` - The parameter value
+    pub fn set_parameter_extended<K: Into<String>, C: Into<String>, L: Into<String>, V: Into<String>>(
+        &mut self, 
+        name: K, 
+        charset: C, 
+        language: L, 
+        value: V
+    ) {
+        let name = name.into().to_lowercase();
+        self.parameters.insert(
+            name, 
+            ParameterValue::Extended(ExtendedValue::new(charset, language, value))
+        );
+    }
+
+    /// Removes a parameter.
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The parameter name
+    ///
+    /// # Returns
+    ///
+    /// `true` if the parameter was present and removed, `false` otherwise
+    pub fn remove_parameter(&mut self, name: &str) -> bool {
+        self.parameters.remove(&name.to_lowercase()).is_some()
+    }
+
+    /// Converts the `ContentDisposition` to its string representation suitable for
+    /// use as an HTTP header value.
+    ///
+    /// This method handles both regular parameters and extended parameters using
+    /// the RFC 5987 syntax.
+    ///
+    /// # Returns
+    ///
+    /// A `String` containing the header value
+    pub fn to_string(&self) -> String {
+        let mut parts = vec![self.disposition_type.to_string()];
+        
+        for (key, value) in &self.parameters {
+            match value {
+                ParameterValue::Regular(v) => {
+                    parts.push(format!("{}=\"{}\"", key, escape_quoted_string(v)));
+                },
+                ParameterValue::Extended(v) => {
+                    parts.push(format!("{}*={}", key, v.to_string()));
+                    
+                    // If this is a filename, also include a fallback ASCII parameter for better compatibility
+                    if key == "filename" {
+                        // Don't add ASCII fallback if the value is already ASCII
+                        if !v.value.chars().all(|c| c <= '\u{7F}') {
+                            let ascii_fallback = v.value.chars()
+                                .map(|c| if c > '\u{7F}' { '_' } else { c })
+                                .collect::<String>();
+                            parts.push(format!("filename=\"{}\"", escape_quoted_string(&ascii_fallback)));
+                        }
+                    }
+                },
+            }
+        }
+        
+        parts.join("; ")
+    }
+
+    /// Returns all parameters.
+    ///
+    /// # Returns
+    ///
+    /// A reference to the parameters map
+    pub fn parameters(&self) -> &HashMap<String, ParameterValue> {
+        &self.parameters
+    }
+}
+
+impl ToString for ContentDisposition {
+    fn to_string(&self) -> String {
+        self.to_string()
     }
 }
 

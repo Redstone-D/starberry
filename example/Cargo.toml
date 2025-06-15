@@ -1,7 +1,8 @@
 [package]
 name = "example"
 version = "0.1.0"
-edition = "2024"
+edition = "2024" 
+build = "build.rs" 
 
 [dependencies]
 starberry = { path = "../starberry", version="0.6.3-rc1"} 

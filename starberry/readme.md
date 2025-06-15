@@ -358,6 +358,13 @@ async fn redirect() -> HttpResponse {
 
 ## 📋 Changelog 
 
+### 0.6.3 
+- Bug fix for multiple set-cookie headers 
+- Request templates now added with simpler methods for http request 
+- Content Disposition now is available in http_value 
+- **Important Workflow Change** 
+    - A build.rs file will be generated automatically from 0.6.3-rc2, `starberry build/run/release` now behaves the same as `cargo build/run` 
+
 ### 0.6.2 
 - Bug fix for Regex Url 
 - Protocol Registery handling middleware and handlers 

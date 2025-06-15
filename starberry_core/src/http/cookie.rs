@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::http::meta::HeaderValue;
+
 #[derive(Debug, Clone, PartialEq)] 
 pub struct CookieMap(pub HashMap<String, Cookie>); 
 
@@ -9,15 +11,35 @@ impl CookieMap {
     } 
 
     /// Parses Cookie header into a Cookie Map 
+    /// ```rust 
+    /// use starberry_core::http::cookie::CookieMap; 
+    /// let cookies = CookieMap::parse("session_id=114674271600181257; session_cont=owM2IdZ27G8SnQdjVWR37YocLRblDLcENy5JRomDKYLFHqcSt1J57C9QTbR4efccwaIZ7ZK1hNAo3osd5AvczzVMNcvjrXgtsoSPS1Fhn1vtIs6BWoOkBWaRYH76PysAOpXt1L2QeIIC8jdr/QnhhDULWaYekzR+Qk9znT+K4G3y9LjxT2P1rbVKc3yw+Zuvr3RyWLpwYxvRVLT5DwvytYNeiZ49gMHpx50VmRJiY+r8ZyIcQVRjcHblLCtt9O5qTh6oOA9yeWXsCdsRFmMbthbKmKlipMyhcN8TFzlgIx8J4QEtVyqg5dLE/Sfwzx+fj9wmgEuqiumNUg+B0D7ElCfyRBo1ovQr0yBaeli/97NzBZVzwYWZMlZt8hcHAkbxlfnPpOc3kXWoyy5fuaimJxIAPbXP4hkNN7HDDqi+mOxvkCxSX1DtosHd8nyclFdpPo/OfQDDlpYQxFAleEsLb+VVtYnTXP2U54hfNf7yHAaj1/1kYB+9ytIIZVWDeX5U83h6FcbxtPJcYXSqnD8iZjujcFiKHSdHMLuM9VQoTk7I3APtX6k1cgtFXHdxZsuy1Dq1UZqrtOAGcKki3kZWzFxbKB/bAX4M5p8xHgiCGwch7EcnOC6cuiulb65uGzDTf9H6VziSPkRecO5tbBSLbh9w1PBDs8ftQZUsxAXHzCVYP1/DhcWGqc9j7AW9Mm0nbQYQlW5kzfmmbttj9sFHsoVEX9dI7HJ+wT16cmkxGwAfbcfQ7MVpZDW2WOatr72JL5MRRfaYQc1H1hiL0TFX4YcZvBpcbNFG+iIUoytxw1ChnLrJkR7r+O9J2PRro2ipbyxZaJF8kEA1615Xm8PZ7YVQLdESJZERL1PHyWTALJqnXu4KBafsrng8aUkgP2z1wvPXk2lMz8cqVVDhZKW18XS7ugc0vMBplP0L6zvoUJcYcxMX5ZhLSzpTYSUBLM0zE4g5LCwZoNrZ36B2dXqItyRbE1u2X8qqvM4wGL6u6SH4oDJqiSLzdCr9r6bPKiGYVkdiyRQMOpnb0xT8xumebuQUxYsJqIErpjIQZDU09HZ5JJQZYuWmFa74+2M+9n7Fh/cmlJ0oV3p28Zg9Nz4EQd8YtepUSAjCEThkxOIx6A=="); 
+    /// assert_eq!(cookies.get("session_id").unwrap().value, "114674271600181257"); 
+    /// println!("{:?}", cookies.get("session_cont").unwrap().get_path()); // None 
+    /// ```
     pub fn parse<T: Into<String>>(cookies: T) -> Self { 
         let mut cookie_map = CookieMap::new(); 
         let cookies = cookies.into(); 
         for cookie in cookies.split(';') {
+            // println!("Parsing cookie: {}", cookie); 
             let parts: Vec<&str> = cookie.split('=').collect();
             if parts.len() == 2 {
                 cookie_map.set(
                     parts[0].trim(), 
-                    Cookie::new(parts[1].trim()));
+                    Cookie::new(parts[1].trim())
+                );
+            } else if parts.len() > 2 { 
+                // If 2 or more parts, treat the first part as name and the rest as value 
+                cookie_map.set(
+                    parts[0].trim(), 
+                    Cookie::new(parts[1..].join("=").trim()) 
+                );
+            } else { 
+                // If no '=' found, treat the whole part as a name with empty value
+                let name = parts[0].trim();
+                if !name.is_empty() {
+                    cookie_map.set(name, Cookie::new(""));
+                } 
             }
         } 
         cookie_map
@@ -81,10 +103,10 @@ impl CookieMap {
         self.0.clear(); 
     } 
 
-    pub fn response(&self) -> String { 
-        let mut result = String::new(); 
+    pub fn response(&self) -> HeaderValue { 
+        let mut result = HeaderValue::Multiple(vec![]); 
         for (key, value) in &self.0 { 
-            result.push_str(&format!("Set-Cookie: {}={};", key, value.response())); 
+            result.add_without_combining(&format!("{}={}", key, value.response())); 
         } 
         result  
     } 

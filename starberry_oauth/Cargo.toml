@@ -16,7 +16,7 @@ jsonwebtoken = "9"
 chrono = { version = "0.4", features = ["serde"] }
 base64 = "0.22.1"
 ring = "0.17.14"
-starberry_lib = { path = "../starberry_lib", version = "0.6.0" }
+starberry_lib = { path = "../starberry_lib", version = "0.7.0" }
 sbmstd = { path = "../sbmstd", version = "0.6.0" }
 starberry_sql = { path = "../starberry_sql", version = "0.6.0" }
 async-trait = "0.1"

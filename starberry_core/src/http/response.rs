@@ -1,5 +1,5 @@
 use crate::app::config::ParseConfig;
-use crate::http::http_value::StatusCode;
+use crate::http::http_value::{ContentDisposition, StatusCode};
 
 use super::cookie::Cookie; 
 use super::body::HttpBody;
@@ -7,8 +7,7 @@ use super::http_value::HttpContentType;
 use super::meta::HttpMeta;
 use super::net;
 use super::start_line::{HttpStartLine, ResponseStartLine}; 
-use std::collections::HashMap;
-use rustls::ContentType;
+use std::collections::HashMap; 
 use tokio::io::{AsyncRead, AsyncWrite, BufReader, BufWriter}; 
 
 #[derive(Debug, Clone)] 
@@ -63,7 +62,13 @@ impl HttpResponse {
     pub fn add_header<T: Into<String>, U: Into<String>>(mut self, key: T, value: U) -> Self { 
         self.meta.set_attribute(key, value.into()); 
         self 
-    }
+    } 
+
+    /// Set the content disposition for the request. 
+    pub fn content_disposition(mut self, disposition: ContentDisposition) -> Self { 
+        self.meta.set_content_disposition(disposition); 
+        self 
+    } 
 
     /// Send a status 
     pub fn status<T: Into<StatusCode>>(mut self, status: T) -> Self { 

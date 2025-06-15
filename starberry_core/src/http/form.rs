@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use once_cell::sync::Lazy;
-use starberry_lib::{decode_url_owned, encode_url_owned};
+use starberry_lib::url_encoding::{decode_url_owned, encode_url_owned};
+
+use crate::http::http_value::ContentDisposition;
 
 #[derive(Debug, Clone)] 
 pub struct UrlEncodedForm{ 
@@ -130,8 +132,9 @@ impl MultiForm{
     /// assert_eq!(form.len(), 2);
     /// assert!(form.contains_key("field1"));
     /// assert!(form.contains_key("file1"));
+    /// println!("Data in field1: {}", form.get_text("field1").unwrap()); 
     /// // Test the file content and filename
-    /// assert_eq!(form.get("file1").unwrap().filename(), Some("example.txt".to_string()));
+    /// assert_eq!(form.get_first_file("file1").unwrap().filename(), Some("example.txt".to_string()));
     /// ```
     pub fn parse(body: Vec<u8>, boundary: String) -> Self {
         /// Finds a subsequence within a larger sequence of bytes.
@@ -141,29 +144,30 @@ impl MultiForm{
                 .position(|window| window == needle)
         }
 
-        /// Extracts the field name from the Content-Disposition header.
-        fn extract_field_name(headers: &str) -> Option<String> {
-            // Simple regex to extract name="value" from Content-Disposition
-            let re = regex::Regex::new(r#"Content-Disposition:.*?name="([^"]+)""#).unwrap();
-            re.captures(headers)
-                .and_then(|cap| cap.get(1))
-                .map(|m| m.as_str().to_string())
-        }
-
-        /// Extracts the filename from the Content-Disposition header if present.
-        fn extract_filename(headers: &str) -> Option<String> {
-            let re = regex::Regex::new(r#"Content-Disposition:.*?filename="([^"]+)""#).unwrap();
-            re.captures(headers)
-                .and_then(|cap| cap.get(1))
-                .map(|m| m.as_str().to_string())
-        }
-
-        /// Extracts the content type from the Content-Type header if present.
-        fn extract_content_type(headers: &str) -> Option<String> {
-            let re = regex::Regex::new(r#"Content-Type:\s*(.+?)(?:\r\n|\r|\n|$)"#).unwrap();
-            re.captures(headers)
-                .and_then(|cap| cap.get(1))
-                .map(|m| m.as_str().trim().to_string())
+        /// Extract headers from part and parse Content-Disposition.
+        fn parse_headers(headers: &[u8]) -> (Option<ContentDisposition>, Option<String>) {
+            if let Ok(headers_str) = std::str::from_utf8(headers) {
+                // Extract Content-Disposition header
+                let lines: Vec<&str> = headers_str.split("\r\n").collect();
+                
+                let mut content_disposition = None;
+                let mut content_type = None;
+                
+                for line in lines {
+                    if line.starts_with("Content-Disposition:") {
+                        if let Ok(disposition) = ContentDisposition::parse(line) {
+                            content_disposition = Some(disposition);
+                        }
+                    } else if line.starts_with("Content-Type:") {
+                        content_type = line.strip_prefix("Content-Type:")
+                            .map(|s| s.trim().to_string());
+                    }
+                }
+                
+                (content_disposition, content_type)
+            } else {
+                (None, None)
+            }
         }
 
         let mut form_map: HashMap<String, MultiFormField> = HashMap::new();
@@ -172,7 +176,7 @@ impl MultiForm{
         let boundary = format!("--{}", boundary);
         let boundary_bytes = boundary.as_bytes();
         let end_boundary = format!("{}--", boundary);
-        let end_boundary_bytes = end_boundary.as_bytes();
+        let _end_boundary_bytes = end_boundary.as_bytes();
 
         // Split the body by boundaries
         let mut parts: Vec<&[u8]> = Vec::new();
@@ -208,14 +212,17 @@ impl MultiForm{
                 let headers = &part[..header_end];
                 let content = &part[header_end + 4..]; // +4 to skip the double CRLF
 
-                // Parse headers as UTF-8 string
-                if let Ok(headers_str) = std::str::from_utf8(headers) {
-                    let name = extract_field_name(headers_str);
-                    let filename = extract_filename(headers_str);
-                    let content_type = extract_content_type(headers_str);
-
-                    if let Some(field_name) = name {
-                        if let Some(filename) = filename {
+                let (disposition, content_type) = parse_headers(headers);
+                
+                if let Some(disposition) = disposition {
+                    // Get the field name from name parameter
+                    if let Some(field_name) = disposition.get_parameter("name") {
+                        let field_name = field_name.to_string();
+                        
+                        // Check if this is a file by looking for filename parameter
+                        if let Some(filename) = disposition.filename() {
+                            let filename = filename.to_string();
+                            
                             match form_map.get_mut(&field_name) {
                                 Some(field) => {
                                     field.insert_file(MultiFormFieldFile::new(
@@ -259,40 +266,56 @@ impl MultiForm{
             }
         }
 
-        form_map.into() 
+        form_map.into()
     } 
 
     /// Change a MultiForm into a string. 
-    pub fn to_string(&self, boundary: &String) -> String { 
+    pub fn to_string(&self, boundary: &String) -> String {
         let mut form_data = String::new();
+        
         for (key, field) in &self.data {
             form_data.push_str(&format!("--{}\r\n", boundary));
+            
             match field {
                 MultiFormField::Text(value) => {
-                    form_data.push_str(&format!(
-                        "Content-Disposition: form-data; name=\"{}\"\r\n\r\n{}\r\n",
-                        key, value
-                    ));
+                    // Create a simple form-data Content-Disposition header
+                    let disposition = ContentDisposition::form_data::<_, String>(key, None);
+                    form_data.push_str(&format!("{}\r\n\r\n{}\r\n", disposition.to_string(), value));
                 }
                 MultiFormField::File(files) => {
                     for file in files {
-                        form_data.push_str(&format!(
-                            "Content-Disposition: form-data; name=\"{}\"; filename=\"{}\"\r\n",
-                            key,
-                            file.filename.as_ref().unwrap_or(&"".to_string())
-                        ));
+                        // Create a Content-Disposition with filename
+                        let disposition = ContentDisposition::form_data(key, 
+                            file.filename.as_ref().map(|f| f.to_string()));
+                        
+                        form_data.push_str(&format!("{}\r\n", disposition.to_string()));
+                        
+                        // Add Content-Type if available
                         if let Some(content_type) = &file.content_type {
                             form_data.push_str(&format!("Content-Type: {}\r\n", content_type));
                         }
+                        
+                        // Add empty line followed by content
                         form_data.push_str("\r\n");
-                        form_data.push_str(std::str::from_utf8(&file.data).unwrap_or(""));
+                        
+                        // Try to convert file data to string, fallback to binary
+                        if let Ok(data_str) = std::str::from_utf8(&file.data) {
+                            form_data.push_str(data_str);
+                        } else {
+                            // Binary data handling - in a real implementation, this would need to handle
+                            // non-UTF8 data properly, possibly using base64 encoding or other approaches
+                            form_data.push_str("[binary data]");
+                        }
+                        
                         form_data.push_str("\r\n");
                     }
                 }
             }
         }
+        
+        // Add the final boundary
         form_data.push_str(&format!("--{}--\r\n", boundary));
-        form_data 
+        form_data
     }
 
     /// Inserts a field into the MultiForm. 
@@ -309,6 +332,16 @@ impl MultiForm{
     pub fn get_all(&self) -> &HashMap<String, MultiFormField> { 
         &self.data 
     } 
+
+    /// Whether contains a specific key 
+    pub fn contains_key(&self, key: &str) -> bool { 
+        self.data.contains_key(key) 
+    } 
+
+    /// Returns the number of elements in the form. 
+    pub fn len(&self) -> usize { 
+        self.data.len() 
+    }
 
     /// Gets the files from the MultiForm. 
     pub fn get_text(&self, key: &str) -> Option<&String> { 
@@ -422,7 +455,7 @@ impl MultiFormField {
         } else {
             None 
         } 
-    } 
+    }  
 }
 
 impl Default for MultiFormField { 

@@ -1,4 +1,6 @@
 /target
+/templates
+/programfiles
 Cargo.lock
 .DS_Store
 starberry.toml

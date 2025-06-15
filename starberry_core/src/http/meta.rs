@@ -23,6 +23,9 @@ pub struct HttpMeta {
     // Cookies header in request, Set-Cookie header in response 
     cookies: Option<CookieMap>, 
 
+    // Content-Disposition header, used for file downloads in responses 
+    content_disposition: Option<ContentDisposition>, 
+
     // Host header, overrides the content length from the hashmap if present  
     host: Option<String>, 
 
@@ -367,6 +370,45 @@ impl HeaderValue {
             HeaderValue::Single(value) => vec![value],
             HeaderValue::Multiple(values) => values.iter().collect(),
         }
+    } 
+
+    /// Converts the HeaderValue into a string suitable f or use in HTTP headers. 
+    /// This method formats the header value according to HTTP standards, ensuring 
+    /// that single values are represented as a single line and multiple values are 
+    /// each represented on their own line. 
+    /// 
+    /// # Arguments 
+    /// * `header_name` - The name of the header to use in the formatted string. 
+    /// 
+    /// # Returns 
+    /// A string formatted as an HTTP header line or lines, ready to be sent in a request or response. 
+    /// 
+    /// # Examples 
+    /// ```rust 
+    /// use starberry_core::http::meta::HeaderValue; 
+    /// let header_value = HeaderValue::new("text/html"); 
+    /// let header_string = header_value.into_header_string("Content-Type"); 
+    /// assert_eq!(header_string, "Content-Type: text/html\r\n"); 
+    /// let mut multi_header = HeaderValue::new("text/html"); 
+    /// multi_header.append("application/json"); 
+    /// let multi_header_string = multi_header.into_header_string("Accept"); 
+    /// assert_eq!(multi_header_string, "Accept: text/html\r\nAccept: application/json\r\n"); 
+    /// ``` 
+    pub fn into_header_string(&self, header_name: &str) -> String {
+        match self {
+            HeaderValue::Single(v) => {
+                // Single values get a single header line
+                format!("{}: {}\r\n", header_name, v)
+            },
+            HeaderValue::Multiple(values) => {
+                // Multiple values each get their own header line
+                let mut result = String::new(); 
+                for v in values {
+                    result.push_str(&format!("{}: {}\r\n", header_name, v));
+                } 
+                result 
+            }
+        }
     }
 }
 
@@ -486,6 +528,7 @@ impl HttpMeta {
             header: headers,
             content_type: None,
             content_length: None,
+            content_disposition: None, 
             cookies: None, 
             host: None, 
             lang: None, 
@@ -1013,7 +1056,175 @@ impl HttpMeta {
     pub fn delete_content_type(&mut self) {
         self.content_type = None;
         self.header.remove("content-type");
-    }
+    } 
+
+    /// Gets the Content-Disposition header value from the HTTP metadata.
+    ///
+    /// This method returns the cached Content-Disposition value if available.
+    /// If not cached, it parses the "Content-Disposition" header from the headers map.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<ContentDisposition>` - The parsed Content-Disposition value, or None if not present.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// use starberry_core::http::meta::HeaderValue;
+    /// use starberry_core::http::http_value::ContentDisposition;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert(
+    ///     "content-disposition".to_string(),
+    ///     HeaderValue::new("attachment; filename=\"report.pdf\"")
+    /// );
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// let content_disp = meta.get_content_disposition();
+    /// assert!(content_disp.is_some());
+    /// assert_eq!(content_disp.unwrap().filename().unwrap(), "report.pdf");
+    /// ``` 
+    pub fn get_content_disposition(&mut self) -> Option<ContentDisposition> {
+        if let Some(ref content_disposition) = self.content_disposition {
+            return Some(content_disposition.clone());
+        }
+        self.parse_content_disposition()
+    } 
+
+    /// Parses the Content-Disposition header from the headers map and stores it in the content_disposition field.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<ContentDisposition>` - The parsed Content-Disposition value, or None if not present.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// use starberry_core::http::meta::HeaderValue;
+    /// use starberry_core::http::http_value::ContentDisposition;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert(
+    ///     "content-disposition".to_string(),
+    ///     HeaderValue::new("form-data; name=\"file\"; filename=\"data.txt\"")
+    /// );
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// let content_disp = meta.parse_content_disposition();
+    /// assert!(content_disp.is_some());
+    /// assert_eq!(content_disp.unwrap().filename().unwrap(), "data.txt");
+    /// ```
+    pub fn parse_content_disposition(&mut self) -> Option<ContentDisposition> {
+        let content_disposition = self.header
+            .get("content-disposition")
+            .and_then(|s| ContentDisposition::parse(&s.first()).ok());
+        
+        if let Some(ref cd) = content_disposition {
+            self.content_disposition = Some(cd.clone()); 
+           
+        }
+        content_disposition
+    } 
+
+    /// Sets the content_disposition field.
+    ///
+    /// # Arguments
+    ///
+    /// * `content_disposition` - The Content-Disposition value to set.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// use starberry_core::http::http_value::{ContentDisposition, ContentDispositionType};
+    /// 
+    /// let mut meta = HttpMeta::default();
+    /// let cd = ContentDisposition::attachment("report.pdf");
+    /// meta.set_content_disposition(cd.clone());
+    /// 
+    /// assert_eq!(meta.get_content_disposition(), Some(cd));
+    /// ```
+    pub fn set_content_disposition(&mut self, content_disposition: ContentDisposition) {
+        self.content_disposition = Some(content_disposition);
+    } 
+
+    /// Clears the cached content_disposition field without modifying the header map.
+    ///
+    /// This method invalidates the cached Content-Disposition value, which will cause
+    /// subsequent calls to `get_content_disposition()` to re-parse the value from the
+    /// headers map.
+    ///
+    /// Note that it will **NOT** clear the value in the headers map.
+    /// To remove both the cached field and the header, use `delete_content_disposition()`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// use starberry_core::http::meta::HeaderValue;
+    /// use starberry_core::http::http_value::ContentDisposition;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert(
+    ///     "content-disposition".to_string(),
+    ///     HeaderValue::new("inline; filename=\"image.jpg\"")
+    /// );
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// // Parse the value into the cache
+    /// let content_disp = meta.get_content_disposition();
+    /// assert!(content_disp.is_some());
+    /// 
+    /// // Clear the cache only
+    /// meta.clear_content_disposition();
+    /// 
+    /// // The header is still intact and will be re-parsed
+    /// assert!(meta.get_content_disposition().is_some());
+    /// ```
+    pub fn clear_content_disposition(&mut self) {
+        self.content_disposition = None;
+    } 
+
+    /// Deletes the Content-Disposition header completely, clearing both the cached field
+    /// and removing it from the header map.
+    ///
+    /// This method removes the content-disposition header from the headers map and
+    /// clears the cached content_disposition value. Subsequent calls to `get_content_disposition()`
+    /// will return None unless a new header is set.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// use starberry_core::http::meta::HeaderValue;
+    /// use starberry_core::http::http_value::ContentDisposition;
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert(
+    ///     "content-disposition".to_string(),
+    ///     HeaderValue::new("attachment; filename=\"data.zip\"")
+    /// );
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// // Delete both the cache and header
+    /// meta.delete_content_disposition();
+    /// 
+    /// // The header is gone
+    /// assert!(meta.get_header("content-disposition").is_none());
+    /// 
+    /// // And get_content_disposition will now return None
+    /// assert!(meta.get_content_disposition().is_none());
+    /// ```
+    pub fn delete_content_disposition(&mut self) {
+        self.content_disposition = None;
+        self.header.remove("content-disposition");
+    } 
 
     /// Gets the cookies from the HTTP meta data.
     ///
@@ -1037,8 +1248,8 @@ impl HttpMeta {
     /// let mut meta = HttpMeta::new(Default::default(), headers);
     /// 
     /// let cookies = meta.get_cookies();
-    /// assert_eq!(cookies.get("sessionId").unwrap().value(), "abc123");
-    /// assert_eq!(cookies.get("theme").unwrap().value(), "dark");
+    /// assert_eq!(cookies.get("sessionId").unwrap().get_value(), "abc123");
+    /// assert_eq!(cookies.get("theme").unwrap().get_value(), "dark");
     /// ```
     pub fn get_cookies(&mut self) -> &CookieMap {
         if self.cookies.is_none() { 
@@ -1071,7 +1282,9 @@ impl HttpMeta {
     /// let mut meta = HttpMeta::new(Default::default(), headers);
     /// 
     /// let session_cookie = meta.get_cookie("sessionId");
-    /// assert_eq!(session_cookie.unwrap().value(), "abc123");
+    /// let theme_cookie = meta.get_cookie("theme");
+    /// assert_eq!(session_cookie.unwrap().get_value(), "abc123");
+    /// assert_eq!(theme_cookie.unwrap().get_value(), "dark");
     /// ```
     pub fn get_cookie<T: AsRef<str>>(&mut self, key: T) -> Option<Cookie> {
         if self.cookies.is_none() {
@@ -1103,11 +1316,11 @@ impl HttpMeta {
     /// 
     /// // Existing cookie
     /// let session_cookie = meta.get_cookie_or_default("sessionId");
-    /// assert_eq!(session_cookie.value(), "abc123");
+    /// assert_eq!(session_cookie.get_value(), "abc123");
     /// 
     /// // Non-existent cookie returns default
     /// let nonexistent = meta.get_cookie_or_default("nonexistent");
-    /// assert_eq!(nonexistent.value(), "");
+    /// assert_eq!(nonexistent.get_value(), "");
     /// ```
     pub fn get_cookie_or_default<T: AsRef<str>>(&mut self, key: T) -> Cookie {
         self.get_cookie(key).unwrap_or_else(|| Cookie::new(""))
@@ -1221,8 +1434,10 @@ impl HttpMeta {
     /// 
     /// let mut meta = HttpMeta::default();
     /// meta.add_cookie("sessionId", Cookie::new("abc123"));
+    /// assert_eq!(meta.get_cookie("sessionId").unwrap().get_value(), "abc123"); 
     /// 
-    /// assert_eq!(meta.get_cookie("sessionId").unwrap().value(), "abc123");
+    /// meta.add_cookie("sessionCont", Cookie::new("123"));
+    /// assert_eq!(meta.get_cookie("sessionId").unwrap().get_value(), "abc123"); 
     /// ```
     pub fn add_cookie<T: Into<String>>(&mut self, key: T, cookie: Cookie) { 
         if self.cookies.is_none() { 
@@ -1779,7 +1994,13 @@ impl HttpMeta {
         if let Some(content_length) = self.content_length {
             result.push_str(&format!("content-length: {}\r\n", content_length));
             handled_headers.insert("content-length".to_string());
-        }
+        } 
+
+        // Add content-disposition if present 
+        if let Some(ref content_disposition) = self.content_disposition {
+            result.push_str(&format!("content-disposition: {}\r\n", content_disposition.to_string()));
+            handled_headers.insert("content-disposition".to_string());
+        } 
 
         // Add host if present 
         if let Some(ref host) = self.host {
@@ -1817,7 +2038,7 @@ impl HttpMeta {
                 // For responses, we use Set-Cookie headers
                 let cookie_header = cookies.response();
                 if !cookie_header.is_empty() {
-                    result.push_str(&format!("{}\r\n", cookie_header));
+                    result.push_str(&format!("{}", cookie_header.into_header_string("set-cookie"))); 
                     handled_headers.insert("set-cookie".to_string());
                 }
             }
@@ -1826,18 +2047,7 @@ impl HttpMeta {
         // Now process any remaining headers from the hashmap
         for (key, value) in &self.header {
             if !handled_headers.contains(key) {
-                match value {
-                    HeaderValue::Single(v) => {
-                        // Single values get a single header line
-                        result.push_str(&format!("{}: {}\r\n", key, v));
-                    },
-                    HeaderValue::Multiple(values) => {
-                        // Multiple values each get their own header line
-                        for v in values {
-                            result.push_str(&format!("{}: {}\r\n", key, v));
-                        }
-                    }
-                }
+                result.push_str(&value.into_header_string(key));
             }
         }
         
@@ -1858,7 +2068,8 @@ impl Default for HttpMeta {
             ), 
             header: HashMap::new(),
             content_type: None,
-            content_length: None,
+            content_length: None, 
+            content_disposition: None, 
             cookies: None, 
             host: None, 
             lang: None, 

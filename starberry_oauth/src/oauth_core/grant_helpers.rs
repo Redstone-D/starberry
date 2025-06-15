@@ -3,7 +3,7 @@ use super::oauth_client::OAuthClient;
 use super::types::{Token, OAuthError, TokenModel};
 use super::oauth_provider::TokenStorage;
 use super::http_client::{OAuthHttpClient, HttpRequest, RedirectPolicy};
-use starberry_lib::encode_url_owned;
+use starberry_lib::url_encoding::encode_url_owned;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use starberry_core::http::http_value::HttpMethod;

@@ -64,7 +64,13 @@ impl HttpRequest {
     pub fn add_header<T: Into<String>, U: Into<String>>(mut self, key: T, value: U) -> Self { 
         self.meta.set_attribute(key, value.into()); 
         self 
-    }
+    } 
+
+    /// Set the content disposition for the request. 
+    pub fn content_disposition(mut self, disposition: ContentDisposition) -> Self { 
+        self.meta.set_content_disposition(disposition); 
+        self 
+    } 
     
     pub async fn send<W: AsyncWrite + Unpin>(&mut self, writer: &mut BufWriter<W>) -> std::io::Result<()> { 
         net::send(&mut self.meta, &mut self.body, writer).await 
@@ -90,7 +96,9 @@ impl Default for HttpRequest {
 pub mod request_templates {
     use std::collections::HashMap;
 
-    use crate::http::{body::HttpBody, http_value::{HttpMethod, HttpVersion}, meta::HttpMeta, start_line::HttpStartLine};
+    use akari::Value;
+
+    use crate::http::{body::HttpBody, http_value::{HttpContentType, HttpMethod, HttpVersion}, meta::HttpMeta, start_line::HttpStartLine};
 
     use super::HttpRequest;
  
@@ -105,5 +113,16 @@ pub mod request_templates {
         );
         let body = HttpBody::Unparsed;
         HttpRequest::new(meta, body) 
-    }
+    } 
+
+    pub fn json_request<T: Into<String>>(url: T, body: Value) -> HttpRequest { 
+        let start_line = HttpStartLine::new_request(
+            HttpVersion::Http11, 
+            HttpMethod::POST, 
+            url.into() 
+        ); 
+        let mut meta = HttpMeta::new(start_line, HashMap::new()); 
+        meta.set_content_type(HttpContentType::ApplicationJson()); 
+        HttpRequest::new(meta, HttpBody::Json(body)) 
+    }  
 } 

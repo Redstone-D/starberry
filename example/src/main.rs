@@ -5,3 +5,5 @@ use example::APP;
 async fn main() {
     APP.clone().run().await;
 } 
+
+mod resource;
