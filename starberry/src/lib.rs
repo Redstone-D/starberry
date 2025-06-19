@@ -34,6 +34,10 @@ pub use starberry_core::http::http_value::*;
 pub use starberry_core::http::cookie::*; 
 pub use starberry_core::http::body::*; 
 pub use starberry_core::http::form::*; 
+pub use starberry_core::http::encoding::*; 
+pub use starberry_core::http::safety::HttpSafety;
+
+pub use starberry_core::extensions::*; 
 
 pub use starberry_core; 
 pub use akari; 

@@ -1,7 +1,7 @@
 use proc_macro::{Delimiter, TokenStream, TokenTree};
 use quote::{quote, ToTokens}; 
 use syn::{
-    braced, bracketed, parse::{Parse, ParseStream}, parse_macro_input, parse_quote, punctuated::Punctuated, spanned::Spanned, Block, Expr, FnArg, Ident, ItemFn, LitInt, LitStr, Pat, PatIdent, Result as SynResult, ReturnType, Token, Type
+    braced, bracketed, parse::{Parse, ParseStream}, parse_macro_input, parse_quote, punctuated::Punctuated, spanned::Spanned, token::Comma, Block, Expr, FnArg, Ident, ItemFn, LitInt, LitStr, Pat, PatIdent, Result as SynResult, ReturnType, Token, Type
 }; 
 use proc_macro2::{Span, TokenStream as TokenStream2}; 
 
@@ -61,9 +61,8 @@ use proc_macro2::{Span, TokenStream as TokenStream2};
 
 struct UrlMethodArgs {
     pub url_expr: Expr,
-    pub max_body_size: Option<Expr>,
-    pub allowed_methods: Option<Expr>,
-    pub allowed_content_type: Option<Expr>,
+    pub config: Option<Vec<Expr>>,
+    pub middlewares: Option<Vec<Expr>> 
 } 
 
 impl Parse for UrlMethodArgs {
@@ -72,9 +71,8 @@ impl Parse for UrlMethodArgs {
         let url_expr: Expr = input.parse()?;
         
         // Initialize optional parameters
-        let mut max_body_size = None;
-        let mut allowed_methods = None;
-        let mut allowed_content_type = None;
+        let mut config: Option<Vec<Expr>> = None;
+        let mut middlewares: Option<Vec<Expr>> = None;
         
         // If there are more tokens, process named parameters
         while !input.is_empty() {
@@ -95,14 +93,15 @@ impl Parse for UrlMethodArgs {
                 
                 // Parse parameter value based on name
                 match param_name_str.as_str() {
-                    "max_body_size" => {
-                        max_body_size = Some(input.parse()?);
+                    "config" => {
+                        let content;
+                        syn::bracketed!(content in input);
+                        let list = Punctuated::<Expr, Comma>::parse_terminated(&content)?;
+                        config = Some(list.into_iter().collect());
                     },
-                    "allowed_methods" => {
-                        allowed_methods = Some(input.parse()?);
-                    },
-                    "allowed_content_type" => {
-                        allowed_content_type = Some(input.parse()?);
+                    "middleware" => {
+                        let list = Punctuated::<Expr, Comma>::parse_terminated(input)?;
+                        middlewares = Some(list.into_iter().collect());
                     },
                     _ => return Err(input.error(format!("unknown parameter: {}", param_name_str))),
                 }
@@ -113,9 +112,8 @@ impl Parse for UrlMethodArgs {
         
         Ok(UrlMethodArgs {
             url_expr,
-            max_body_size,
-            allowed_methods,
-            allowed_content_type,
+            config, 
+            middlewares  
         })
     }
 } 
@@ -133,29 +131,25 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
     let register_fn_ident = syn::Ident::new(&register_fn_name, func_ident.span());
 
     // Generate code for setting optional parameters
-    let set_max_body_size = if let Some(size_expr) = args.max_body_size {
-        quote! {
-            child_url.set_max_body_size(#size_expr);
-        }
+    let config_setup = if let Some(config_expr) = args.config {
+        let set_calls = config_expr.iter().map(|expr| {
+            quote! { child_url.set_params(#expr); }
+        });
+        quote! { #(#set_calls)* }
     } else {
         quote! {}
-    };
+    }; 
 
-    let set_allowed_methods = if let Some(methods_expr) = args.allowed_methods {
-        quote! {
-            child_url.set_allowed_methods(#methods_expr.to_vec());
+    let middleware_setup = if let Some(middleware_expr) = args.middlewares {
+        quote! { 
+            let mut middlewares: Vec<std::sync::Arc<(dyn starberry::starberry_core::app::middleware::AsyncMiddleware<_> + 'static)>> = vec![]; 
+            middlewares.append(vec![#(Arc::new(#middleware_expr)),*]) 
+            child_url.set_middlewares(middlewares);  
         }
     } else {
-        quote! {}
-    };
-
-    let set_allowed_content_type = if let Some(content_type_expr) = args.allowed_content_type {
-        quote! {
-            child_url.set_allowed_content_type(#content_type_expr.to_vec());
+        quote! { 
         }
-    } else {
-        quote! {}
-    };
+    }; 
 
     // Check if the function has a parameter
     let has_param = !func.sig.inputs.is_empty();
@@ -338,10 +332,9 @@ pub fn url(attr: TokenStream, function: TokenStream) -> TokenStream {
         // This function will be executed at startup (using the ctor crate).
         #[ctor::ctor]
         fn #register_fn_ident() {
-            let child_url = #url_expr;
-            #set_max_body_size
-            #set_allowed_methods
-            #set_allowed_content_type
+            let mut child_url = #url_expr;  
+            #config_setup 
+            #middleware_setup 
             child_url.set_method(Arc::new(#register_function)); 
             // child_url.set_middlewares(child_url.middlewares.read().unwrap().get_middlewares()); 
         }

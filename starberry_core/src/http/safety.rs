@@ -357,13 +357,25 @@ impl HttpSafety {
     pub fn with_max_body_size(mut self, size: usize) -> Self {
         self.set_max_body_size(Some(size));
         self
-    }
+    } 
+
+    /// Builder method to add a single allowed method 
+    pub fn with_allowed_method(mut self, method: HttpMethod) -> Self {
+        self.add_method(method);
+        self
+    } 
     
     /// Builder method to set method allow list
     pub fn with_allowed_methods(mut self, methods: Vec<HttpMethod>) -> Self {
         self.set_allowed_methods(Some(methods));
         self
-    }
+    } 
+
+    /// Builder method to add a single allowed content type 
+    pub fn with_allowed_content_type(mut self, content_type: HttpContentType) -> Self {
+        self.add_content_type(content_type);
+        self
+    } 
     
     /// Builder method to set content type allow list
     pub fn with_allowed_content_types(mut self, types: Vec<HttpContentType>) -> Self {

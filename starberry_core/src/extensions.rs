@@ -511,7 +511,30 @@ impl ParamsClone {
         for (ty, value) in &other.inner {
             self.inner.entry(*ty).or_insert((**value).clone_box());
         }
-    }
+    } 
+    
+    /// Combines entries from `other` into `self`.
+    ///
+    /// For each type not already present in `self`, clones the boxed value from `other`.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::extensions::ParamsClone;
+    ///
+    /// let mut a = ParamsClone::default();
+    /// a.set(1u8);
+    /// let mut b = ParamsClone::default();
+    /// b.set(2u8);
+    /// a.merge(&b);
+    /// assert_eq!(a.get::<u8>(), Some(&2u8));
+    /// ```
+    pub fn merge(&mut self, other: &Self) {
+        for (ty, value) in &other.inner {
+            // If the type is already present, we replace it with the new value
+            self.inner.insert(*ty, (**value).clone_box());
+        } 
+    } 
 } 
 
 impl Clone for ParamsClone {
@@ -721,7 +744,7 @@ impl LocalsClone {
     /// a.set("x", 1);
     /// let mut b = LocalsClone::default();
     /// b.set("y", 2);
-    /// a.combine(b);
+    /// a.combine(&b);
     /// assert_eq!(a.get::<i32>("x"), Some(&1));
     /// assert_eq!(a.get::<i32>("y"), Some(&2));
     /// ```
@@ -729,7 +752,31 @@ impl LocalsClone {
         for (key, value) in &other.inner {
             self.inner.entry((*key).clone()).or_insert((**value).clone_box());
         }
-    }
+    } 
+
+    /// Merges entries from `other` into `self`. 
+    /// 
+    /// For each key not already present in `self`, replaces the value with the one from `other`. 
+    /// 
+    /// # Examples 
+    /// 
+    /// ```rust
+    /// use starberry_core::extensions::LocalsClone;
+    ///
+    /// let mut a = LocalsClone::default();
+    /// a.set("x", 1);
+    /// let mut b = LocalsClone::default();
+    /// b.set("y", 2);
+    /// a.merge(&b);
+    /// assert_eq!(a.get::<i32>("x"), Some(&1));
+    /// assert_eq!(a.get::<i32>("y"), Some(&2));
+    /// ``` 
+    pub fn merge(&mut self, other: &LocalsClone) {
+        for (key, value) in &other.inner {
+            // If the key is already present, we replace it with the new value
+            self.inner.insert((*key).clone(), (**value).clone_box());
+        }
+    } 
 } 
 
 impl Clone for LocalsClone {

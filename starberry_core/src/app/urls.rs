@@ -325,7 +325,7 @@ impl<R: Rx + 'static> Url<R> {
 
     /// Stores a value in the URL's parameter storage, overwriting any existing value
     /// of the same type. This only affects the current URL node, not its ancestors.
-    pub fn set_params<T: ParamValue + 'static>(&self, value: T) {
+    pub fn set_params<T: ParamValue + 'static>(&self, value: T) { 
         self.params.write().unwrap().set(value);
     } 
 
@@ -407,7 +407,7 @@ impl<R: Rx + 'static> Url<R> {
             ancestor: Ancestor::Some(Arc::clone(&self)),
             method: RwLock::new(function), 
             middlewares: RwLock::new(middleware), 
-            params: RwLock::new(self.combine_params_for(&params)),  
+            params: RwLock::new(self.combine_params(&params)),  
         });
 
         // Now lock for writing and insert the new child
@@ -565,7 +565,16 @@ impl<R: Rx + 'static> Url<R> {
         *guard = middlewares; 
     } 
 
-    pub fn combine_params_for(&self, params: &ParamsClone) -> ParamsClone { 
+    /// Combine the current URL's parameters with the provided parameters. 
+    pub fn combine_params(&self, params: &ParamsClone) -> ParamsClone { 
+        let guard = self.params.read().unwrap(); 
+        let mut original = (*guard).clone(); 
+        original.combine(params); 
+        return original 
+    } 
+
+    /// Merge the current URL's parameters with the provided parameters. 
+    pub fn merge_params(&self, params: &ParamsClone) -> ParamsClone { 
         let guard = self.params.read().unwrap(); 
         let mut original = (*guard).clone(); 
         original.combine(params); 

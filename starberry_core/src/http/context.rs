@@ -85,6 +85,9 @@ impl HttpReqCtx {
     /// Checks whether the request fulfills the endpoint's security requirements.
     pub fn request_check(&mut self, endpoint: &Arc<Url<HttpReqCtx>>) -> bool {
         let config = endpoint.get_params::<HttpSafety>().unwrap_or_default();
+        // println!(
+        //     "Checking request: {:?} ",config
+        // ); 
         return config.check_body_size(self.request.meta.get_content_length().unwrap_or(0))
             && config.check_method(&self.request.meta.method())
             && config

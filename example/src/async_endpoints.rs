@@ -1,11 +1,11 @@
-use starberry::{prelude::*, ContentDisposition};   
+use starberry::{prelude::*, ContentDisposition, HttpMethod};   
 
 pub use crate::APP; 
 
 static TEST_URL: SPattern = Lazy::new(|| {LitUrl("async")}); 
 
 #[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("channel1")]))] 
-async fn async_test() -> HttpResponse {
+async fn async_test() -> HttpResponse { 
     sleep(Duration::from_secs(1));
     println!("1");
     sleep(Duration::from_secs(1)); 
@@ -15,7 +15,7 @@ async fn async_test() -> HttpResponse {
     text_response("Async Test Page") 
 } 
 
-#[url(APP.reg_from(&[TEST_URL.clone(), RegUrl("channel2")]))]  
+#[url(reg![&APP, TEST_URL.clone(), RegUrl("channel2")])]  
 async fn async_test2() -> HttpResponse {
     sleep(Duration::from_secs(1));
     println!("1");
@@ -33,7 +33,7 @@ async fn testa() -> HttpResponse {
 
 #[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("get_serect_key")]))]  
 async fn get_serect_key() -> HttpResponse {
-    text_response(req.app.config::<&str>("serect_key").unwrap_or(&"No key").to_string())  
+    text_response(req.app.statics.get::<&str>("serect_key").unwrap_or(&"No key").to_string())  
 }   
 
 #[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("file")]))] 
@@ -44,3 +44,13 @@ async fn file() -> HttpResponse {
         Err(e) => text_response(format!("Error reading file: {}", e)),
     }
 } 
+
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("get")]), config=[HttpSafety::new().with_allowed_method(HttpMethod::GET)])]  
+async fn get_only() -> HttpResponse { 
+    text_response("Get only")  
+} 
+
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("post")]), config=[HttpSafety::new().with_allowed_methods(vec![HttpMethod::POST])])]  
+async fn post_only() -> HttpResponse { 
+    text_response("Post only")  
+}  
