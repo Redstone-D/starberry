@@ -20,7 +20,7 @@ Starberry is a lightweight, intuitive web framework focused on simplicity and pr
 - **Asynchronous**: Built with Tokio for efficient async handling
 - **Form Handling**: Easy processing of form data and file uploads
 - **Middleware Support**: Create reusable request processing chains 
-- **Multi-Protocal Support**: Starberry is now planning to handle ingoing or outgoing http(s), ws(s), db and other tcp protocals. This feature will come with the **0.6 stable version** 
+- **Multi-Protocal Support**: Starberry is now planning to handle ingoing or outgoing http(s), db and other tcp protocals 
 
 ## 🎇 New Features 
 
@@ -201,6 +201,14 @@ Program file folder is used to store the config of the program data generated du
 
 Templates are automatically copied to the `dist` directory when you run `starberry build`. 
 
+### Quick tutorials 
+
+You may visit our webpage to go through the quick tutorial for starberry 
+
+https://fds.rs/starberry/tutorial/0.6.4/ <- New version 
+
+https://fds.rs/starberry/tutorial/0.4.7/ 
+
 ### Stable Versions 
 
 | Version | Download | Notes | 
@@ -208,153 +216,6 @@ Templates are automatically copied to the `dist` directory when you run `starber
 | 0.6.4 | Not released | | 
 | 0.4.7 | `cargo install starberry@0.4.7` | Async + Request Context | 
 | 0.3.3 | `cargo install starberry@0.3.3` | Sync Starberry | 
-
-## 📝 Usage Guide
-
-### URL Registration
-
-#### Method 1: Using Macros (Recommended)
-
-```rust
-// Absolute URL
-#[url(APP.lit_url("/random/split/something"))]
-async fn random_route() -> HttpResponse {
-    text_response("A random page")
-}
-
-// Relative URL with parent
-#[url(reg![&APP, LitUrl("hello")])]
-async fn hello() -> HttpResponse {
-    text_response("Hello, world!")
-}
-```
-
-#### Method 2: Dynamic Registration
-
-```rust
-let furl = APP.clone().reg_from(&[LitUrl("flexible"), LitUrl("url")]);
-furl.set_method(Arc::new(flexible_access));
-```
-
-### URL Pattern Types
-
-| Type | Description | Example |
-|------|-------------|---------|
-| `LitUrl(&str)` | Matches literal path segment | `LitUrl("users")` |
-| `RegUrl(&str)` | Matches regex pattern | `RegUrl("[0-9]+")` |
-| `AnyUrl` | Matches any single path segment | `AnyUrl` |
-| `AnyDir` | Matches any number of path segments | `AnyDir` |
-
-### Request Handling
-
-```rust
-#[url(APP.lit_url("/submit"))]
-async fn handle_form() -> HttpResponse {
-    if request.method() == POST {
-        // Form data (application/x-www-form-urlencoded)
-        let form = req.form_or_default().await;
-        
-        // Access form fields
-        let name = form.get_or_default("name");
-        let age = form.get_or_default("age");
-        
-        // File uploads
-        if let Some(files) = request.files().await {
-            if let Some(file) = files.get("file") {
-                // Process file
-                let file_data = file.data().unwrap();
-                // ...
-            }
-        }
-        
-        return akari_json!({
-            name: form.get_or_default("name"),
-            age: form.get_or_default("age")
-        });
-    }
-    
-    text_response("Method not allowed").with_status(405)
-}
-```
-
-### Templating
-
-```rust
-#[url(APP.lit_url("/template"))]
-async fn template() -> HttpResponse {
-    akari_template!(
-        "template.html",
-        title="My Website - Home",
-        page_title="Welcome to My Website",
-        show_message=true,
-        message="Hello, world!",
-        items=[1, 2, 3, 4, 5] 
-    )
-}
-```
-
-**Template Example:**
-
-```html
--[ template "base.html" ]-
-
--[ block head ]-
-<link rel="stylesheet" href="style.css">
-<meta name="description" content="My awesome page">
--[ endblock ]-
-
--[ block content ]-
-<div class="container">
-    <h2>-[ page_title ]-</h2>
-    
-    -[ if show_message ]-
-        <div class="message">-[ message ]-</div>
-    -[ endif ]-
-    
-    <ul class="items">
-        -[ for item items ]-
-            <li class="item">-[ item ]-</li>
-        -[ endfor ]-
-    </ul>
-</div>
--[ endblock ]-
-```
-
-### Working with Cookies
-
-```rust
-#[url(APP.lit_url("/cookie"))]
-async fn set_cookie() -> HttpResponse {
-    text_response("Cookie Set").add_cookie(
-        Cookie::new("global_cookie", "something").path("/")
-    )
-}
-```
-
-### JSON Responses
-
-```rust
-#[url(APP.lit_url("/api/data"))]
-async fn api_data() -> HttpResponse {
-    akari_json!({
-        success: true,
-        data: {
-            id: 1,
-            name: "Example",
-            values: [10, 20, 30]
-        }
-    })
-}
-```
-
-### Redirects
-
-```rust
-#[url(APP.lit_url("/redirect"))]
-async fn redirect() -> HttpResponse {
-    redirect_response("/new-location")
-}
-```
 
 ## 📋 Changelog 
 
@@ -405,26 +266,13 @@ async fn redirect() -> HttpResponse {
 
 ## 🔮 Planned Updates
 
-**All planned updates for 0.4 is already finished** 
-
-(0.5 ver) 
-- [x] Standard middleware library (Session) 
-- [x] Merge HttpRequestBody and HttpResponseBody together 
-- [x] Enable sending simple requests to external server 
-- [x] Enable form and file send() & get_size() out to external server 
-- [x] URL segment parameters 
-
-- [x] Merge HttpRequestMeta and HttpResponseMeta together 
-- [x] Optimize Cookie data structure, unify Request Cookie and Response Cookie together 
-- [ ] Grammar sugar for Regex 
-
-- [ ] Middleware libraries (OAuth, Surreal) 
-- [x] Static file serving 
-- [ ] Logging 
+**All planned updates for 0.6 is already finished** 
 
 ## 📚 Learn More
 
-Learn more about Akari template: https://crates.io/crates/akari
+Learn more about Akari template: https://crates.io/crates/akari 
+
+Go to our homepage: https://fds.rs  
 
 ## 📄 License
 
