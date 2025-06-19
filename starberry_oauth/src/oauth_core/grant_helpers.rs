@@ -8,9 +8,10 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use starberry_core::http::http_value::HttpMethod;
 use serde_json::Value;
-use tracing::instrument;
+use tracing::{instrument, debug};
 
 /// Authorization Code + PKCE flow helper.
+#[derive(Clone)]
 pub struct AuthorizationCodePkceFlow<S: TokenStorage> {
     client: OAuthClient,
     storage: Arc<S>,
@@ -43,6 +44,7 @@ impl<S: TokenStorage> AuthorizationCodePkceFlow<S> {
     #[instrument(skip(self), level = "debug")]
     pub async fn initiate(&self, redirect_uri: &str, state_expires_in: u64) -> Result<String, OAuthError> {
         let url = self.client.get_authorize_url(redirect_uri);
+        debug!(client_id=%self.client.client_id, redirect_uri, code_challenge=%self.client.code_challenge, state=%self.client.state, "PKCE initiate details");
         // Persist state and PKCE verifier
         self.storage.store_csrf_state(self.client.state(), state_expires_in).await?;
         self.storage.store_pkce_verifier(self.client.code_challenge(), self.client.code_verifier()).await?;
@@ -59,16 +61,36 @@ impl<S: TokenStorage> AuthorizationCodePkceFlow<S> {
     ) -> Result<Token, OAuthError> {
         // Validate and clear state
         let valid = self.storage.get_csrf_state(self.client.state()).await?;
+        debug!(state_valid=valid, state=%self.client.state(), "PKCE CSRF state validation");
         if !valid {
             return Err(OAuthError::InvalidGrant);
         }
         self.storage.delete_csrf_state(self.client.state()).await?;
         // Retrieve and clear verifier
         let verifier_opt = self.storage.get_pkce_verifier(self.client.code_challenge()).await?;
+        debug!(code_challenge=%self.client.code_challenge, verifier_opt=?verifier_opt, "PKCE verifier lookup");
         let verifier = verifier_opt.ok_or(OAuthError::InvalidGrant)?;
+        debug!(verifier=%verifier, "Using PKCE verifier");
         self.storage.delete_pkce_verifier(self.client.code_challenge()).await?;
         // Perform exchange
-        self.client.exchange_code(http_client, code, redirect_uri).await
+        let token_res = self.client.exchange_code(http_client, code, redirect_uri).await;
+        debug!(code, redirect_uri, token_res=?token_res, "PKCE code exchange result");
+        token_res
+    }
+
+    /// Returns the CSRF state string
+    pub fn get_state(&self) -> &str {
+        self.client.state()
+    }
+
+    /// Returns the PKCE code challenge
+    pub fn get_code_challenge(&self) -> &str {
+        self.client.code_challenge()
+    }
+
+    /// Returns the PKCE code verifier
+    pub fn get_code_verifier(&self) -> &str {
+        self.client.code_verifier()
     }
 }
 

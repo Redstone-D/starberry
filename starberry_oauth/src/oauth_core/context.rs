@@ -23,6 +23,7 @@ where
 {
     type Request = HttpRequest;
     type Response = HttpResponse;
+    type Config = C;
     type Error = HttpClientError;
 
     /// Sends the request via the inner OAuthHttpClient and stores the response.
@@ -35,5 +36,9 @@ where
     /// Optional cleanup for the Tx adapter. Here we just drop the inner client.
     async fn shutdown(&mut self) -> Result<(), Self::Error> {
         Ok(())
+    }
+
+    async fn fetch<T: Into<String> + Send + Sync>(_host: T, request: Self::Request, config: Self::Config) -> Self::Response {
+        config.execute(request).await.unwrap()
     }
 }

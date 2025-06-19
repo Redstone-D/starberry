@@ -73,7 +73,8 @@ pub async fn CookieSession() {
 
     let serect_key = req
         .app
-        .config::<String>("serect_key")
+        .config()
+        .get::<String>()
         .cloned()
         .unwrap_or("super_secret_key".to_string());
     let password = format!("{}{}", serect_key, session_id);

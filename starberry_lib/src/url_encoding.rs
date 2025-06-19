@@ -1,5 +1,12 @@
-use percent_encoding::{percent_encode, NON_ALPHANUMERIC}; 
+use percent_encoding::{percent_encode, NON_ALPHANUMERIC, AsciiSet}; 
 pub use percent_encoding::percent_decode; 
+
+/// Custom encode set for application/x-www-form-urlencoded allowing unreserved characters including hyphens
+const FORM_URLENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
+    .remove(b'-')
+    .remove(b'_')
+    .remove(b'.')
+    .remove(b'~');
 
 /// Encodes a string for URL safety and returns an owned `String`
 /// 
@@ -10,7 +17,7 @@ pub use percent_encoding::percent_decode;
 /// assert_eq!(encoded, "Hello%20World%21");
 /// ```
 pub fn encode_url_owned(input: &str) -> String {
-    percent_encode(input.as_bytes(), NON_ALPHANUMERIC).to_string()
+    percent_encode(input.as_bytes(), FORM_URLENCODE_SET).to_string()
 }
 
 /// Encodes a string in place for URL safety
