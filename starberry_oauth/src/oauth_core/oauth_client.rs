@@ -8,7 +8,7 @@ use starberry_core::http::http_value::HttpMethod;
 use super::http_client::{OAuthHttpClient, HttpRequest, HttpResponse, RedirectPolicy};
 use super::types::{Token, OAuthError, TokenModel};
 use serde_json;
-use tracing::instrument;
+use tracing::{instrument, debug};
 
 /// OAuth2 client that encapsulates all OAuth2 client state, including PKCE and CSRF.
 #[derive(Clone, Debug)]
@@ -110,6 +110,7 @@ impl OAuthClient {
         code: &str,
         redirect_uri: &str,
     ) -> Result<Token, OAuthError> {
+        debug!(token_url=%self.token_url, code, redirect_uri, code_verifier=%self.code_verifier, "Preparing token exchange request");
         // Build URL-encoded form body
         let mut form = vec![
             ("grant_type", "authorization_code".to_string()),
@@ -140,7 +141,9 @@ impl OAuthClient {
             .execute(request)
             .await
             .map_err(|_| OAuthError::ServerError)?;
+        debug!(status=response.status, response_body=?String::from_utf8_lossy(response.body.as_ref()), "Token endpoint response");
         if response.status != 200 {
+            debug!(status=response.status, "Token endpoint returned non-200 status");
             return Err(OAuthError::InvalidGrant);
         }
         // Manually parse JSON into Token
