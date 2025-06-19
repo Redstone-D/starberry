@@ -15,7 +15,23 @@ pub struct Params {
 impl Params { 
     //
     // Type-based params methods (for middleware)
-    //
+    // 
+    /// Creates a new, empty `Params` container. 
+    /// 
+    /// # Examples 
+    /// 
+    /// ```rust 
+    /// use starberry_core::extensions::Params; 
+    /// let params = Params::new(); 
+    /// assert!(params.inner.is_empty()); 
+    /// ``` 
+    pub fn new() -> Self { 
+        Self { 
+            inner: HashMap::new() 
+        }
+    } 
+
+
     /// Stores a value in the type-based params storage.
     /// Any previous value of the same type will be replaced.
     ///
@@ -131,9 +147,7 @@ impl fmt::Debug for Params {
 
 impl Default for Params { 
     fn default() -> Self {
-        Self { 
-            inner: HashMap::new() 
-        }
+        Self::new() 
     }
 }
 
@@ -147,6 +161,22 @@ impl Locals {
     //
     // String-based locals methods (for application code)
     //
+    /// 
+    /// Creates a new, empty `Locals` container. 
+    /// 
+    /// # Examples 
+    /// 
+    /// ```rust
+    /// use starberry_core::extensions::Locals;
+    /// let locals = Locals::new();
+    /// assert!(locals.inner.is_empty());
+    /// ``` 
+    pub fn new() -> Self { 
+        Self { 
+            inner: HashMap::new() 
+        }
+    }
+
     /// Stores a value in the string-based locals storage with the given key.
     /// Any previous value with the same key will be replaced.
     ///
@@ -314,9 +344,7 @@ impl fmt::Debug for Locals {
 
 impl Default for Locals { 
     fn default() -> Self {
-        Self { 
-            inner: HashMap::new() 
-        }
+        Self::new() 
     }
 } 
 

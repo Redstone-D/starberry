@@ -1,26 +1,23 @@
 use core::panic;
-use std::any::{Any, TypeId};
-use std::collections::HashMap;
+// use std::collections::HashMap; 
 use tokio::net::{TcpListener, TcpStream};
 
-use starberry_lib::random_string;
+// use starberry_lib::random_string;
 use std::future::Future;
-use std::pin::Pin;
-use std::sync::mpsc;
-use std::sync::{Arc, RwLock};
+use std::pin::Pin; 
+use std::sync::Arc;
 use std::time::Duration;
-use tokio::runtime::Runtime;
+// use tokio::runtime::Runtime;
 
-use crate::app::config::ParseConfig;
 use crate::app::protocol::{ProtocolHandlerBuilder, ProtocolRegistryBuilder};
 use crate::app::urls;
 use crate::connection::Connection;
 use crate::connection::Rx;
 
-use crate::extensions::ParamsClone;
+use crate::extensions::{Params, Locals}; 
 use crate::http::context::HttpReqCtx;
 
-use super::middleware::AsyncMiddleware;
+// use super::middleware::AsyncMiddleware;
 use super::protocol::ProtocolRegistryKind;
 use super::urls::*;
 
@@ -28,7 +25,7 @@ use super::urls::*;
 /// Production: Production mode
 /// Development: Test on developer's computer, showing the error message and some debug info. May contain sensitive info.
 /// Beta: Beta mode, showing some debug info. May contain some sensitive info.
-/// Build: Build mode. For building the starberry binary. Do not use this.
+/// Build: Build mode. For testing starberry itself. It will print out any information possible. 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RunMode {
     Production,
@@ -45,10 +42,9 @@ pub struct App {
     pub handler: ProtocolRegistryKind, // Changed from listener to binding_address
     pub mode: RunMode,
     pub worker: usize, // Did not implemented
-    pub max_connection_time: usize,
-    pub connection_config: ParseConfig,
-    pub config: HashMap<String, Box<dyn Any + Send + Sync>>,
-    pub statics: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    pub max_connection_time: usize, 
+    pub config: Params,
+    pub statics: Locals,
 }
 
 /// Builder for App
@@ -57,13 +53,9 @@ pub struct AppBuilder {
     handler: Option<ProtocolRegistryKind>,
     mode: Option<RunMode>,
     worker: Option<usize>,
-    max_connection_time: Option<usize>,
-    max_header_size: Option<usize>,
-    max_body_size: Option<usize>,
-    max_line_length: Option<usize>,
-    max_headers: Option<usize>,
-    config: HashMap<String, Box<dyn Any + Send + Sync>>,
-    statics: HashMap<TypeId, Box<dyn Any + Send + Sync>>,
+    max_connection_time: Option<usize>, 
+    config: Params, 
+    statics: Locals, 
 }
 
 impl AppBuilder {
@@ -73,13 +65,9 @@ impl AppBuilder {
             handler: None,
             mode: None,
             worker: None,
-            max_connection_time: None,
-            max_header_size: None,
-            max_body_size: None,
-            max_line_length: None,
-            max_headers: None,
-            config: HashMap::new(),
-            statics: HashMap::new(),
+            max_connection_time: None, 
+            config: Params::new(),  
+            statics: Locals::new(), 
         }
     }
 
@@ -106,41 +94,17 @@ impl AppBuilder {
     pub fn max_connection_time(mut self, max_connection_time: usize) -> Self {
         self.max_connection_time = Some(max_connection_time);
         self
-    }
+    } 
 
-    pub fn max_header_size(mut self, max_header_size: usize) -> Self {
-        self.max_header_size = Some(max_header_size);
+    pub fn statics(mut self, statics: Locals) -> Self {
+        self.statics = statics; 
         self
-    }
+    } 
 
-    pub fn max_body_size(mut self, max_body_size: usize) -> Self {
-        self.max_body_size = Some(max_body_size);
+    pub fn config(mut self, config: Params) -> Self {
+        self.config = config; 
         self
-    }
-
-    pub fn max_line_length(mut self, max_line_length: usize) -> Self {
-        self.max_line_length = Some(max_line_length);
-        self
-    }
-
-    pub fn max_headers(mut self, max_headers: usize) -> Self {
-        self.max_headers = Some(max_headers);
-        self
-    }
-
-    pub fn set_statics<T: 'static + Send + Sync>(mut self, value: T) -> Self {
-        self.statics.insert(TypeId::of::<T>(), Box::new(value));
-        self
-    }
-
-    pub fn set_config<T: 'static + Send + Sync>(
-        mut self,
-        key: impl Into<String>,
-        value: T,
-    ) -> Self {
-        self.config.insert(key.into(), Box::new(value));
-        self
-    }
+    } 
 
     /// Build method: create the `App`, storing binding address without creating a TcpListener
     pub fn build(self) -> Arc<App> {
@@ -156,21 +120,14 @@ impl AppBuilder {
             .unwrap_or_else(|| String::from("127.0.0.1:3003"));
         let mode = self.mode.unwrap_or_else(|| RunMode::Development);
         let worker = self.worker.unwrap_or_else(|| num_cpus());
-        let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5);
-        let max_header_size = self.max_header_size.unwrap_or_else(|| 1024 * 1024);
-        let max_body_size = self.max_body_size.unwrap_or_else(|| 1024 * 512);
-        let max_line_length = self.max_line_length.unwrap_or_else(|| 1024 * 64);
-        let max_headers = self.max_headers.unwrap_or_else(|| 100);
-        let connection_config =
-            ParseConfig::new(max_header_size, max_line_length, max_headers, max_body_size);
+        let max_connection_time = self.max_connection_time.unwrap_or_else(|| 5);  
 
         Arc::new(App {
             handler,
             binding_address,
             mode,
             worker,
-            max_connection_time,
-            connection_config,
+            max_connection_time, 
             config: self.config,
             statics: self.statics,
         })
@@ -200,51 +157,15 @@ impl App {
 
     pub fn get_max_connection_time(self: &Arc<Self>) -> usize {
         self.max_connection_time
-    }
+    } 
 
-    pub fn set_max_header_size(&mut self, max_header_size: usize) {
-        self.connection_config.set_max_header_size(max_header_size);
-    }
+    pub fn config(self: &Arc<Self>) -> &Params {
+        &self.config 
+    } 
 
-    pub fn get_max_header_size(self: &Arc<Self>) -> usize {
-        self.connection_config.get_max_header_size()
-    }
-
-    pub fn set_max_body_size(&mut self, max_body_size: usize) {
-        self.connection_config.set_max_body_size(max_body_size);
-    }
-
-    pub fn get_max_body_size(self: &Arc<Self>) -> usize {
-        self.connection_config.get_max_body_size()
-    }
-
-    pub fn set_max_line_length(&mut self, max_line_length: usize) {
-        self.connection_config.set_max_line_length(max_line_length);
-    }
-
-    pub fn get_max_line_length(self: &Arc<Self>) -> usize {
-        self.connection_config.get_max_line_length()
-    }
-
-    pub fn set_max_headers(&mut self, max_headers: usize) {
-        self.connection_config.set_max_headers(max_headers);
-    }
-
-    pub fn get_max_headers(self: &Arc<Self>) -> usize {
-        self.connection_config.get_max_headers()
-    }
-
-    pub fn statics<T: 'static + Send + Sync>(self: &Arc<Self>) -> Option<&T> {
-        self.statics
-            .get(&TypeId::of::<T>())
-            .and_then(|boxed| boxed.downcast_ref::<T>())
-    }
-
-    pub fn config<T: 'static + Send + Sync>(self: &Arc<Self>, key: &str) -> Option<&T> {
-        self.config
-            .get(key)
-            .and_then(|boxed| boxed.downcast_ref::<T>())
-    }
+    pub fn statics(self: &Arc<Self>) -> &Locals {
+        &self.statics
+    } 
 
     /// This function add a new url to the app. It will be added to the root url
     /// # Arguments

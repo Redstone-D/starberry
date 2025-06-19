@@ -54,7 +54,7 @@ fn create_new_project(app_name: &str) {
         eprintln!("Failed to write to {}: {}", src_path.display(), e);
         exit(1);
     });
-    println!("Created new main.rs at {}", src_path.display());
+    println!("Build script created at {}", src_path.display());
 
     // Update Cargo.toml with the extra dependencies.
     let cargo_toml_path = Path::new(app_name).join("Cargo.toml");
@@ -82,14 +82,15 @@ starberry = "{VERSION}"
         eprintln!("Failed to create templates directory: {}", e);
         exit(1);
     } 
+    println!("Created templates directory at {}", templates_path.display()); 
 
     // Create a new program files directory at the same level as src.
-    let templates_path = Path::new(app_name).join("templates");
-    if let Err(e) = fs::create_dir_all(&templates_path) {
-        eprintln!("Failed to create templates directory: {}", e);
+    let programfiles_path = Path::new(app_name).join("programfiles");
+    if let Err(e) = fs::create_dir_all(&programfiles_path) {
+        eprintln!("Failed to create programfiles directory: {}", e);
         exit(1);
     }
-    println!("Created templates directory at {}", templates_path.display());
+    println!("Created programfiles directory at {}", templates_path.display());
 } 
 
 /// Main entry point for the CLI launcher.
@@ -209,7 +210,7 @@ async fn home_route() -> HttpResponse {
 
 const DEPS: &'static str = r#"ctor = "0.4.0"
 once_cell = "1.17"
-tokio = {{ version = "1", features = ["full"] }}
+tokio = { version = "1", features = ["full"] }
 "#; 
 
 const BUILD_RS: &'static str = r###"//! This file is introduced in starberry since v0.6.3-rc2 

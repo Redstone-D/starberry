@@ -2,6 +2,7 @@ pub mod request;
 pub mod body; 
 pub mod context; 
 pub mod cookie; 
+pub mod encoding; 
 pub mod form; 
 pub mod meta; 
 pub mod http_value; 

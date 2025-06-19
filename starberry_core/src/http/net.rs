@@ -4,9 +4,9 @@ use tokio::io::{AsyncRead, AsyncWrite, AsyncWriteExt, BufReader, BufWriter};
 
 use super::meta::HttpMeta; 
 use super::body::HttpBody; 
-use crate::app::config::ParseConfig; 
+use super::safety::HttpSafety; 
 
-pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, is_request: bool, print_raw: bool) -> std::io::Result<(HttpMeta, HttpBody)> {
+pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &HttpSafety, is_request: bool, print_raw: bool) -> std::io::Result<(HttpMeta, HttpBody)> {
     // Create one BufReader up-front, pass this throughout.
     let meta = HttpMeta::from_stream(
         stream, 
@@ -20,12 +20,12 @@ pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config:
     Ok((meta, body)) 
 } 
 
-pub async fn parse_body<R: AsyncRead + Unpin>(meta: &mut HttpMeta, body: &mut HttpBody, reader: &mut BufReader<R>, max_size: usize) -> std::io::Result<()> {
+pub async fn parse_body<R: AsyncRead + Unpin>(meta: &mut HttpMeta, body: &mut HttpBody, reader: &mut BufReader<R>, safety_setting: &HttpSafety) -> std::io::Result<()> {
     if let HttpBody::Unparsed = *body {
         *body = HttpBody::parse(
             reader,
-            max_size, 
             meta,
+            safety_setting 
         ).await;
     }
     Ok(())

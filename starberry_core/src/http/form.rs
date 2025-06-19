@@ -248,7 +248,7 @@ impl MultiForm{
                                 form_map.insert(
                                     field_name,
                                     MultiFormField::Text(text_value.to_string()),
-                                );
+                                ); 
                             } else {
                                 // Fallback for non-UTF-8 field content
                                 form_map.insert(
