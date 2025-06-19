@@ -9,9 +9,11 @@ use tokio::sync::Mutex;
 pub trait Tx: Send + Sync { 
     type Request; 
     type Response; 
+    type Config; 
     type Error; 
     async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error>; 
     async fn shutdown(&mut self) -> Result<(), Self::Error>; 
+    async fn fetch<T: Into<String> + Send + Sync>(host: T, request: Self::Request, config: Self::Config) -> Self::Response; 
 } 
 
 /// A simple asynchronous pool for objects implementing the `Tx` trait.
@@ -90,7 +92,8 @@ mod tests {
     #[async_trait]
     impl Tx for DummyTx {
         type Request = String;
-        type Response = String;
+        type Response = String; 
+        type Config = (); 
         type Error = ();
 
         async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error> {
@@ -100,7 +103,11 @@ mod tests {
 
         async fn shutdown(&mut self) -> Result<(), Self::Error> {
             Ok(())
-        }
+        } 
+
+        async fn fetch<T: Into<String> + Send + Sync>(host: T, request: Self::Request, _config: Self::Config) -> Self::Response {
+            format!("{}: {}", request, host.into()) 
+        } 
     }
 
     #[tokio::test]

@@ -1,5 +1,5 @@
-use crate::app::config::ParseConfig;
-use crate::http::http_value::{ContentDisposition, StatusCode};
+use crate::http::http_value::{ContentDisposition, StatusCode}; 
+use crate::http::safety::HttpSafety; 
 
 use super::cookie::Cookie; 
 use super::body::HttpBody;
@@ -27,14 +27,14 @@ impl HttpResponse {
         } 
     } 
 
-    pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, print_raw: bool) -> Self {
+    pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &HttpSafety, print_raw: bool) -> Self {
         match net::parse_lazy(stream, config, false, print_raw).await { 
             Ok((meta, body)) => Self::new(meta, body), 
             Err(_) => Self::default() 
         }
     }  
 
-    pub async fn parse_body<R: AsyncRead + Unpin>(&mut self, reader: &mut BufReader<R>, max_size: usize) {
+    pub async fn parse_body<R: AsyncRead + Unpin>(&mut self, reader: &mut BufReader<R>, safety_setting: &HttpSafety) {
         // if let HttpBody::Unparsed = self.body {
         //     self.body = HttpBody::parse(
         //         reader,
@@ -42,7 +42,7 @@ impl HttpResponse {
         //         &mut self.meta,
         //     ).await;
         // }; 
-        let _ = net::parse_body(&mut self.meta, &mut self.body, reader, max_size).await; 
+        let _ = net::parse_body(&mut self.meta, &mut self.body, reader, safety_setting).await; 
     }  
 
     /// Add a cookie into the response metadata. 

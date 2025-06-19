@@ -1,5 +1,7 @@
+use crate::http::encoding::HttpEncoding;
+use crate::http::safety::HttpSafety;
+
 use super::cookie::{Cookie, CookieMap}; 
-use crate::app::config::ParseConfig;  
 
 use super::http_value::*; 
 use super::start_line::HttpStartLine; 
@@ -26,6 +28,9 @@ pub struct HttpMeta {
     // Content-Disposition header, used for file downloads in responses 
     content_disposition: Option<ContentDisposition>, 
 
+    /// Transfer-Encoding header, used for chunked transfer encoding in responses 
+    encoding: Option<HttpEncoding>, 
+
     // Host header, overrides the content length from the hashmap if present  
     host: Option<String>, 
 
@@ -34,7 +39,7 @@ pub struct HttpMeta {
     lang: Option<AcceptLang>, 
 
     /// Location header, used for redirects in responses 
-    location: Option<String>, 
+    location: Option<String> 
 } 
 
 /// Represents a value for an HTTP header, which can be either a single string or multiple values.
@@ -530,6 +535,7 @@ impl HttpMeta {
             content_length: None,
             content_disposition: None, 
             cookies: None, 
+            encoding: None, 
             host: None, 
             lang: None, 
             location: None, 
@@ -538,16 +544,41 @@ impl HttpMeta {
 
     pub async fn from_stream<R: AsyncRead + Unpin>(
         buf_reader: &mut BufReader<R>,
-        config: &ParseConfig,
+        config: &HttpSafety,
         print_raw: bool,
         is_request: bool,
     ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
+        let mut headers = Self::header_lines_raw_from_stream(buf_reader, config, print_raw).await?; 
+
+        if headers.is_empty() {
+            return Err(format!("Empty {}", if is_request { "request" } else { "response" }).into());
+        }
+        
+        // Parse the start line according to whether it's a request or response
+        let start_line = Self::parse_start_line(&headers.remove(0), is_request);
+        
+        // Parse headers with special handling for specific header names
+        let header = Self::parse_headers(headers, is_request);
+        
+        if print_raw {
+            println!("Parsed headers: {:?}", header);
+            println!("Parsed start line: {:?}", start_line);
+        }
+        
+        Ok(HttpMeta::new(start_line, header))
+    } 
+
+    async fn header_lines_raw_from_stream<R: AsyncRead + Unpin>(
+        buf_reader: &mut BufReader<R>,
+        config: &HttpSafety,
+        print_raw: bool, 
+    ) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> { 
         let mut headers = Vec::new();
         let mut total_header_size = 0;
         
         // Try to fill the buffer with a single read first
         buf_reader.fill_buf().await?;
-        
+
         // Fast path: Check if we got all headers in one go
         let buffer = buf_reader.buffer();
         if let Some((header_lines, headers_end)) = Self::extract_headers_from_buffer(buffer, config) {
@@ -558,18 +589,19 @@ impl HttpMeta {
             
             // Process headers from buffer
             for line in header_lines {
-                if line.len() > config.max_line_length {
+                if !config.check_line_length(line.len()) {
                     return Err(format!("Header line too long").into());
                 }
                 
-                total_header_size += line.len() + 2; // +2 for CRLF
-                if total_header_size > config.max_header_size {
+                total_header_size += line.len() + 2; // +2 for CRLF 
+
+                if !config.check_header_size(total_header_size) {
                     return Err(format!("Headers too large").into());
                 }
                 
-                if headers.len() >= config.max_headers {
+                if !config.check_headers_count(headers.len()) {
                     return Err(format!("Too many headers").into());
-                }
+                } 
                 
                 // Strip CRLF injection and store
                 let safe_line = line.replace("\r", "");
@@ -596,19 +628,19 @@ impl HttpMeta {
                 }
                 
                 // Reject with an extremely long header line
-                if line.len() > config.max_line_length {
+                if  !config.check_line_length(line.len()) {
                     return Err(format!("Header line too long").into());
-                }
+                } 
                 
                 total_header_size += line.len();
                 
                 // Enforce max header size limit
-                if total_header_size > config.max_header_size {
+                if config.check_header_size(total_header_size) {
                     return Err(format!("Headers too large").into());
                 }
                 
                 // Enforce max number of headers
-                if headers.len() >= config.max_headers {
+                if config.check_headers_count(headers.len()) {
                     return Err(format!("Too many headers").into());
                 }
                 
@@ -618,22 +650,7 @@ impl HttpMeta {
             } 
         }
         
-        if headers.is_empty() {
-            return Err(format!("Empty {}", if is_request { "request" } else { "response" }).into());
-        }
-        
-        // Parse the start line according to whether it's a request or response
-        let start_line = Self::parse_start_line(&headers.remove(0), is_request);
-        
-        // Parse headers with special handling for specific header names
-        let header = Self::parse_headers(headers, is_request);
-        
-        if print_raw {
-            println!("Parsed headers: {:?}", header);
-            println!("Parsed start line: {:?}", start_line);
-        }
-        
-        Ok(HttpMeta::new(start_line, header))
+        Ok(headers) 
     }
     
     // Helper function to parse the start line
@@ -694,22 +711,51 @@ impl HttpMeta {
     // Expose the specific methods that call the shared implementation
     pub async fn from_request_stream<R: AsyncRead + Unpin>(
         buf_reader: &mut BufReader<R>,
-        config: &ParseConfig, 
+        config: &HttpSafety, 
         print_raw: bool, 
     ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
         Self::from_stream(buf_reader, config, print_raw, true).await 
-    }
+    } 
+
+    pub async fn append_from_request_stream<R: AsyncRead + Unpin>( 
+        &mut self, 
+        buf_reader: &mut BufReader<R>,
+        config: &HttpSafety, 
+        print_raw: bool, 
+    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+        let mut headers = Self::header_lines_raw_from_stream(buf_reader, config, print_raw).await?;
+        
+        if headers.is_empty() {
+            return Ok(()); 
+        }
+        
+        // Parse the start line
+        let start_line = Self::parse_start_line(&headers.remove(0), true);
+        
+        // Parse headers
+        let header = Self::parse_headers(headers, true);
+        
+        if print_raw {
+            println!("Parsed request headers: {:?}", header);
+            println!("Parsed request start line: {:?}", start_line);
+        }
+        
+        self.start_line = start_line;
+        self.header.extend(header);
+        
+        Ok(()) 
+    } 
     
     pub async fn from_response_stream<R: AsyncRead + Unpin>(
         buf_reader: &mut BufReader<R>,
-        config: &ParseConfig, 
+        config: &HttpSafety, 
         print_raw: bool, 
     ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
         Self::from_stream(buf_reader, config, print_raw, false).await 
-    } 
+    }  
     
     /// Helper function to extract complete headers from a buffer if possible
-    fn extract_headers_from_buffer<'a>(buffer: &'a [u8], config: &ParseConfig) -> Option<(Vec<&'a str>, usize)> {
+    fn extract_headers_from_buffer<'a>(buffer: &'a [u8], config: &HttpSafety) -> Option<(Vec<&'a str>, usize)> {
         // Look for the end of headers marker (double CRLF)
         let mut i = 0;
         while i + 3 < buffer.len() {
@@ -725,7 +771,7 @@ impl HttpMeta {
                     .filter(|s| !s.is_empty())
                     .collect();
                     
-                if lines.len() > config.max_headers {
+                if !config.check_headers_count(lines.len()) {
                     return None; // Too many headers, fall back to slow path
                 }
                 
@@ -1941,6 +1987,169 @@ impl HttpMeta {
         self.header.remove("location");
     } 
 
+    /// Gets the HTTP encoding (both transfer and content encoding) from the HTTP meta data.
+    ///
+    /// Returns the cached encoding if available, otherwise parses
+    /// the transfer-encoding and content-encoding headers from the headers map.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<HttpEncoding>` - The HTTP encodings, or None if not available.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::{HttpMeta, HeaderValue};
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert("transfer-encoding".to_string(), vec![HeaderValue::new("chunked")]);
+    /// headers.insert("content-encoding".to_string(), vec![HeaderValue::new("gzip")]);
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// let encoding = meta.get_encoding();
+    /// assert!(encoding.is_some());
+    /// let encoding = encoding.unwrap();
+    /// assert!(encoding.transfer().is_chunked());
+    /// assert!(!encoding.content().is_identity());
+    /// ```
+    pub fn get_encoding(&mut self) -> Option<HttpEncoding> {
+        if let Some(ref enc) = self.encoding {
+            return Some(enc.clone());
+        }
+        self.parse_encoding()
+    }
+
+    /// Parses the Transfer-Encoding and Content-Encoding headers from the headers map 
+    /// and stores them in the encoding field.
+    ///
+    /// # Returns
+    ///
+    /// * `Option<HttpEncoding>` - The parsed HTTP encodings
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::{HttpMeta, HeaderValue};
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert("transfer-encoding".to_string(), vec![HeaderValue::new("chunked")]);
+    /// headers.insert("content-encoding".to_string(), vec![HeaderValue::new("br")]);
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// let encoding = meta.parse_encoding();
+    /// assert!(encoding.is_some());
+    /// let encoding = encoding.unwrap();
+    /// assert!(encoding.transfer().is_chunked());
+    /// assert_eq!(encoding.content().to_header(), "br");
+    /// ```
+    pub fn parse_encoding(&mut self) -> Option<HttpEncoding> {
+        // Get header values as comma-separated strings
+        let transfer_header = self.header
+            .get("transfer-encoding")
+            .map(|values| 
+                values.first() 
+            );
+
+        let content_header = self.header
+            .get("content-encoding")
+            .map(|values| 
+                values.first() 
+            );
+
+        let encoding = HttpEncoding::from_headers(transfer_header, content_header);
+        self.encoding = Some(encoding.clone());
+        Some(encoding)
+    }
+
+    /// Sets the encoding field with both transfer and content encodings
+    ///
+    /// # Arguments
+    ///
+    /// * `encoding` - The HTTP encodings to cache
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::HttpMeta;
+    /// use starberry_core::http::encoding::HttpEncoding;
+    /// 
+    /// let mut meta = HttpMeta::default();
+    /// let encoding = HttpEncoding::from_headers(
+    ///     Some("chunked".to_string()),
+    ///     Some("gzip".to_string())
+    /// );
+    /// 
+    /// meta.set_encoding(Some(encoding.clone()));
+    /// 
+    /// assert!(meta.get_encoding().unwrap().transfer().is_chunked());
+    /// assert!(!meta.get_encoding().unwrap().content().is_identity());
+    /// ```
+    pub fn set_encoding(&mut self, encoding: Option<HttpEncoding>) {
+        self.encoding = encoding;
+    }
+
+    /// Clears the cached encoding field without modifying the header map
+    ///
+    /// Subsequent calls to `get_encoding()` will re-parse the value from headers
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::{HttpMeta, HeaderValue};
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert("transfer-encoding".to_string(), vec![HeaderValue::new("chunked")]);
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// // Parse the value into cache
+    /// let _ = meta.get_encoding();
+    /// 
+    /// // Clear the cache only
+    /// meta.clear_encoding();
+    /// 
+    /// // Header is still intact and will be re-parsed
+    /// assert!(meta.get_encoding().is_some());
+    /// ```
+    pub fn clear_encoding(&mut self) {
+        self.encoding = None;
+    }
+
+    /// Deletes both Transfer-Encoding and Content-Encoding headers
+    ///
+    /// Clears both the cached field and removes headers from the map
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use starberry_core::http::meta::{HttpMeta, HeaderValue};
+    /// use std::collections::HashMap;
+    ///
+    /// let mut headers = HashMap::new();
+    /// headers.insert("transfer-encoding".to_string(), vec![HeaderValue::new("gzip")]);
+    /// headers.insert("content-encoding".to_string(), vec![HeaderValue::new("br")]);
+    /// let mut meta = HttpMeta::new(Default::default(), headers);
+    /// 
+    /// // Delete both cache and headers
+    /// meta.delete_encoding();
+    /// 
+    /// // Headers are gone
+    /// assert!(meta.get_header("transfer-encoding").is_none());
+    /// assert!(meta.get_header("content-encoding").is_none());
+    /// 
+    /// // Encoding is now identity
+    /// let encoding = meta.get_encoding().unwrap();
+    /// assert!(encoding.transfer().is_identity());
+    /// assert!(encoding.content().is_identity());
+    /// ```
+    pub fn delete_encoding(&mut self) {
+        self.encoding = None;
+        self.header.remove("transfer-encoding");
+        self.header.remove("content-encoding");
+    }
+
     /// Serializes the HTTP meta data to a string representation.
     ///
     /// This method generates a properly formatted HTTP header section,
@@ -2024,6 +2233,19 @@ impl HttpMeta {
             result.push_str(&format!("location: {}\r\n", location));
             handled_headers.insert("location".to_string());
         } 
+
+        // Add transfer-encoding if present 
+        if let Some(ref transfer_encoding) = self.encoding { 
+            let (transfer, content)= transfer_encoding.to_headers(); 
+            if let Some(transfer) = transfer {
+                result.push_str(&format!("transfer-encoding: {}\r\n", transfer));
+                handled_headers.insert("transfer-encoding".to_string());
+            } 
+            if let Some(content) = content {
+                result.push_str(&format!("content-encoding: {}\r\n", content));
+                handled_headers.insert("content-encoding".to_string());
+            } 
+        } 
         
         // Add cookies based on whether this is a request or response
         if let Some(ref cookies) = self.cookies {
@@ -2067,10 +2289,11 @@ impl Default for HttpMeta {
                 "/".to_string(),
             ), 
             header: HashMap::new(),
-            content_type: None,
+            content_type: None, 
             content_length: None, 
             content_disposition: None, 
             cookies: None, 
+            encoding: None, 
             host: None, 
             lang: None, 
             location: None, 

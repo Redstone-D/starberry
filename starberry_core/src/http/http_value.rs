@@ -88,6 +88,20 @@ impl HttpMethod {
             _ => HttpMethod::UNKNOWN,  
         }  
     }  
+
+    pub fn get_full_list() -> Vec<HttpMethod> { 
+        vec![ 
+            HttpMethod::GET, 
+            HttpMethod::POST, 
+            HttpMethod::PUT, 
+            HttpMethod::DELETE, 
+            HttpMethod::HEAD, 
+            HttpMethod::OPTIONS, 
+            HttpMethod::PATCH, 
+            HttpMethod::TRACE, 
+            HttpMethod::CONNECT, 
+        ] 
+    } 
 } 
 
 impl std::fmt::Display for HttpMethod { 

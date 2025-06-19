@@ -1,5 +1,5 @@
-use crate::app::config::ParseConfig;
-use crate::http::cookie::Cookie; 
+use crate::http::cookie::Cookie;
+use crate::http::safety::HttpSafety; 
 
 use super::{http_value::*, net}; 
 use super::body::HttpBody;
@@ -29,7 +29,7 @@ impl HttpRequest {
     /// Parses the HTTP request from a stream, returning an `HttpRequest` instance. 
     /// The stream is expected to be a `BufReader` wrapping a `TcpStream`. 
     /// Body will not be parsed 
-    pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &ParseConfig, print_raw: bool) -> Self {
+    pub async fn parse_lazy<R: AsyncRead + Unpin>(stream: &mut BufReader<R>, config: &HttpSafety, print_raw: bool) -> Self {
         match net::parse_lazy(stream, config, true, print_raw).await { 
             Ok((meta, body)) => Self::new(meta, body), 
             Err(_) => Self::default() 
@@ -37,7 +37,7 @@ impl HttpRequest {
     } 
 
     /// Parses the HTTP request body from a stream if the body has not been parsed yet. 
-    pub async fn parse_body<R: AsyncRead + Unpin>(&mut self, reader: &mut BufReader<R>, max_size: usize) {
+    pub async fn parse_body<R: AsyncRead + Unpin>(&mut self, reader: &mut BufReader<R>, config: &HttpSafety) {
         // if let HttpBody::Unparsed = self.body {
         //     self.body = HttpBody::parse(
         //         reader,
@@ -45,7 +45,7 @@ impl HttpRequest {
         //         &mut self.meta,
         //     ).await;
         // }; 
-        let _ = net::parse_body(&mut self.meta, &mut self.body, reader, max_size).await; 
+        let _ = net::parse_body(&mut self.meta, &mut self.body, reader, config).await; 
     } 
 
     /// Add a cookie into the response metadata. 
