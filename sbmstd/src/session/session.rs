@@ -115,7 +115,7 @@ pub fn get_mut<'a>(id: u64) -> Result<SessionRW<'a>, &'static str> {
 
 #[middleware(HttpReqCtx)] 
 pub async fn Session(){ 
-    let ttl = req.app.config::<u64>("session_ttl").unwrap_or(&DEFAULT_TTL).clone(); 
+    let ttl = req.app.config().get::<u64>().unwrap_or(&DEFAULT_TTL).clone(); 
     let mut session_id: u64 = req.get_cookie_or_default("session_id")
         .get_value()
         .parse()

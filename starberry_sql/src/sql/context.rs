@@ -38,6 +38,7 @@ impl SqlContext {
 impl Tx for SqlContext { 
     type Request = (String, Vec<String>);
     type Response = QueryResult;
+    type Config = DbConnectionBuilder;
     type Error = DbError;
 
     async fn process(&mut self, request: Self::Request) -> Result<&mut Self::Response, Self::Error> {
@@ -55,5 +56,13 @@ impl Tx for SqlContext {
             conn.close().await?;
         }
         Ok(())
+    }
+
+    async fn fetch<T: Into<String> + Send + Sync>(_: T, request: Self::Request, config: Self::Config) -> Self::Response {
+        let mut ctx = SqlContext::new(config);
+        match ctx.process(request).await {
+            Ok(res) => res.clone(),
+            Err(e) => QueryResult::Error(e),
+        }
     }
 }

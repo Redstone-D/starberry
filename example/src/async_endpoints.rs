@@ -33,7 +33,7 @@ async fn testa() -> HttpResponse {
 
 #[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("get_serect_key")]))]  
 async fn get_serect_key() -> HttpResponse {
-    text_response(req.app.config::<&str>("serect_key").unwrap_or(&"No key").to_string())  
+    text_response(req.app.config().get::<String>().cloned().unwrap_or("No key".to_string()))  
 }   
 
 #[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("file")]))] 

@@ -16,6 +16,7 @@ use starberry_core::http::start_line::HttpStartLine;
 use starberry_core::http::http_value::HttpVersion;
 use std::collections::HashMap;
 use starberry_core::connection::Tx;
+use starberry_core::http::safety::HttpSafety;
 
 /// HTTP redirect policy configuration.
 #[derive(Debug, Clone)]
@@ -181,7 +182,7 @@ impl OAuthHttpClient for CoreHttpClient {
                     .connect()
                     .await
                     .map_err(|e| Box::new(e) as HttpClientError)?;
-                HttpResCtx::new(conn, host_port.to_string())
+                HttpResCtx::new(conn, HttpSafety::new().with_max_body_size(max_body), host_port.to_string())
             };
             // Build core HttpRequest
             let mut meta = HttpMeta::new(
@@ -211,7 +212,7 @@ impl OAuthHttpClient for CoreHttpClient {
             // Read the full body using the context's reader
             {
                 let reader = &mut ctx.reader;
-                resp_to_parse.parse_body(reader, max_body).await;
+                resp_to_parse.parse_body(reader, &ctx.config).await;
             }
             // Return the context to the pool
             pool.release(ctx).await;

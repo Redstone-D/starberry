@@ -392,6 +392,7 @@ impl DbConnection {
 impl Tx for DbConnection {
     type Request = ();
     type Response = DbConnection;
+    type Config = DbConnectionBuilder;
     type Error = DbError;
 
     async fn process(&mut self, _: Self::Request) -> Result<&mut Self::Response, Self::Error> {
@@ -400,5 +401,9 @@ impl Tx for DbConnection {
 
     async fn shutdown(&mut self) -> Result<(), Self::Error> {
         self.close().await
+    }
+
+    async fn fetch<T: Into<String> + Send + Sync>(_: T, _: Self::Request, config: Self::Config) -> Self::Response {
+        config.connect().await.unwrap()
     }
 }
