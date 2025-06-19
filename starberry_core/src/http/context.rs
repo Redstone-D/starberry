@@ -77,21 +77,31 @@ impl HttpReqCtx {
     /// Runs the endpoint and sending the response.
     pub async fn run(mut self) {
         let endpoint = self.endpoint.clone();
-        self.request_check(&endpoint);
+        if let Err(s) = self.request_check(&endpoint){ 
+            self.response = response_templates::return_status(s);
+            return self.send_response().await; 
+        };
         let parsed = endpoint.run(self);
         parsed.await.send_response().await;
     }
 
     /// Checks whether the request fulfills the endpoint's security requirements.
-    pub fn request_check(&mut self, endpoint: &Arc<Url<HttpReqCtx>>) -> bool {
+    pub fn request_check(&mut self, endpoint: &Arc<Url<HttpReqCtx>>) -> Result<(), StatusCode> {
         let config = endpoint.get_params::<HttpSafety>().unwrap_or_default();
         // println!(
-        //     "Checking request: {:?} ",config
+        //     "Checking request: {:?} {}{} ",config,self.request.meta.method(),config.check_method(&self.request.meta.method())
         // ); 
-        return config.check_body_size(self.request.meta.get_content_length().unwrap_or(0))
-            && config.check_method(&self.request.meta.method())
-            && config
-                .check_content_type(&self.request.meta.get_content_type().unwrap_or_default());
+        if !config.check_body_size(self.request.meta.get_content_length().unwrap_or(0)) { 
+            return Err(StatusCode::PAYLOAD_TOO_LARGE); 
+        } 
+        if !config.check_method(&self.request.meta.method()) { 
+            return Err(StatusCode::METHOD_NOT_ALLOWED); 
+        } 
+        if !config
+                .check_content_type(&self.request.meta.get_content_type().unwrap_or_default()) { 
+            return Err(StatusCode::UNSUPPORTED_MEDIA_TYPE); 
+                } 
+        return Ok(()); 
     }
 
     /// Sends the response
@@ -405,7 +415,7 @@ mod test {
         );
         let _ = request.process(request_templates::get_request("/")).await;
         request.parse_response().await;
-        println!("{:?}, {:?}", request.response.meta, request.response.body);
+        // println!("{:?}, {:?}", request.response.meta, request.response.body);
     }
 
     #[tokio::test]

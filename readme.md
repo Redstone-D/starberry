@@ -362,6 +362,7 @@ async fn redirect() -> HttpResponse {
 - Bug fix for multiple set-cookie headers 
 - Request templates now added with simpler methods for http request 
 - Content Disposition now is available in http_value 
+- Url structed and its constructive macro updated, setting associaled data/config and middleware is possible 
 - **Important Workflow Change** 
     - A build.rs file will be generated automatically from 0.6.3-rc2, `starberry build/run/release` now behaves the same as `cargo build/run` 
 

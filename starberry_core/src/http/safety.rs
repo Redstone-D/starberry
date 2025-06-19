@@ -121,7 +121,7 @@ impl HttpSafety {
         }
     }
     
-    /// Checks if a method is allowed
+    /// Checks if a method is allowed 
     pub fn check_method(&self, method: &HttpMethod) -> bool {
         match &self.allowed_methods {
             Some(methods) => methods.contains(method),

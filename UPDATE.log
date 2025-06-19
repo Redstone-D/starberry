@@ -4,7 +4,7 @@ Content-Disposition header is now supported
 
 Chunked data, compressed request body now can be read. Transmit-Encoding and Content-Encoding headers are now supported 
 
-Now Http Safety Config is moved 
+Now Http Safety Config is moved, url registering macro updated. Now middlewares can be set for single middleware 
 
 Bug fix for Cookie handling in responses and optimization in Header Values 
 
