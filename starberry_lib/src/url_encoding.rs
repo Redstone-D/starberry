@@ -14,10 +14,10 @@ const FORM_URLENCODE_SET: &AsciiSet = &NON_ALPHANUMERIC
 /// ```
 /// use starberry_lib::url_encoding::encode_url_owned; 
 /// let encoded = encode_url_owned("Hello World!");
-/// assert_eq!(encoded, "Hello%20World%21");
+/// assert_eq!(encoded, "Hello+World%21");
 /// ```
 pub fn encode_url_owned(input: &str) -> String {
-    percent_encode(input.as_bytes(), FORM_URLENCODE_SET).to_string()
+    percent_encode(input.as_bytes(), FORM_URLENCODE_SET).to_string().replace("%20", "+")
 }
 
 /// Encodes a string in place for URL safety
@@ -27,7 +27,7 @@ pub fn encode_url_owned(input: &str) -> String {
 /// use starberry_lib::url_encoding::encode_url; 
 /// let mut s = String::from("Hello World!");
 /// encode_url(&mut s);
-/// assert_eq!(s, "Hello%20World%21");
+/// assert_eq!(s, "Hello+World%21");
 /// ```
 pub fn encode_url(input: &mut String) {
     let encoded = encode_url_owned(input);
