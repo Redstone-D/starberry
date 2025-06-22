@@ -283,10 +283,10 @@ pub mod response_templates {
     /// 
     /// let response = response_templates::normal_response(StatusCode::CREATED, "Resource created");
     /// ```
-    pub fn normal_response(status_code: StatusCode, body: impl Into<Vec<u8>>) -> HttpResponse { 
+    pub fn normal_response<S: Into<StatusCode>, B: Into<Vec<u8>>>(status_code: S, body: B) -> HttpResponse { 
         let start_line = HttpStartLine::new_response(
             HttpVersion::Http11, 
-            status_code
+            status_code.into() 
         ); 
         let meta = HttpMeta::new(start_line, HashMap::new()); 
         HttpResponse::new(meta, HttpBody::Binary(body.into())) 
