@@ -117,8 +117,12 @@ impl OAuthClient {
             ("code", code.to_string()),
             ("redirect_uri", redirect_uri.to_string()),
             ("client_id", self.client_id.clone()),
-            ("code_verifier", self.code_verifier.clone()),
         ];
+        // Include PKCE verifier only for public clients (no client_secret)
+        if self.client_secret.is_none() {
+            form.push(("code_verifier", self.code_verifier.clone()));
+        }
+        // Include client_secret for confidential clients
         if let Some(secret) = &self.client_secret {
             form.push(("client_secret", secret.clone()));
         }
