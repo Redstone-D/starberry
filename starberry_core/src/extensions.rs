@@ -842,11 +842,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::any::Any;
     use std::collections::HashMap;
 
-    #[derive(Clone, Debug, PartialEq)]
-    struct User { id: u32, name: String }
+    // #[derive(Clone, Debug, PartialEq)]
+    // struct User { id: u32, name: String }
 
     #[test]
     fn test_param_value_clone_box_and_as_any() {

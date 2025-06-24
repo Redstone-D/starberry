@@ -1,6 +1,5 @@
-pub mod logging; 
 pub mod session; 
 
-pub use logging::PrintLog; 
+pub use starberry_core::app::middleware::LoggingMiddleware as PrintLog; 
 pub use session::Session; 
 pub use session::CookieSession; 

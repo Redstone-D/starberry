@@ -5,8 +5,7 @@ use super::cookie::{Cookie, CookieMap};
 
 use super::http_value::*; 
 use super::start_line::HttpStartLine; 
-use std::collections::{HashMap, HashSet};
-use std::error::Error; 
+use std::collections::{HashMap, HashSet}; 
 use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader}; 
 use std::str; 
 
@@ -547,8 +546,8 @@ impl HttpMeta {
         config: &HttpSafety,
         print_raw: bool,
         is_request: bool,
-    ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
-        let mut headers = Self::header_lines_raw_from_stream(buf_reader, config, print_raw).await?; 
+    ) -> Result<HttpMeta, StatusCode> {
+        let mut headers = Self::header_lines_raw_from_stream(buf_reader, config, print_raw).await.map_err(|_| StatusCode::BAD_REQUEST)?; 
 
         if headers.is_empty() {
             return Err(format!("Empty {}", if is_request { "request" } else { "response" }).into());
@@ -572,12 +571,12 @@ impl HttpMeta {
         buf_reader: &mut BufReader<R>,
         config: &HttpSafety,
         print_raw: bool, 
-    ) -> Result<Vec<String>, Box<dyn Error + Send + Sync>> { 
+    ) -> Result<Vec<String>, StatusCode> { 
         let mut headers = Vec::new();
         let mut total_header_size = 0;
         
         // Try to fill the buffer with a single read first
-        buf_reader.fill_buf().await?;
+        buf_reader.fill_buf().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?; 
 
         // Fast path: Check if we got all headers in one go
         let buffer = buf_reader.buffer();
@@ -616,32 +615,36 @@ impl HttpMeta {
                 println!("Slow path: reading headers line by line");
             }
             
-            loop {
+            loop {  
                 let mut line = String::new();
-                let bytes_read = buf_reader.read_line(&mut line).await?;
+                let bytes_read = buf_reader.read_line(&mut line).await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
                 if print_raw {
                     println!("Read line: {}, buffer: {}", line, bytes_read);
                 }
                 
                 if bytes_read == 0 || line.trim_end().is_empty() {
+                    // println!("[End of headers] No more lines to read, 0 bytes read {}, empty line: {}", bytes_read, line.trim_end().is_empty()); 
                     break; // End of headers
                 }
                 
                 // Reject with an extremely long header line
                 if  !config.check_line_length(line.len()) {
-                    return Err(format!("Header line too long").into());
+                    // println!("[Header line too long] Rejecting line: {}", line); 
+                    return Err(StatusCode::PAYLOAD_TOO_LARGE);
                 } 
                 
                 total_header_size += line.len();
                 
                 // Enforce max header size limit
-                if config.check_header_size(total_header_size) {
-                    return Err(format!("Headers too large").into());
+                if !config.check_header_size(total_header_size) {
+                    // println!("[Headers too large] Total header size: {}, allowed: {}", total_header_size, config.effective_header_size()); 
+                    return Err(StatusCode::PAYLOAD_TOO_LARGE);
                 }
                 
                 // Enforce max number of headers
-                if config.check_headers_count(headers.len()) {
-                    return Err(format!("Too many headers").into());
+                if !config.check_headers_count(headers.len()) {
+                    // println!("[Too many headers] Current header count: {}", headers.len()); 
+                    return Err(StatusCode::PAYLOAD_TOO_LARGE);
                 }
                 
                 // Strip CRLF injection and store the header
@@ -713,7 +716,7 @@ impl HttpMeta {
         buf_reader: &mut BufReader<R>,
         config: &HttpSafety, 
         print_raw: bool, 
-    ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
+    ) -> Result<HttpMeta, StatusCode> {
         Self::from_stream(buf_reader, config, print_raw, true).await 
     } 
 
@@ -722,7 +725,7 @@ impl HttpMeta {
         buf_reader: &mut BufReader<R>,
         config: &HttpSafety, 
         print_raw: bool, 
-    ) -> Result<(), Box<dyn Error + Send + Sync>> {
+    ) -> Result<(), StatusCode> {
         let mut headers = Self::header_lines_raw_from_stream(buf_reader, config, print_raw).await?;
         
         if headers.is_empty() {
@@ -750,7 +753,7 @@ impl HttpMeta {
         buf_reader: &mut BufReader<R>,
         config: &HttpSafety, 
         print_raw: bool, 
-    ) -> Result<HttpMeta, Box<dyn Error + Send + Sync>> {
+    ) -> Result<HttpMeta, StatusCode> {
         Self::from_stream(buf_reader, config, print_raw, false).await 
     }  
     

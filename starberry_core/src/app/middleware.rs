@@ -95,11 +95,28 @@ pub struct LoggingMiddleware;
 impl AsyncMiddleware<HttpReqCtx> for LoggingMiddleware {
     fn handle<'a>(
         &'a self,
-        context: HttpReqCtx, 
-        next: Box<dyn Fn(HttpReqCtx) -> Pin<Box<dyn Future<Output = HttpReqCtx> + Send>> + Send + Sync + 'a>,
+        mut req: HttpReqCtx, 
+        next: Box<dyn Fn(HttpReqCtx) -> Pin<Box<dyn Future<Output = HttpReqCtx> + Send>> + Send + Sync + 'static>,
     ) -> Pin<Box<dyn Future<Output = HttpReqCtx> + Send + 'static>> {
-        println!("Logging: Received request for {}", context.path());
-        next(context) 
+        Box::pin(async move {
+            print!("[Request Received] Method: "); 
+            print!("{}, ", req.method()); 
+            print!("Path: "); 
+            println!("{}, ", req.path()); 
+            if req.meta().get_host() == None { 
+                req.response = crate::http::response::response_templates::normal_response(400, "").content_type(crate::http::http_value::HttpContentType::TextPlain());  
+                println!("[Bad Request] Missing Host Header"); 
+                return req; 
+            }
+            req = next(req).await; 
+            print!("[Request Processed] Method: "); 
+            print!("{}, ", req.method()); 
+            print!("Path: "); 
+            print!("{}, ", req.path()); 
+            print!("Status Code: "); 
+            println!("{}, ", req.response.meta.start_line.status_code()); 
+            req 
+        }) 
     }
     
     fn as_any(&self) -> &dyn Any {

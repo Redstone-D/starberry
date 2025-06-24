@@ -3,6 +3,7 @@ async fn test_https_connection() {
     use super::{Connection, ConnectionBuilder, Protocol, Result};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+    #[allow(dead_code)] 
     const TEST_HTTP_SERVER: &str = "fds.rs";
     const TEST_HTTPS_SERVER: &str = "fds.rs";
 

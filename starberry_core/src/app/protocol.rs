@@ -1,5 +1,5 @@
 use std::{
-    any::{Any, TypeId}, default, future::Future, pin::Pin, sync::Arc
+    any::{Any, TypeId}, future::Future, pin::Pin, sync::Arc
 };
 use tokio::io::{
     AsyncBufReadExt,
@@ -12,11 +12,11 @@ use tokio::io::{
 use crate::{app::{middleware::{AsyncMiddleware, AsyncMiddlewareChain}, urls::{PathPattern, Url}}, connection::{Connection, Rx}, extensions::ParamsClone};
 use super::application::App; 
 
-type TestFn = fn(&[u8]) -> bool;
+// type TestFn = fn(&[u8]) -> bool;
 
-type HandlerFn<R: Rx> =
-    fn(Arc<App>, Arc<Url<R>>, BufReader<ReadHalf<Connection>>, BufWriter<WriteHalf<Connection>>)
-        -> Pin<Box<dyn Future<Output = ()> + Send>>;
+// type HandlerFn<R: Rx> =
+//     fn(Arc<App>, Arc<Url<R>>, BufReader<ReadHalf<Connection>>, BufWriter<WriteHalf<Connection>>)
+//         -> Pin<Box<dyn Future<Output = ()> + Send>>;
 
 /// Internal struct tying a single protocol's detection function (`test`)
 /// to its processing function (`handle`).

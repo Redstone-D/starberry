@@ -39,7 +39,7 @@ impl From<io::Error> for ConnectionError {
 }
 
 impl From<tokio::time::error::Elapsed> for ConnectionError {
-    fn from(err: tokio::time::error::Elapsed) -> Self {
+    fn from(_err: tokio::time::error::Elapsed) -> Self {
         Self::ConnectionTimeout 
     }
 }

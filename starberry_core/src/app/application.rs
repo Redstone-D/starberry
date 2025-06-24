@@ -3,8 +3,8 @@ use core::panic;
 use tokio::net::{TcpListener, TcpStream};
 
 // use starberry_lib::random_string;
-use std::future::Future;
-use std::pin::Pin; 
+// use std::future::Future;
+// use std::pin::Pin; 
 use std::sync::Arc;
 use std::time::Duration;
 // use tokio::runtime::Runtime;
@@ -34,7 +34,7 @@ pub enum RunMode {
     Build,
 }
 
-type Job = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
+// type Job = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
 /// App struct modified to store binding address instead of TcpListener
 pub struct App {
