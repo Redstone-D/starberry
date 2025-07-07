@@ -49,4 +49,6 @@ pub use sm::url;
 pub use sm::middleware; 
 pub use sm::reg; 
 
+pub use starberry_lib; 
+
 pub mod prelude; 

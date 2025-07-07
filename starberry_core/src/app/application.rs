@@ -71,40 +71,76 @@ impl AppBuilder {
         }
     }
 
+    /// Set the binding address for the application 
     pub fn binding<T: Into<String>>(mut self, binding: T) -> Self {
         self.binding_address = Some(binding.into());
         self
     }
 
+    /// Set the handler for the application
     pub fn handler(mut self, protocol: ProtocolRegistryKind) -> Self {
         self.handler = Some(protocol);
         self
-    }
+    } 
 
+    /// Set the handler for the application using a ProtocolRegistryBuilder 
+    pub fn handle(mut self, protocol: ProtocolRegistryBuilder) -> Self { 
+        self.handler = Some(protocol.build());
+        self 
+    } 
+
+    /// Set the handler for the application using a ProtocolHandlerBuilder 
+    /// This works for a single protocol appication 
+    pub fn single_protocol<R: Rx>(mut self, builder: ProtocolHandlerBuilder<R>) -> Self {
+        self.handler = Some(
+            ProtocolRegistryBuilder::new()
+                .protocol(builder)
+                .build(),
+        ); 
+        self 
+    } 
+
+    /// Set the run mode for the application 
     pub fn mode(mut self, mode: RunMode) -> Self {
         self.mode = Some(mode);
         self
     }
 
+    /// This function is currently useless 
     pub fn worker(mut self, threads: usize) -> Self {
         self.worker = Some(threads);
         self
     }
 
+    /// Set the maximum connection time for the application 
     pub fn max_connection_time(mut self, max_connection_time: usize) -> Self {
         self.max_connection_time = Some(max_connection_time);
         self
     } 
 
+    /// Set the FULL LOCAL HASHMAP for the application 
     pub fn statics(mut self, statics: Locals) -> Self {
         self.statics = statics; 
         self
     } 
 
+    /// Set a single static value in the statics map 
+    pub fn set_statics<K: Into<String>, V: Send + Sync + 'static>(mut self, key: K, value: V) -> Self {
+        self.statics.set(key, value);
+        self 
+    } 
+
+    /// Set the FULL PARAMS HASHMAP for the application 
     pub fn config(mut self, config: Params) -> Self {
         self.config = config; 
         self
     } 
+
+    /// Set a single config value in the config map 
+    pub fn set_config<V: Send + Sync + 'static>(mut self, value: V) -> Self { 
+        self.config.set(value);
+        self 
+    }
 
     /// Build method: create the `App`, storing binding address without creating a TcpListener
     pub fn build(self) -> Arc<App> {

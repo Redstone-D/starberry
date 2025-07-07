@@ -289,7 +289,8 @@ pub mod response_templates {
             status_code.into() 
         ); 
         let meta = HttpMeta::new(start_line, HashMap::new()); 
-        HttpResponse::new(meta, HttpBody::Binary(body.into())) 
+        HttpResponse::new(meta, HttpBody::Binary(body.into()))
+          .content_type(HttpContentType::Text { subtype: "plain".to_string(), charset: Some("utf-8".to_string()) }) 
     } 
 
     /// Creates a JSON HTTP response with status 200 OK.

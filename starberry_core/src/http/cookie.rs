@@ -333,10 +333,11 @@ impl Cookie{
         self.max_age = None; 
     } 
 
+    /// Incicates whether the cookie should be sent over secure connections only. 
     pub fn secure(self, secure: bool) -> Self { 
         Self { secure: Some(secure), ..self } 
     } 
-
+    
     pub fn get_secure(&self) -> Option<bool> { 
         self.secure.clone() 
     } 

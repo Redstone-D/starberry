@@ -403,7 +403,7 @@ impl Tx for DbConnection {
         self.close().await
     }
 
-    async fn fetch<T: Into<String> + Send + Sync>(_: T, _: Self::Request, config: Self::Config) -> Self::Response {
-        config.connect().await.unwrap()
+    async fn fetch<T: Into<String> + Send + Sync>(_: T, _: Self::Request, config: Self::Config) -> Result<Self::Response, Self::Error> {
+        config.connect().await 
     }
 }

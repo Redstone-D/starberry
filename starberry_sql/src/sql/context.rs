@@ -58,11 +58,11 @@ impl Tx for SqlContext {
         Ok(())
     }
 
-    async fn fetch<T: Into<String> + Send + Sync>(_: T, request: Self::Request, config: Self::Config) -> Self::Response {
+    async fn fetch<T: Into<String> + Send + Sync>(_: T, request: Self::Request, config: Self::Config) -> Result<Self::Response, Self::Error> {
         let mut ctx = SqlContext::new(config);
         match ctx.process(request).await {
-            Ok(res) => res.clone(),
-            Err(e) => QueryResult::Error(e),
+            Ok(res) => Ok(res.clone()),
+            Err(e) => Err(e), 
         }
     }
 }

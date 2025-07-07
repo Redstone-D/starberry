@@ -38,7 +38,7 @@ where
         Ok(())
     }
 
-    async fn fetch<T: Into<String> + Send + Sync>(_host: T, request: Self::Request, config: Self::Config) -> Self::Response {
-        config.execute(request).await.unwrap()
+    async fn fetch<T: Into<String> + Send + Sync>(_host: T, request: Self::Request, config: Self::Config) -> Result<Self::Response, Self::Error> {
+        config.execute(request).await 
     }
 }

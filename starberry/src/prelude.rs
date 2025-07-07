@@ -19,7 +19,7 @@ pub use crate::HttpMethod::*;
 pub use crate::HttpSafety; 
 pub use crate::{Cookie, CookieMap}; 
 pub use crate::StatusCode; 
-pub use crate::{MultiFormField, MultiFormFieldFile}; 
+pub use crate::{MultiFormField, MultiFormFieldFile, ContentDisposition}; 
 pub use crate::AsyncMiddleware; 
 pub use crate::{Params, ParamsClone, Locals, LocalsClone}; // Always keep this in prelude 
 

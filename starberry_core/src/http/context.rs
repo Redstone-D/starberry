@@ -1,4 +1,5 @@
 use crate::app::{application::App, urls::Url};
+use crate::connection::error::ConnectionError;
 use crate::connection::{Connection, ConnectionBuilder};
 use crate::connection::{Rx, Tx};
 use crate::extensions::{Locals, Params};
@@ -316,32 +317,47 @@ impl HttpResCtx {
         host: T,
         request: HttpRequest,
         safety_config: HttpSafety,
-    ) -> HttpResponse {
-        let host = host.into();
+    ) -> Result<HttpResponse, ConnectionError> { 
         // Test whether the host uses https
-        let is_https = host.starts_with("https://");
-        let host = if is_https {
-            host.trim_start_matches("https://").to_string()
+        let host_str = host.into();
+        let (is_https, without_scheme) = if host_str.starts_with("https://") {
+            (true, host_str.trim_start_matches("https://"))
+        } else if host_str.starts_with("http://") {
+            (false, host_str.trim_start_matches("http://"))
         } else {
-            host.trim_start_matches("http://").to_string()
-        };
-        let connection = ConnectionBuilder::new(
-            &host,
-            match is_https {
-                true => 443,
-                false => 80,
-            },
-        )
-        .protocol(crate::connection::Protocol::HTTP)
-        .tls(is_https)
-        .connect()
-        .await
-        .unwrap();
-        let mut ctx = HttpResCtx::new(connection, safety_config, host);
+            (false, host_str.as_str())
+        }; 
+
+        // Find last colon with trailing digits
+        let mut host_part = without_scheme;
+        let mut port = if is_https { 443 } else { 80 };
+
+        if let Some(colon_pos) = without_scheme.rfind(':') {
+            let port_part = &without_scheme[colon_pos + 1..];
+            
+            // Check if port part is numeric (1-5 digits)
+            if !port_part.is_empty() 
+                && port_part.len() <= 5 
+                && port_part.chars().all(|c| c.is_ascii_digit()) 
+            {
+                if let Ok(parsed_port) = port_part.parse::<u16>() {
+                    port = parsed_port;
+                    host_part = &without_scheme[..colon_pos];
+                }
+            }
+        }
+
+        let connection = ConnectionBuilder::new(host_part, port)
+            .protocol(crate::connection::Protocol::HTTP)
+            .tls(is_https)
+            .connect()
+            .await?; 
+        
+        let mut ctx = HttpResCtx::new(connection, safety_config, host_part);
         ctx.request(request);
         ctx.send().await;
         ctx.parse_response().await;
-        ctx.response
+        Ok(ctx.response) 
     }
 
     pub fn request(&mut self, mut request: HttpRequest) {
@@ -387,8 +403,13 @@ impl Tx for HttpResCtx {
         host: T,
         request: Self::Request,
         config: Self::Config,
-    ) -> Self::Response {
-        Self::send_request(host, request, config).await
+    ) -> Result<Self::Response, Self::Error> {
+        Self::send_request(host, request, config).await.map_err(|e| {
+            std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Failed to send request: {}", e),
+            )
+        }) 
     } 
 }
 
@@ -425,7 +446,8 @@ mod test {
             get_request("/num/change/lhsduifhsjdbczfjgszjdhfgxyjey/36/2"),
             HttpSafety::new().with_max_body_size(25565),
         )
-        .await;
+        .await
+        .unwrap();
         println!("{:?}, {:?}", response.meta, response.body);
     }
 
@@ -436,7 +458,20 @@ mod test {
             get_request("/num/c2"),
             HttpSafety::new().with_max_body_size(25565),
         )
-        .await;
+        .await
+        .unwrap();
+        println!("{:?}, {:?}", response.meta, response.body);
+    }
+
+    #[tokio::test]
+    async fn localhost() {
+        let response = HttpResCtx::send_request(
+            "http://localhost:3003",
+            get_request("/"),
+            HttpSafety::new().with_max_body_size(25565),
+        )
+        .await
+        .unwrap();
         println!("{:?}, {:?}", response.meta, response.body);
     }
 }
