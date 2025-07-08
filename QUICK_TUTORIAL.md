@@ -70,13 +70,102 @@ request.response.parse_body(
 println!("{:?}, {:?}", request.response.meta, request.response.body); 
 ``` 
 
-### Argumented URLs 
+### Protocol Registry 
 
-Two new kinds of url has been introduced in the 0.5 version, which is `PatUrl` and `ArgUrl`. 
+Protocol registry now manages middleware chains and handler registration through a unified API 
 
-Both of them support aliasing url, and you may use the given name to look for them. This solves the problem of we can only get the url segment by inputting index in `HttpReqCtx::get_path()`. We may insert the name in `HttpReqCtx::get_arg()` to look for it 
+The `App` type no longer owns a global `Url` tree or middleware list. 
 
-### Sql support 
+URLs and middleware must now be configured on the **protocol** level during protocol registration. 
+
+You
+
+```rust 
+/// APP only have one inbound protocol 
+pub static APP: SAPP = Lazy::new(|| {
+    App::new()
+        .single_protocol(ProtocolBuilder::<HttpReqCtx>::new()) 
+        .build() 
+});  
+
+
+/// APP need multiple inbound protocols 
+pub static APP_MULTI: SApp = Lazy::new(|| {
+    App::new() 
+        .protocol(HandlerBuilder::new()
+            .protocol(ProtocolBuilder::<HttpReqCtx>::new()) 
+            // .protocol(ProtocolBuilder:: /* .. /* ) <- Add another protocol 
+        )
+        .build() 
+}); 
+``` 
+
+### SQL Support (Starberry SQL v0.6.0)
+
+Starberry now includes first-class PostgreSQL support via the `starberry_sql` crate. This async Rust library provides:
+
+- Simple query building (`SqlQuery`/`sql!` macro)
+- Type-safe row mapping with `FromRow`
+- Connection pooling (`SqlPool`)
+- Full transaction support
+- Prepared statements & batch execution
+
+**Basic Example:**
+```rust
+use starberry_sql::{DbConnectionBuilder, sql, FromRow, SslMode};
+
+#[derive(FromRow)]
+struct User { id: i32, name: String }
+
+#[lit_url(APP, "/users")]
+async fn get_users(mut ctx: HttpReqCtx) -> HttpResponse {
+    let builder = DbConnectionBuilder::new("localhost", 5432)
+        .database("my_db")
+        .ssl_mode(SslMode::Disable);
+    
+    let mut conn = builder.connect().await.unwrap();
+    let users: Vec<User> = sql!("SELECT id, name FROM users")
+        .fetch_all_as(&mut conn)
+        .await
+        .unwrap();
+    
+    json_response(&users)
+} 
+``` 
+
+### Safty setting for APP & Cors support 
+
+We are now able to add config to both APP and urls. For APP, we are able to set the config/static by using methods 
+
+```rust 
+pub static APP: SApp = Lazy::new(|| {
+    App::new()
+        .single_protocol(ProtocolBuilder::<HttpReqCtx>::new() 
+            .append_middleware::<CookieSession>() // Append the cors middleware. The cors middleware's setting is a AppCorsSettings data  
+        ) 
+        .set_config( // Add a config data, which is a TypeID, Any HashMap 
+            prelude::cors_settings::AppCorsSettings::new() // Store a data with the type of AppCorsSettings into config. The middleware will be able to figure this stored data out by using its TypeID 
+        ) 
+        .set_local( // Set a static data, which is a String, Any HashMap. When getting data you need to specify both String and Type 
+            "key": "MySuperSecuredAdminKeyWhichIsSoLongThatCanProtectTheServerFromAnyAttack" 
+        )
+        .build() 
+}); 
+``` 
+
+While for the Url, we are able to store params by using the `#[url]` macro 
+
+```rust 
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("get")]), config=[HttpSafety::new().with_allowed_method(HttpMethod::GET)])]  
+async fn get_only() -> HttpResponse { 
+    text_response("Get only")  
+} 
+
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("post")]), config=[HttpSafety::new().with_allowed_methods(vec![HttpMethod::POST])])]  
+async fn post_only() -> HttpResponse { 
+    text_response("Post only")  
+}
+``` 
 
 ### Unify Http Request and Http Response 
 
@@ -121,23 +210,29 @@ This will automatically creates a folder called HelloStarberry. A minimal starbe
 Go to `src/main.rs`, let's dig dive into each line of code and see what they do. 
 
 ```rust main.rs 
-use starberry::prelude::*;
+use starberry::prelude::*; 
+use example::APP; 
 ``` 
 
 The first line of code shown above imports everything from `starberry::prelude`, this is basically everything you need for a standard starberry project 
 
+After that, we import the APP from lib.rs 
+
+In the tokio environment (note you don't need to import tokio because starberry did that for you automatically), you clone the App instance called APP and run it. 
+
 ```rust main.rs 
+
 #[tokio::main]
 async fn main() {
     APP.clone().run().await;
 } 
 ``` 
 
-In the tokio environment (note you don't need to import tokio because starberry did that for you automatically), you clone the App instance called APP and run it. 
+After putting all things ready in `main.rs`, we need to build APP in `lib.rs`. 
 
-Note that you must clone the instance before running it since APP is a global instance wrapped with Lazy. 
+We define our APP by using Lazy. Note that the type created from `App::build()` is not `App` directly, for simplicity we use `SAPP` for represent some static executable in Starberry 
 
-```rust 
+```rust lib.rs 
 pub static APP: SApp = Lazy::new(|| {
     App::new().build()
 }); 
@@ -161,7 +256,9 @@ This function returns a text HttpResponse which is `Hello from Starberry!`
 
 After compiling the app and run it, you may visit localhost:3003 (the default port for starberry), it will returns "Hello from Starberry!" 
 
-# Chapter 2: Basic URL pattern types 
+# Chapter 2: Register static functions to the APP 
+
+### Basic URL pattern types 
 
 Url is associated with "Patterns" in starberry. Url patterns is an enum consists of 4 types 
 
@@ -214,7 +311,47 @@ Then you may use
 
 To register. 
 
-Note if you use the old pattern, you must use the `.clone` method and add a Reference sign `&` before the TEST_URL. This is the reason why we strongly don't recommand you to use the old grammar. 
+### 
+
+### Associate static data to URL or APP 
+
+We able to add config to both APP and urls 
+
+For APP, we are able to set the config/static by using `APP::set_config::<T>(data: T)` or `APP::set_local::<T>(key: Into String, data: T>)`  
+
+```rust 
+pub static APP: SApp = Lazy::new(|| {
+    App::new()
+        .single_protocol(ProtocolBuilder::<HttpReqCtx>::new() 
+            .append_middleware::<CookieSession>() // Append the cors middleware. The cors middleware's setting is a AppCorsSettings data  
+        ) 
+        .set_config( // Add a config data, which is a TypeID, Any HashMap 
+            prelude::cors_settings::AppCorsSettings::new() // Store a data with the type of AppCorsSettings into config. The middleware will be able to figure this stored data out by using its TypeID 
+        ) 
+        .set_local( // Set a static data, which is a String, Any HashMap. When getting data you need to specify both String and Type 
+            "key": "MySuperSecuredAdminKeyWhichIsSoLongThatCanProtectTheServerFromAnyAttack" 
+        )
+        .build() 
+}); 
+``` 
+
+In order to get the data from APP, we can use 
+
+While for the Url, we are able to store params by using the `#[url]` macro 
+
+```rust 
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("get")]), config=[HttpSafety::new().with_allowed_method(HttpMethod::GET)])]  
+async fn get_only() -> HttpResponse { 
+    text_response("Get only")  
+} 
+
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("post")]), config=[HttpSafety::new().with_allowed_methods(vec![HttpMethod::POST])])]  
+async fn post_only() -> HttpResponse { 
+    text_response("Post only")  
+}
+``` 
+
+
 
 # Chapter 3: Return something dynamic & Introduction to Akari 
 
