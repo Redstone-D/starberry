@@ -422,7 +422,8 @@ mod test {
             request::request_templates::{self, get_request},
             safety::HttpSafety,
         },
-    };
+    }; 
+    
     #[tokio::test]
     async fn request_a_page() {
         let builder = ConnectionBuilder::new("example.com", 443)

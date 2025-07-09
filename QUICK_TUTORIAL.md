@@ -37,7 +37,19 @@ As the diagram shown above, Rx (Receive) and Tx (Transmit) are the 2 most import
 
 This means that you will be able to define your own protocol in App, and very soon you will be able to use socket and ftp in starberry. Currently Http and Sql has been implemented 
 
-For example, you may send an Http request by 
+For Http, a simple method is provided for sending a request to a server 
+
+```rust 
+let response = HttpResCtx::send_request(
+    "https://api.pmine.org",                                        // Host, protocol, port 
+    get_request("/num/change/lhsduifhsjdbczfjgszjdhfgxyjey/36/2"),  // Request content 
+    HttpSafety::new().with_max_body_size(25565),                    // Safety configuration 
+)
+.await
+.unwrap(); 
+``` 
+
+There are also other protocols that does not provide a shortcut or you maybe want to use more advanced settings for http request, you may use the following way 
 
 (1) Building a connection with the server 
 
@@ -51,7 +63,11 @@ let connection = builder.connect().await.unwrap();
 (2) Create a new Tx (HttpResCtx is the struct implemented Tx in Http) 
 
 ```rust 
-let mut request = HttpResCtx::new(connection, "example.com"); 
+let mut request = HttpResCtx::new(
+    connection, 
+    HttpSafety::new().with_max_body_size(25565), 
+    "example.com"
+); 
 ``` 
 
 (3) Insert the request by using the `Tx::prcess()` function 
@@ -353,7 +369,7 @@ Please note that because the APP should be static, so we are not able to set the
 
 # Chapter 3: Return something dynamic & Introduction to Akari 
 
-### Getting the nunmer from the url 
+### Dynamic URL 
 
 Starberry accepts dynamic url pattern, but how we are able to be benefited from this ability? Such as returning the number the user input after `/test/` 
 
@@ -365,7 +381,7 @@ def number_function(number):
     return render(number) 
 ``` 
 
-Unfortunately, due to the support of Regex, starberry don't allow you to define names for each part of the url. 
+Starberry does allow setting names for patterns, however this operation will be finalized in starberry v0.7 
 
 You can only access the url through `req.get_path(<int: The part of the url>)` 
 
@@ -415,6 +431,8 @@ Where you need to add a new file into template folder which is at the same level
 
 So that a header will render the number the user input 
 
+Akari template is a templating language, which wrap its syntax in `-[ ... ]-`. Please read more about that in Akari Template Guide 
+
 ### Akari Json and Introdcution to Akari Templates 
 
 With the build-in ability of reading json files and templating in akari, we can easily manipulate json and render dynamic templates 
@@ -454,11 +472,15 @@ While various of methods are provided to read a value in json.
 
 Be carefun about the difference between `obj.to_string()`, `obj.string()` and `obj.into_json()` 
 
-Akari template is a templating language, which wrap its syntax in `-[ ... ]-`. We will further discuss this in Chapter 9 
+Please read more about Akari Json in Akari Json guide 
 
-# Chapter 4: HttpRequest and HttpResponse 
+# Chapter 4: Quick example: Http Server in Starberry 
 
-# Chapter 5: Deep seek into Http 
+# Chapter 5: Core, Rx, Tx 
+
+# Chapter 6: Application Layout and Introduction of Middlewares 
+
+# Chapter 7: Deep seek into Http 
 
 HttpRequest and HttpResponse consists of two parts, HttpMeta and HttpBody 
 

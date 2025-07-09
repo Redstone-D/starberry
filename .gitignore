@@ -1,6 +1,9 @@
 /target
 /templates
 /programfiles
-Cargo.lock
+Cargo.lock 
+
 .DS_Store
 starberry.toml
+rsgithub 
+rsgithub.pub 
