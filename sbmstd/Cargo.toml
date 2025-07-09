@@ -1,6 +1,6 @@
 [package]
 name = "sbmstd"
-version = "0.6.2"
+version = "0.6.3"
 edition = "2024"
 authors = ["Redstone <redstone@fds.moe>"] 
 description = "Standard Middleware Library for Starberry" 

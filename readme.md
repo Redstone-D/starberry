@@ -10,7 +10,9 @@
 
 Starberry is a lightweight, intuitive web framework focused on simplicity and productivity. It supports regex-based routing, tree-structured URLs, and integrates seamlessly with the Akari templating system.
 
-**[Example project](https://github.com/Field-of-Dreams-Studio/starberry-example/tree/main)**
+**[Example project](https://github.com/Field-of-Dreams-Studio/starberry-example/tree/main)** 
+
+MSRV: 1.86 
 
 ## ✨ Key Features
 
@@ -20,7 +22,7 @@ Starberry is a lightweight, intuitive web framework focused on simplicity and pr
 - **Asynchronous**: Built with Tokio for efficient async handling
 - **Form Handling**: Easy processing of form data and file uploads
 - **Middleware Support**: Create reusable request processing chains 
-- **Multi-Protocal Support**: Starberry is now planning to handle ingoing or outgoing http(s), db and other tcp protocals 
+- **Multi-Protocol Support**: Starberry is now planning to handle ingoing or outgoing http(s), db and other tcp protocals 
 
 ## 🎇 New Features 
 
@@ -103,22 +105,24 @@ URLs and middleware must now be configured on the **protocol** level during prot
 You
 
 ```rust 
-pub static APP: SApp = once_cell::sync::Lazy::new(|| {
+/// APP only have one inbound protocol 
+pub static APP: SAPP = Lazy::new(|| {
+    App::new()
+        .single_protocol(ProtocolBuilder::<HttpReqCtx>::new()) 
+        .build() 
+});  
+
+
+/// APP need multiple inbound protocols 
+pub static APP_MULTI: SApp = Lazy::new(|| {
     App::new() 
         .protocol(HandlerBuilder::new()
             .protocol(ProtocolBuilder::<HttpReqCtx>::new()) 
             // .protocol(ProtocolBuilder:: /* .. /* ) <- Add another protocol 
-            .build() 
         )
         .build() 
 }); 
 ``` 
-
-### Argumented URLs 
-
-Two new kinds of url has been introduced in the 0.5 version, which is `PatUrl` and `ArgUrl`. 
-
-Both of them support aliasing url, and you may use the given name to look for them. This solves the problem of we can only get the url segment by inputting index in `HttpReqCtx::get_path()`. We may insert the name in `HttpReqCtx::get_arg()` to look for it 
 
 ### SQL Support (Starberry SQL v0.6.0)
 
@@ -151,6 +155,40 @@ async fn get_users(mut ctx: HttpReqCtx) -> HttpResponse {
     
     json_response(&users)
 } 
+``` 
+
+### Safty setting for APP & Cors support 
+
+We are now able to add config to both APP and urls. For APP, we are able to set the config/static by using methods 
+
+```rust 
+pub static APP: SApp = Lazy::new(|| {
+    App::new()
+        .single_protocol(ProtocolBuilder::<HttpReqCtx>::new() 
+            .append_middleware::<CookieSession>() // Append the cors middleware. The cors middleware's setting is a AppCorsSettings data  
+        ) 
+        .set_config( // Add a config data, which is a TypeID, Any HashMap 
+            prelude::cors_settings::AppCorsSettings::new() // Store a data with the type of AppCorsSettings into config. The middleware will be able to figure this stored data out by using its TypeID 
+        ) 
+        .set_local( // Set a static data, which is a String, Any HashMap. When getting data you need to specify both String and Type 
+            "key": "MySuperSecuredAdminKeyWhichIsSoLongThatCanProtectTheServerFromAnyAttack" 
+        )
+        .build() 
+}); 
+``` 
+
+While for the Url, we are able to store params by using the `#[url]` macro 
+
+```rust 
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("get")]), config=[HttpSafety::new().with_allowed_method(HttpMethod::GET)])]  
+async fn get_only() -> HttpResponse { 
+    text_response("Get only")  
+} 
+
+#[url(APP.reg_from(&[TEST_URL.clone(), LitUrl("post")]), config=[HttpSafety::new().with_allowed_methods(vec![HttpMethod::POST])])]  
+async fn post_only() -> HttpResponse { 
+    text_response("Post only")  
+}
 ``` 
 
 ### Unify Http Request and Http Response 
@@ -245,11 +283,16 @@ https://fds.rs/starberry/tutorial/0.4.7/
 
 | Version | Download | Notes | 
 | --- | --- | --- | 
-| 0.6.4 | `cargo install starberry@0.6.4` | Mu| 
+| 0.6.4 | `cargo install starberry@0.6.4` | Multi Protocol Support | 
 | 0.4.7 | `cargo install starberry@0.4.7` | Async + Request Context | 
 | 0.3.3 | `cargo install starberry@0.3.3` | Sync Starberry | 
 
 ## 📋 Changelog 
+
+### 0.6.4 
+- Middleware added in core crate to prevent bad request 
+- API optimized & Macro update 
+- Bug fixes for content reading and parsing 
 
 ### 0.6.3 
 - Bug fix for multiple set-cookie headers 
@@ -302,9 +345,9 @@ https://fds.rs/starberry/tutorial/0.4.7/
 
 ## 📚 Learn More
 
-Learn more about Akari template: https://crates.io/crates/akari 
+Learn more about Akari template: https://crates.io/crates/akari/ 
 
-Go to our homepage: https://fds.rs  
+Go to our homepage: https://fds.rs 
 
 ## 📄 License
 
