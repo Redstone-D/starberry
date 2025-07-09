@@ -2,6 +2,12 @@
 name = "starberry_sql"
 version = "0.6.4"
 edition = "2024"
+authors = ["JerrySu5379 <jerrysu@fds.moe>"] 
+description = "SQL Middleware for Starberry" 
+license = "MIT" 
+repository = "https://github.com/Redstone-D/starberry" 
+categories = ["network-programming", "web-programming::http-server"] 
+keywords = ["starberry"]  
 
 [dependencies]
 akari = "0.2.5" 
