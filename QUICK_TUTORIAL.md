@@ -311,8 +311,6 @@ Then you may use
 
 To register. 
 
-### 
-
 ### Associate static data to URL or APP 
 
 We able to add config to both APP and urls 
@@ -351,7 +349,7 @@ async fn post_only() -> HttpResponse {
 }
 ``` 
 
-
+Please note that because the APP should be static, so we are not able to set the config/statics of APP during the runtime. The best practise would be use a config file 
 
 # Chapter 3: Return something dynamic & Introduction to Akari 
 
@@ -443,12 +441,12 @@ Where you can also use
 
 ```rust 
 use akari::object; 
-use akari::Object; // Notice the capital O meaning that Object is a struct not macro 
+use akari::Value; 
 
 let json = r#"{"key": "value", "number": 42, "list": [1, 2, 3]}"#; 
-let obj = Object::from_json(json).expect("Failed to parse JSON"); 
+let obj = Value::from_json(json).expect("Failed to parse JSON"); 
 let dir = "D://test/test.json"; 
-Object::from_jsonf(dir).unwrap_or(Object::None); // Read a json from a file 
+Value::from_jsonf(dir).unwrap_or(Value::None); // Read a json from a file 
 obj.into_jsonf(dir); // Write obj into the dir 
 ``` 
 

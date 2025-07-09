@@ -1,6 +1,6 @@
 # Starberry Web Framework
 
-![Latest Version](https://img.shields.io/badge/version-0.4.7-brightgreen)
+![Latest Version](https://img.shields.io/badge/version-0.6.4-brightgreen)
 [![Crates.io](https://img.shields.io/crates/v/starberry)](https://crates.io/crates/starberry)
 [![MIT License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -120,7 +120,38 @@ Two new kinds of url has been introduced in the 0.5 version, which is `PatUrl` a
 
 Both of them support aliasing url, and you may use the given name to look for them. This solves the problem of we can only get the url segment by inputting index in `HttpReqCtx::get_path()`. We may insert the name in `HttpReqCtx::get_arg()` to look for it 
 
-### Sql support 
+### SQL Support (Starberry SQL v0.6.0)
+
+Starberry now includes first-class PostgreSQL support via the `starberry_sql` crate. This async Rust library provides:
+
+- Simple query building (`SqlQuery`/`sql!` macro)
+- Type-safe row mapping with `FromRow`
+- Connection pooling (`SqlPool`)
+- Full transaction support
+- Prepared statements & batch execution
+
+**Basic Example:**
+```rust
+use starberry_sql::{DbConnectionBuilder, sql, FromRow, SslMode};
+
+#[derive(FromRow)]
+struct User { id: i32, name: String }
+
+#[lit_url(APP, "/users")]
+async fn get_users(mut ctx: HttpReqCtx) -> HttpResponse {
+    let builder = DbConnectionBuilder::new("localhost", 5432)
+        .database("my_db")
+        .ssl_mode(SslMode::Disable);
+    
+    let mut conn = builder.connect().await.unwrap();
+    let users: Vec<User> = sql!("SELECT id, name FROM users")
+        .fetch_all_as(&mut conn)
+        .await
+        .unwrap();
+    
+    json_response(&users)
+} 
+``` 
 
 ### Unify Http Request and Http Response 
 
@@ -192,9 +223,10 @@ project/
 │   ├── config.json 
 │   └── ... 
 └── templates/
-    ├── base.html
-    ├── index.html
-    └── ... 
+│   ├── base.html
+|   ├── index.html
+|   └── ... 
+└── build.rs 
 ``` 
 
 Program file folder is used to store the config of the program data generated during the process of running the program. The files are automatically copied to the `dist` directory when you run `starberry build`. 
@@ -213,7 +245,7 @@ https://fds.rs/starberry/tutorial/0.4.7/
 
 | Version | Download | Notes | 
 | --- | --- | --- | 
-| 0.6.4 | Not released | | 
+| 0.6.4 | `cargo install starberry@0.6.4` | Mu| 
 | 0.4.7 | `cargo install starberry@0.4.7` | Async + Request Context | 
 | 0.3.3 | `cargo install starberry@0.3.3` | Sync Starberry | 
 
