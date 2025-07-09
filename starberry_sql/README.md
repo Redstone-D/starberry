@@ -21,7 +21,7 @@ Add `starberry_sql` to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-starberry_sql = "0.6.0"
+starberry_sql = "0.6.4"
 ```
 
 Then import in your code:
