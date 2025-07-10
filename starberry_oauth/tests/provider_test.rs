@@ -59,6 +59,7 @@ async fn test_in_memory_token_storage() {
         refresh_token: Some("rtoken".to_string()),
         expires_in: 600,
         scope: Some("scope1".to_string()),
+        id_token: None,
     };
     // Access token operations
     storage.store_access_token(&token.access_token, token.clone(), token.expires_in).await.unwrap();

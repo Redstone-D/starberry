@@ -97,6 +97,7 @@ impl TokenManager for JWTTokenManager {
             refresh_token: None,
             expires_in: exp_secs as u64,
             scope: None,
+            id_token: None,
         })
     }
 
@@ -140,6 +141,7 @@ impl TokenManager for JWTTokenManager {
             refresh_token: None,
             expires_in,
             scope: claims.scope,
+            id_token: None,
         })
     }
 } 

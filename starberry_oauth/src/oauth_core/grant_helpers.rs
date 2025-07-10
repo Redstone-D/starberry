@@ -95,6 +95,19 @@ impl<S: TokenStorage> AuthorizationCodePkceFlow<S> {
 }
 
 /// Client Credentials flow helper.
+///
+/// # Example
+///
+/// ```no_run
+/// use starberry_oauth::ClientCredentialsFlow;
+///
+/// let flow = ClientCredentialsFlow::new(
+///     "cid",
+///     "csecret",
+///     "https://auth.local/token",
+///     vec!["scopeA".to_string()]
+/// );
+/// ```
 pub struct ClientCredentialsFlow {
     client_id: String,
     client_secret: String,
@@ -162,7 +175,14 @@ impl ClientCredentialsFlow {
         let refresh_token = v.get("refresh_token").and_then(|t| t.as_str()).map(|s| s.to_string());
         let expires_in = v.get("expires_in").and_then(|t| t.as_u64()).unwrap_or(0);
         let scope = v.get("scope").and_then(|t| t.as_str()).map(|s| s.to_string());
-        Ok(Token { model: TokenModel::BearerOpaque, access_token, refresh_token, expires_in, scope })
+        Ok(Token {
+            model: TokenModel::BearerOpaque,
+            access_token,
+            refresh_token,
+            expires_in,
+            scope,
+            id_token: None,
+        })
     }
 }
 
@@ -230,6 +250,13 @@ impl RefreshTokenFlow {
         let refresh_token = v.get("refresh_token").and_then(|t| t.as_str()).map(|s| s.to_string());
         let expires_in = v.get("expires_in").and_then(|t| t.as_u64()).unwrap_or(0);
         let scope = v.get("scope").and_then(|t| t.as_str()).map(|s| s.to_string());
-        Ok(Token { model: TokenModel::BearerOpaque, access_token, refresh_token, expires_in, scope })
+        Ok(Token {
+            model: TokenModel::BearerOpaque,
+            access_token,
+            refresh_token,
+            expires_in,
+            scope,
+            id_token: None,
+        })
     }
 } 

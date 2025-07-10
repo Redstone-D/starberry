@@ -162,6 +162,7 @@ impl OAuthClient {
             refresh_token,
             expires_in,
             scope,
+            id_token: None,
         })
     }
 } 

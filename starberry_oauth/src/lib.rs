@@ -1,4 +1,10 @@
-pub mod oauth_core; 
+pub mod oauth_core;
+
+#[cfg(feature = "openid")]
+pub mod openid;
+
+#[cfg(feature = "social")]
+pub mod social;
 
 pub use oauth_core::middleware::OAuthLayer;
 pub use oauth_core::memory::{InMemoryClientStore, InMemoryTokenManager, InMemoryAuthorizer, InMemoryTokenStorage};

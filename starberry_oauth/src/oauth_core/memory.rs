@@ -1,4 +1,7 @@
 //! In-memory default implementations for OAuth core traits.
+//! WARNING: This in-memory store is provided for example caching only and does not persist data.
+//!          Stored entries will grow unbounded, which may lead to memory leaks.
+//!          For persistent or production use, consider the SQL-based backend via `OAuthLayer::use_db(...)`.
 
 use std::{sync::Arc, pin::Pin, future::Future};
 use dashmap::DashMap;
@@ -57,6 +60,7 @@ impl TokenManager for InMemoryTokenManager {
             refresh_token: refresh_token.clone(),
             expires_in: 3600,
             scope: None,
+            id_token: None,
         };
         self.tokens.insert(access_token.clone(), token.clone());
         Ok(token)
@@ -110,6 +114,8 @@ pub struct InMemoryTokenStorage {
     refresh_tokens: Arc<RwLock<HashMap<String, String>>>,
     pkce_store: Arc<RwLock<HashMap<String, String>>>,
     csrf_store: Arc<RwLock<HashSet<String>>>,
+    #[cfg(feature = "openid")]
+    nonce_store: Arc<RwLock<HashMap<String, String>>>,
 }
 
 impl InMemoryTokenStorage {
@@ -120,6 +126,8 @@ impl InMemoryTokenStorage {
             refresh_tokens: Arc::new(RwLock::new(HashMap::new())),
             pkce_store: Arc::new(RwLock::new(HashMap::new())),
             csrf_store: Arc::new(RwLock::new(HashSet::new())),
+            #[cfg(feature = "openid")]
+            nonce_store: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 }
@@ -193,4 +201,17 @@ impl TokenStorage for InMemoryTokenStorage {
         guard.remove(state);
         Ok(())
     }
-} 
+    
+    #[cfg(feature = "openid")]
+    async fn store_nonce(&self, state: &str, nonce: &str) -> Result<(), OAuthError> {
+        let mut guard = self.nonce_store.write().await;
+        guard.insert(state.to_string(), nonce.to_string());
+        Ok(())
+    }
+
+    #[cfg(feature = "openid")]
+    async fn get_nonce(&self, state: &str) -> Result<Option<String>, OAuthError> {
+        let guard = self.nonce_store.read().await;
+        Ok(guard.get(state).cloned())
+    }
+}

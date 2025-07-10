@@ -48,6 +48,7 @@ impl TokenManager for DBTokenManager {
             refresh_token,
             expires_in: exp_secs,
             scope: None,
+            id_token: None,
         })
     }
 
@@ -88,6 +89,7 @@ impl TokenManager for DBTokenManager {
             refresh_token,
             expires_in,
             scope,
+            id_token: None,
         })
     }
 } 

@@ -65,4 +65,30 @@ async fn test_refresh_token_flow_in_memory() {
     let new_token = flow.execute(&client, "OLDREF").await.unwrap();
     assert_eq!(new_token.access_token, "NEW123");
     assert!(new_token.refresh_token.is_none());
+}
+
+#[tokio::test]
+async fn test_pkce_flow_exchange_failure() {
+    // Setup PKCE flow and storage
+    let storage = Arc::new(InMemoryTokenStorage::new());
+    let flow = AuthorizationCodePkceFlow::new::<String, String>(
+        "client1".to_string(), Some("secret".to_string()),
+        "https://auth.local/authorize".to_string(), "https://auth.local/token".to_string(),
+        vec!["scope1".to_string()], storage.clone()
+    );
+    let redirect_uri = "https://app.local/callback";
+    flow.initiate(redirect_uri, 3600).await.unwrap();
+
+    // Simulate an error response from the token endpoint
+    let error_json = json!({
+        "error": "invalid_grant",
+        "error_description": "The provided authorization code is invalid or expired."
+    });
+    let resp = HttpResponse { status: 400, headers: vec![], body: serde_json::to_vec(&error_json).unwrap() };
+    let client = InMemoryHttpClient::with_default(resp);
+
+    // Attempt exchange and assert InvalidGrant error
+    let result = flow.exchange(&client, "EXPIRED_CODE", redirect_uri).await;
+    assert!(result.is_err());
+    assert!(matches!(result.unwrap_err(), OAuthError::InvalidGrant));
 } 

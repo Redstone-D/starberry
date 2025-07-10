@@ -145,10 +145,38 @@ impl AsyncMiddleware<HttpReqCtx> for OAuthLayer {
         let client_store = self.client_store.clone();
         let token_manager = self.token_manager.clone();
         let authorizer = self.authorizer.clone();
+        #[cfg(feature = "social")]
+        let social_providers: Vec<Arc<dyn crate::social::provider::ExternalLoginProvider>> = vec![];
 
         Box::pin(async move {
             let full_path = req.path();
             let (path_only, query_string) = if let Some((p, q)) = full_path.split_once('?') { (p, q) } else { (full_path.as_str(), "") };
+            // OpenID Connect discovery endpoints
+            #[cfg(feature = "openid")]
+            if path_only == "/.well-known/openid-configuration" {
+                // let (disc, _) = crate::openid::discovery::DiscoveryCache::new(/* client */, /* url */, /* ttl_secs */).ensure_loaded().await?;
+                // req.response = starberry_core::http::response::response_templates::json_response(disc);
+                return req;
+            }
+            #[cfg(feature = "openid")]
+            if path_only == "/jwks.json" {
+                // let (_, jwks_cache) = crate::openid::discovery::DiscoveryCache::new(/* client */, /* url */, /* ttl_secs */).ensure_loaded().await?;
+                // req.response = starberry_core::http::response::response_templates::json_response(jwks_cache.public_keys());
+                return req;
+            }
+            // Social login start
+            #[cfg(feature = "social")]
+            if let Some(scheme) = path_only.strip_prefix("/login/") {
+                // let redirect_url = social_providers.iter().find(|p| p.scheme() == scheme).unwrap().auth_redirect(&state);
+                // set CSRF/state cookie and respond with redirect
+                return req;
+            }
+            #[cfg(feature = "social")]
+            if let Some(scheme) = path_only.strip_prefix("/login/").and_then(|p| p.strip_suffix("/cb")) {
+                // let user_ctx = social_providers.iter().find(|p| p.scheme() == scheme).unwrap().handle_callback(code, state).await?;
+                // integrator handles linking or signup
+                return req;
+            }
             if path_only == authorize_path {
                 let method = req.meta().method();
                 if method == HttpMethod::GET {
@@ -286,7 +314,12 @@ impl AsyncMiddleware<HttpReqCtx> for OAuthLayer {
                     .map(|s| s.split(' ').map(str::to_string).collect())
                     .unwrap_or_default();
                 let client_id = token.access_token.clone();
-                let oauth_ctx = OAuthContext { client_id, scopes, token: token.clone() };
+                let oauth_ctx = OAuthContext {
+                    client_id,
+                    scopes,
+                    token: token.clone(),
+                    user: None,
+                };
                 req.params.set(oauth_ctx);
             }
             next(req).await

@@ -40,6 +40,7 @@ impl TokenManager for CookieTokenManager {
                     refresh_token: None,
                     expires_in,
                     scope,
+                    id_token: None,
                 })
             }
             _ => {
@@ -54,6 +55,7 @@ impl TokenManager for CookieTokenManager {
                     refresh_token: None,
                     expires_in: ttl,
                     scope: None,
+                    id_token: None,
                 })
             }
         }
@@ -87,6 +89,7 @@ impl TokenManager for CookieTokenManager {
             refresh_token: None,
             expires_in,
             scope,
+            id_token: None,
         })
     }
 } 

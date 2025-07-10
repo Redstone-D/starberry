@@ -6,6 +6,7 @@ use std::pin::Pin;
 use std::future::Future;
 use super::types::{Client, Grant, Token, OAuthError};
 use async_trait::async_trait;
+use super::types::UserContext;
 
 /// Trait for retrieving OAuth2 clients.
 #[async_trait]
@@ -80,6 +81,28 @@ pub trait TokenStorage: Send + Sync + 'static {
 
     /// Delete a CSRF state.
     async fn delete_csrf_state(&self, state: &str) -> Result<(), OAuthError>;
+
+    #[cfg(feature = "openid")]
+    /// Store the nonce keyed by the auth-state
+    async fn store_nonce(&self, state: &str, nonce: &str) -> Result<(), OAuthError>;
+
+    #[cfg(feature = "openid")]
+    /// Retrieve the nonce when exchanging code
+    async fn get_nonce(&self, state: &str) -> Result<Option<String>, OAuthError>;
+}
+
+// OpenID Connect server extension of TokenManager
+#[cfg(feature = "openid")]
+#[async_trait]
+pub trait OidcTokenManager: TokenManager {
+    /// Generate access/refresh *and* an id_token when "openid" scope is present.
+    async fn generate_oidc_token(
+        &self,
+        grant: Grant,
+        user: &UserContext,
+        client: &Client,
+        nonce: Option<String>,
+    ) -> Result<Token, OAuthError>;
 }
 
 // TODO: Implement OAuth2 core functionality. 

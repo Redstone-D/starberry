@@ -73,6 +73,8 @@ pub struct Token {
     pub expires_in: u64,
     /// Optional granted scopes.
     pub scope: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id_token: Option<String>,
 }
 
 /// Core OAuth2 error kinds.
@@ -109,6 +111,18 @@ pub struct OAuthContext {
     pub scopes: Vec<String>,
     /// The underlying token information.
     pub token: Token,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user: Option<UserContext>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct UserContext {
+    /// “sub” claim: the user’s unique identifier
+    pub subject: String,
+    pub email: Option<String>,
+    pub email_verified: Option<bool>,
+    pub name: Option<String>,
+    pub picture: Option<String>,
 }
 
 // Robust error-to-response mapping
@@ -146,5 +160,33 @@ impl OAuthError {
         resp.meta.set_content_type(HttpContentType::ApplicationJson());
         resp.meta.start_line = HttpStartLine::new_response(HttpVersion::Http11, status);
         resp
+    }
+}
+
+/// Splits a whitespace-delimited scope string into individual scope tokens.
+pub fn parse_scopes(scope_str: &str) -> Vec<String> {
+    scope_str.split_whitespace().map(String::from).collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_scope_parsing() {
+        let scopes = parse_scopes("openid profile email");
+        assert_eq!(scopes, vec!["openid", "profile", "email"]);
+    }
+
+    #[test]
+    fn test_scope_parsing_with_extra_whitespace() {
+        let scopes = parse_scopes("  read  write ");
+        assert_eq!(scopes, vec!["read", "write"]);
+    }
+
+    #[test]
+    fn test_scope_parsing_empty() {
+        let scopes = parse_scopes("");
+        assert!(scopes.is_empty());
     }
 } 
