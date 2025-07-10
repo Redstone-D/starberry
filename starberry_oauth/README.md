@@ -9,6 +9,10 @@
 - JWT (HS256/RS256) issuance and validation with JWKS caching
 - Structured `tracing` instrumentation
 - Robust error handling with JSON responses
+- Feature flags to enable optional plugins with zero runtime cost when disabled:
+  - `oauth2` (default): pure OAuth2 core
+  - `openid`: OpenID Connect server support (discovery, JWKS, id_token, userinfo)
+  - `social`: Social login plugin (ExternalLoginProvider for upstream OAuth2/OIDC)
 
 ## Installation
 
@@ -16,57 +20,71 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-starberry_oauth = { path = "../starberry_oauth" }
-``` 
+starberry_oauth = { version = "0.6.4", features = ["openid", "social"] }
+```
 
-## Configuration (`starberry.toml`)
+Use `--no-default-features` or selective features to enable only what you need:
 
-See [starberry.toml](../starberry.toml) for a complete example.  It covers:
-
-- Default token TTLs
-- OAuth2 provider entries
-- Store backends (in-memory, database, redis)
-- JWKS cache settings
-- Rate-limiter settings
+```bash
+cargo build --no-default-features # only core OAuth2
+cargo build --features openid      # core + OpenID Connect
+cargo build --features social      # core + Social login
+cargo build --all-features         # all plugins enabled
+```
 
 ## Quick Start
 
-In your `main.rs`:
+In your `main.rs`, configure the OAuth middleware and attach to your `starberry_core` application:
 
 ```rust
-use starberry_core::App;
-use starberry_oauth::oauth_core::{OAuthLayer, JWTTokenManager, JwksCache};
-use starberry_oauth::oauth_core::http_client::CoreHttpClient;
+use std::sync::Arc;
+use starberry_core::app::application::App;
+use starberry_core::app::protocol::ProtocolHandlerBuilder;
+use starberry_core::http::context::HttpReqCtx;
+use starberry_oauth::{OAuthLayer, InMemoryClientStore, InMemoryTokenManager};
 
 #[tokio::main]
 async fn main() {
-    // Load config from `starberry.toml`...
+    // Build OAuth2 middleware with in-memory stores
+    let oauth_layer = OAuthLayer::new()
+        .client_store(Arc::new(InMemoryClientStore::new(vec![])))
+        .token_manager(Arc::new(InMemoryTokenManager::new()));
 
-    // HTTP client and JWKS cache
-    let http = CoreHttpClient::new(50, 1024 * 1024);
-    let jwks = JwksCache::new(http.clone(), jwks_url, Duration::from_secs(600)).await.unwrap();
+    // Attach middleware and run app
+    let app = App::new()
+        .single_protocol(
+            ProtocolHandlerBuilder::<HttpReqCtx>::new()
+                .append_middleware::<OAuthLayer>()
+        )
+        .build();
 
-    // JWT manager
-    let jwt_mgr = JWTTokenManager::new_rs256(&priv_pem, &pub_pem, 3600)
-        .with_claims(issuer, audience)
-        .with_jwks(jwks);
-
-    // Build OAuth middleware
-    let oauth = OAuthLayer::new()
-        .client_store(in_memory_client_store)
-        .token_manager(Arc::new(jwt_mgr))
-        .authorize_endpoint("/oauth/authorize")
-        .token_endpoint("/oauth/token");
-
-    // App pipeline
-    App::new()
-        .with_middleware(oauth)
-        .run("0.0.0.0:8080")
-        .await;
+    app.run().await;
 }
 ```
 
+## Examples
+
+The crate includes example programs under `examples/`:
+
+- `minimal.rs`    — pure OAuth2 server example
+- `openid.rs`     — OpenID Connect server example (`--features openid`)
+- `social.rs`     — Social login stub example (`--features social`)
+
+Run them with:
+
+```bash
+cargo run --example minimal
+cargo run --example openid --features openid
+cargo run --example social --features social
+```
+
 ## Testing
+
+Run all tests, including integration, unit, doc, and feature-gated tests:
+
+```bash
+cargo test --all-features
+```
 
 ### OAuth2 Compliance
 
